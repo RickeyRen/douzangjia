@@ -11,16 +11,20 @@ from pydantic import BaseModel, Field
 
 from .config import Settings
 from .db import Database
+from .repositories import ArchiveRepository, JobRepository
 from .security import CookieCipher, PasswordHasher
 
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-CSRF_EXEMPT_PATHS = {"/api/setup", "/api/session"}
 
 
 class SetupRequest(BaseModel):
     password: str = Field(min_length=12, max_length=256)
+
+
+class SessionRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
 
 
 class AdminStore:
@@ -45,6 +49,16 @@ class AdminStore:
         os.chmod(temporary, 0o600)
         temporary.replace(self.path)
 
+    def password_hash(self) -> str | None:
+        if not self.configured:
+            return None
+        try:
+            value = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        encoded = value.get("passwordHash") if isinstance(value, dict) else None
+        return str(encoded) if encoded else None
+
 
 def _prepare_directories(root: Path) -> None:
     for relative in ("data", "objects", "library", "tmp"):
@@ -59,13 +73,16 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         _prepare_directories(settings.archive_root)
-        owned_database = None
+        owned_database = Database(settings.archive_root / "data" / "archive.sqlite3")
+        await owned_database.open()
+        application.state.database = owned_database
+        application.state.archive_repository = ArchiveRepository(owned_database)
+        application.state.job_repository = JobRepository(owned_database)
+        owns_auth_service = auth_service is None
         if auth_service is None:
             from .auth_browser import AuthBrowser
             from .auth_service import AuthService
 
-            owned_database = Database(settings.archive_root / "data" / "archive.sqlite3")
-            await owned_database.open()
             application.state.auth_service = AuthService(
                 owned_database,
                 cipher,
@@ -76,39 +93,77 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
         try:
             yield
         finally:
-            if owned_database is not None:
+            if owns_auth_service:
                 await application.state.auth_service.close()
-                await owned_database.close()
+            await owned_database.close()
 
     app = FastAPI(title="Douyin NAS Archive", lifespan=lifespan)
     app.state.settings = settings
     app.state.admin_store = admin_store
 
+    def decode_session(request: Request) -> bool:
+        token = request.cookies.get(SESSION_COOKIE)
+        if not token:
+            return False
+        try:
+            session = cipher.decrypt(token)
+            return bool(
+                isinstance(session, dict)
+                and session.get("sub") == "admin"
+                and session.get("expiresAt", 0) > int(time.time())
+            )
+        except (ValueError, AttributeError, TypeError):
+            return False
+
+    def issue_session(response: Response) -> None:
+        csrf_token = secrets.token_urlsafe(32)
+        session = cipher.encrypt(
+            {
+                "sub": "admin",
+                "expiresAt": int(time.time()) + settings.session_ttl_seconds,
+            }
+        ).decode("ascii")
+        response.set_cookie(
+            SESSION_COOKIE,
+            session,
+            httponly=True,
+            samesite="strict",
+            secure=settings.secure_cookies,
+            max_age=settings.session_ttl_seconds,
+        )
+        response.set_cookie(
+            CSRF_COOKIE,
+            csrf_token,
+            httponly=False,
+            samesite="strict",
+            secure=settings.secure_cookies,
+            max_age=settings.session_ttl_seconds,
+        )
+
     @app.middleware("http")
     async def csrf_guard(request: Request, call_next):
         is_mutation = request.method not in SAFE_METHODS
         is_api = request.url.path.startswith("/api/")
-        if is_mutation and is_api and request.url.path not in CSRF_EXEMPT_PATHS:
-            session_token = request.cookies.get(SESSION_COOKIE)
-            if session_token:
-                try:
-                    session = cipher.decrypt(session_token)
-                    session_valid = session.get("expiresAt", 0) > int(time.time())
-                except (ValueError, AttributeError):
-                    session_valid = False
-                if session_valid:
-                    csrf_cookie = request.cookies.get(CSRF_COOKIE)
-                    csrf_header = request.headers.get("X-CSRF-Token")
-                    if not csrf_cookie or not secrets.compare_digest(
-                        csrf_cookie, csrf_header or ""
-                    ):
-                        return JSONResponse(
-                            status_code=403,
-                            content={
-                                "code": "CSRF_REQUIRED",
-                                "message": "缺少或无效的 CSRF 令牌",
-                            },
-                        )
+        setup_path = request.url.path == "/api/setup"
+        login_path = request.url.path == "/api/session" and request.method == "POST"
+        protected = is_api and admin_store.configured and not setup_path and not login_path
+        session_valid = decode_session(request)
+        if protected and not session_valid:
+            return JSONResponse(
+                status_code=401,
+                content={"code": "AUTH_REQUIRED", "message": "需要本地管理员登录"},
+            )
+        if is_mutation and protected:
+            csrf_cookie = request.cookies.get(CSRF_COOKIE)
+            csrf_header = request.headers.get("X-CSRF-Token")
+            if not csrf_cookie or not secrets.compare_digest(csrf_cookie, csrf_header or ""):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "code": "CSRF_REQUIRED",
+                        "message": "缺少或无效的 CSRF 令牌",
+                    },
+                )
         return await call_next(request)
 
     @app.get("/health/live")
@@ -139,30 +194,25 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
                 content={"code": "ALREADY_CONFIGURED", "message": "管理员已配置"},
             )
 
-        csrf_token = secrets.token_urlsafe(32)
-        session = cipher.encrypt(
-            {
-                "sub": "admin",
-                "expiresAt": int(time.time()) + settings.session_ttl_seconds,
-            }
-        ).decode("ascii")
-        response.set_cookie(
-            SESSION_COOKIE,
-            session,
-            httponly=True,
-            samesite="strict",
-            secure=settings.secure_cookies,
-            max_age=settings.session_ttl_seconds,
-        )
-        response.set_cookie(
-            CSRF_COOKIE,
-            csrf_token,
-            httponly=False,
-            samesite="strict",
-            secure=settings.secure_cookies,
-            max_age=settings.session_ttl_seconds,
-        )
+        issue_session(response)
         return {"configured": True}
+
+    @app.post("/api/session")
+    async def login(payload: SessionRequest, response: Response):
+        encoded = admin_store.password_hash()
+        if encoded is None or not password_hasher.verify(encoded, payload.password):
+            return JSONResponse(
+                status_code=401,
+                content={"code": "INVALID_CREDENTIALS", "message": "密码不正确"},
+            )
+        issue_session(response)
+        return {"authenticated": True}
+
+    @app.delete("/api/session")
+    async def logout(response: Response) -> dict[str, bool]:
+        response.delete_cookie(SESSION_COOKIE)
+        response.delete_cookie(CSRF_COOKIE)
+        return {"authenticated": False}
 
     @app.post("/api/protected-test")
     async def protected_test() -> dict[str, bool]:
@@ -211,5 +261,13 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
                 content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
             )
         return status.as_public_dict()
+
+    from .routes.feed import router as feed_router
+    from .routes.jobs import router as jobs_router
+    from .routes.media import router as media_router
+
+    app.include_router(feed_router)
+    app.include_router(jobs_router)
+    app.include_router(media_router)
 
     return app
