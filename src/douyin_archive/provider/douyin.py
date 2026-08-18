@@ -217,7 +217,7 @@ class PlaywrightDouyinSource:
                         )
                     return {**last_payload, "collects_list": records}
             if attempt < 2:
-                await self._page.wait_for_timeout(1_000)
+                await asyncio.sleep(1)
         return last_payload
 
     async def _iter_collection_api(self, remote_id: str) -> AsyncIterator[dict]:
@@ -243,7 +243,7 @@ class PlaywrightDouyinSource:
                 except ProviderChanged:
                     if attempt == 2:
                         raise
-                    await self._page.wait_for_timeout(1_000)
+                    await asyncio.sleep(1)
                 else:
                     break
             yield payload

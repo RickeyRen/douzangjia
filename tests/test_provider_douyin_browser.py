@@ -198,12 +198,13 @@ async def test_browser_api_evaluate_has_an_outer_timeout(
         await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
 
 
-async def test_collection_page_retries_a_transient_browser_timeout() -> None:
+async def test_collection_page_retries_a_transient_browser_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class TransientPage(FakePage):
         def __init__(self) -> None:
             super().__init__()
             self.attempts = 0
-            self.waits: list[int] = []
 
         async def evaluate(self, script: str, arguments: dict) -> dict:
             self.attempts += 1
@@ -216,20 +217,25 @@ async def test_collection_page_retries_a_transient_browser_timeout() -> None:
                 "has_more": 0,
             }
 
-        async def wait_for_timeout(self, milliseconds: int) -> None:
-            self.waits.append(milliseconds)
-
     source = PlaywrightDouyinSource(FakeCoordinator())
     source._page = TransientPage()
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(douyin_module.asyncio, "sleep", record_sleep)
 
     pages = [page async for page in source._iter_collection_api("2001")]
 
     assert pages[0]["aweme_list"][0]["aweme_id"] == "recovered"
     assert source._page.attempts == 2
-    assert source._page.waits == [1_000]
+    assert sleeps == [1]
 
 
-async def test_collection_api_retries_empty_transient_response() -> None:
+async def test_collection_api_retries_empty_transient_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class TransientPage(FakePage):
         def __init__(self) -> None:
             super().__init__()
@@ -241,16 +247,20 @@ async def test_collection_api_retries_empty_transient_response() -> None:
                 return {"status_code": 0}
             return {"status_code": 0, "collects_list": [], "has_more": False}
 
-        async def wait_for_timeout(self, milliseconds: int) -> None:
-            assert milliseconds == 1_000
-
     source = PlaywrightDouyinSource(FakeCoordinator())
     source._page = TransientPage()
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(douyin_module.asyncio, "sleep", record_sleep)
 
     payload = await source._fetch_collections_api()
 
     assert "collects_list" in payload
     assert source._page.attempts == 2
+    assert sleeps == [1]
 
 
 def test_payload_shape_never_contains_response_values() -> None:
