@@ -309,6 +309,15 @@ class AuthBrowser:
         session = self._sessions[login_id]
         await replay_pointer(session.page, session.pointer_gesture, action, x, y)
 
+    async def key(self, login_id: str, key: str) -> None:
+        if key not in {*"0123456789", "Backspace", "Enter", "Tab"}:
+            raise ValueError("unsupported keyboard key")
+        session = self._sessions[login_id]
+        if len(key) == 1:
+            await session.page.keyboard.insert_text(key)
+        else:
+            await session.page.keyboard.press(key)
+
     async def close(self, login_id: str) -> None:
         session = self._sessions.pop(login_id, None)
         if session is None:

@@ -1,10 +1,17 @@
 import { QrCode, ShieldCheck } from "@phosphor-icons/react";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import {
   beginDouyinLogin,
   douyinStreamUrl,
   getDouyinLogin,
+  submitDouyinKey,
   submitDouyinPointer,
   type LoginStatus,
   type PointerPoint,
@@ -86,6 +93,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     activePointer.current = event.pointerId;
     lastMoveAt.current = 0;
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.currentTarget.focus();
     setDragging(true);
     setInteracting(true);
     forwardPointer("down", normalizedPoint(event));
@@ -117,6 +125,23 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     void pointerQueue.current.finally(() => setInteracting(false));
   }
 
+  function forwardKey(key: string) {
+    if (!status) return;
+    const id = status.id;
+    pointerQueue.current = pointerQueue.current
+      .catch(() => undefined)
+      .then(() => submitDouyinKey(id, key))
+      .then(() => undefined)
+      .catch(() => setError(true));
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLImageElement>) {
+    const allowed = /^[0-9]$/.test(event.key) || ["Backspace", "Enter", "Tab"].includes(event.key);
+    if (!allowed) return;
+    event.preventDefault();
+    forwardKey(event.key);
+  }
+
   const statusText =
     status?.state === "authenticated"
       ? t("loginSuccess")
@@ -138,11 +163,13 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
             src={douyinStreamUrl(status.id)}
             alt={t("qrAlt")}
             draggable={false}
+            tabIndex={0}
             onDragStart={(event) => event.preventDefault()}
             onPointerDown={startDrag}
             onPointerMove={continueDrag}
             onPointerUp={(event) => void finishDrag(event)}
             onPointerCancel={cancelDrag}
+            onKeyDown={handleKeyDown}
           />
         </div>
 

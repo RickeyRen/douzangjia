@@ -61,6 +61,13 @@ class PointerRequest(BaseModel):
     y: float = Field(ge=0, le=1)
 
 
+class KeyRequest(BaseModel):
+    key: Literal[
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "Backspace", "Enter", "Tab",
+    ]
+
+
 class AdminStore:
     """Small first-boot credential store; the database layer replaces this facade later."""
 
@@ -401,6 +408,24 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             await request.app.state.auth_service.pointer(
                 login_id, payload.action, payload.x, payload.y
             )
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "LOGIN_NOT_INTERACTIVE", "message": "登录画面已不可操作"},
+            )
+        return {"accepted": True}
+
+    @app.post("/api/douyin/login/{login_id}/key", status_code=202)
+    async def key_douyin_login(
+        login_id: str, payload: KeyRequest, request: Request
+    ):
+        try:
+            await request.app.state.auth_service.key(login_id, payload.key)
         except KeyError:
             return JSONResponse(
                 status_code=404,

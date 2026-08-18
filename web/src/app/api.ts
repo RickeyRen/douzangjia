@@ -120,6 +120,11 @@ export const submitDouyinPointer = (id: string, event: PointerEventPayload) =>
     method: "POST",
     body: JSON.stringify(event),
   });
+export const submitDouyinKey = (id: string, key: string) =>
+  request<{ accepted: boolean }>(`/api/douyin/login/${id}/key`, {
+    method: "POST",
+    body: JSON.stringify({ key }),
+  });
 export const triggerSync = (fullScan = false) =>
   request<{ runId: number }>("/api/sync", {
     method: "POST",

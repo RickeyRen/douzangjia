@@ -14,6 +14,7 @@ class FakeAuthService:
         )
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
         self.pointer_events: list[tuple[str, str, float, float]] = []
+        self.keys: list[tuple[str, str]] = []
         self.status_refresh_modes: list[bool] = []
         self.frames = [b"\xff\xd8live-frame\xff\xd9"]
 
@@ -46,6 +47,9 @@ class FakeAuthService:
 
     async def pointer(self, login_id: str, action: str, x: float, y: float) -> None:
         self.pointer_events.append((login_id, action, x, y))
+
+    async def key(self, login_id: str, key: str) -> None:
+        self.keys.append((login_id, key))
 
 
 def authenticated_client(tmp_path: Path, master_key: str) -> tuple[TestClient, str]:
@@ -169,3 +173,27 @@ def test_pointer_route_requires_csrf_and_forwards_each_live_event(
     assert accepted.status_code == 202
     assert accepted.json() == {"accepted": True}
     assert service.pointer_events == [("login-1", "down", 0.5, 0.4)]
+
+
+def test_keyboard_route_allows_digits_and_rejects_unapproved_keys(
+    tmp_path: Path, master_key: str
+) -> None:
+    client, csrf = authenticated_client(tmp_path, master_key)
+    try:
+        accepted = client.post(
+            "/api/douyin/login/login-1/key",
+            json={"key": "7"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        rejected = client.post(
+            "/api/douyin/login/login-1/key",
+            json={"key": "Control+V"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        service = client.app.state.auth_service
+    finally:
+        client.__exit__(None, None, None)
+
+    assert accepted.status_code == 202
+    assert rejected.status_code == 422
+    assert service.keys == [("login-1", "7")]

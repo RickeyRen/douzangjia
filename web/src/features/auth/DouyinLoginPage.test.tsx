@@ -9,6 +9,7 @@ vi.mock("../../app/api", () => ({
   beginDouyinLogin: vi.fn(),
   getDouyinLogin: vi.fn(),
   submitDouyinPointer: vi.fn(),
+  submitDouyinKey: vi.fn(),
   douyinQrUrl: vi.fn((id: string) => `/api/douyin/login/${id}/qr.png`),
   douyinStreamUrl: vi.fn((id: string) => `/api/douyin/login/${id}/stream.mjpeg`),
 }));
@@ -91,5 +92,30 @@ it("forwards pointer down, move, and up while the gesture is happening", async (
       x: 0.9,
       y: 0.4,
     });
+  });
+});
+
+it("forwards OTP digits and editing keys while the live image is focused", async () => {
+  const awaiting = {
+    id: "login-1",
+    state: "awaiting_scan" as const,
+    expiresAt: "2026-08-18T12:00:00Z",
+    hasScreenshot: true,
+  };
+  vi.mocked(api.beginDouyinLogin).mockResolvedValue(awaiting);
+  vi.mocked(api.submitDouyinKey).mockResolvedValue({ accepted: true });
+  const user = userEvent.setup();
+  render(<DouyinLoginPage />);
+  await user.click(screen.getByRole("button", { name: "登录抖音" }));
+  const image = await screen.findByAltText("抖音登录二维码");
+
+  image.focus();
+  await user.keyboard("07{Backspace}{Enter}");
+
+  await vi.waitFor(() => {
+    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(1, "login-1", "0");
+    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(2, "login-1", "7");
+    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(3, "login-1", "Backspace");
+    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(4, "login-1", "Enter");
   });
 });

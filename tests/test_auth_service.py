@@ -19,6 +19,7 @@ class FakeAuthBrowser:
         self.closed: list[str] = []
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
         self.pointer_events: list[tuple[str, str, float, float]] = []
+        self.keys: list[tuple[str, str]] = []
         self.poll_modes: list[bool] = []
         self.jpeg_frame = b"\xff\xd8live-frame\xff\xd9"
 
@@ -53,6 +54,9 @@ class FakeAuthBrowser:
 
     async def pointer(self, login_id: str, action: str, x: float, y: float) -> None:
         self.pointer_events.append((login_id, action, x, y))
+
+    async def key(self, login_id: str, key: str) -> None:
+        self.keys.append((login_id, key))
 
 
 @pytest.fixture
@@ -137,6 +141,15 @@ async def test_pointer_event_is_forwarded_without_waiting_for_a_screenshot(
     await service.pointer("login-1", "down", 0.5, 0.4)
 
     assert browser.pointer_events == [("login-1", "down", 0.5, 0.4)]
+
+
+async def test_keyboard_event_is_forwarded_to_the_active_login(auth_components) -> None:
+    service, browser, _ = auth_components
+    await service.begin_login()
+
+    await service.key("login-1", "7")
+
+    assert browser.keys == [("login-1", "7")]
 
 
 async def test_status_poll_can_skip_expensive_screenshot_refresh(auth_components) -> None:

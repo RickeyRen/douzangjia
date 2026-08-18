@@ -63,6 +63,8 @@ class AuthBrowserProtocol(Protocol):
         self, login_id: str, action: str, x: float, y: float
     ) -> None: ...
 
+    async def key(self, login_id: str, key: str) -> None: ...
+
     async def close(self, login_id: str) -> None: ...
 
     async def cancel(self, login_id: str) -> None: ...
@@ -237,6 +239,12 @@ class AuthService:
         if status.state not in {"starting", "awaiting_scan"}:
             raise ValueError("login session is not interactive")
         await self.browser.pointer(login_id, action, x, y)
+
+    async def key(self, login_id: str, key: str) -> None:
+        status = self._get(login_id)
+        if status.state not in {"starting", "awaiting_scan"}:
+            raise ValueError("login session is not interactive")
+        await self.browser.key(login_id, key)
 
     async def load_cookies(self) -> list[dict[str, object]] | None:
         row = await self.database.fetchone(
