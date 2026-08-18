@@ -28,7 +28,7 @@ def test_docker_image_exposes_the_installed_full_chromium() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert "PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/local/bin/douyin-chromium" in dockerfile
-    assert "chrome-linux/chrome" in dockerfile
+    assert "chrome-linux*/chrome" in dockerfile
 
 
 def test_docker_image_bypasses_the_broken_nas_hub_mirror() -> None:

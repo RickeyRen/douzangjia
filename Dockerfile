@@ -22,7 +22,7 @@ COPY src/ ./src/
 RUN pip install --no-cache-dir ".[browser,worker]" \
     && playwright install --with-deps --no-shell chromium \
     && chmod -R a+rX /app /ms-playwright
-RUN find /ms-playwright -path '*/chrome-linux/chrome' -type f \
+RUN find /ms-playwright -path '*/chrome-linux*/chrome' -type f \
     -exec ln -s {} /usr/local/bin/douyin-chromium \; -quit \
     && test -x /usr/local/bin/douyin-chromium
 COPY --from=web-builder /build/web/dist/ /app/web-dist/
