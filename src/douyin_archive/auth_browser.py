@@ -43,11 +43,37 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
             handle = await surface.evaluate_handle(
                 """
                 ({x, y}) => {
-                  const hit = document.elementFromPoint(x, y);
-                  if (!hit) return null;
-                  return hit.closest(
-                    'button, a, [role="button"], [onclick], input, label'
-                  ) || hit;
+                  const stack = document.elementsFromPoint(x, y);
+                  const selector = [
+                    'button', 'a', '[role="button"]', '[onclick]',
+                    'input', 'label', '[tabindex]'
+                  ].join(',');
+                  const ancestors = (hit) => {
+                    const nodes = [];
+                    for (
+                      let node = hit;
+                      node && node !== document.documentElement;
+                      node = node.parentElement
+                    ) nodes.push(node);
+                    return nodes;
+                  };
+                  const hasReactClick = (node) => Object.keys(node).some(
+                    (key) => key.startsWith('__reactProps$') &&
+                      typeof node[key]?.onClick === 'function'
+                  );
+                  for (const hit of stack) {
+                    const candidate = ancestors(hit).find(
+                      (node) => node.matches(selector) || hasReactClick(node)
+                    );
+                    if (candidate) return candidate;
+                  }
+                  for (const hit of stack) {
+                    const candidate = ancestors(hit).find(
+                      (node) => getComputedStyle(node).cursor === 'pointer'
+                    );
+                    if (candidate) return candidate;
+                  }
+                  return stack[0] || null;
                 }
                 """,
                 {"x": local_x, "y": local_y},
@@ -62,11 +88,13 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
                 try:
                     await element.click(timeout=2_000)
                 except PlaywrightError:
-                    # Douyin occasionally inserts a verification overlay between
-                    # hit-testing and Playwright's actionability check. A native
-                    # coordinate click targets the topmost visible surface and
-                    # preserves the user's trusted pointer action across frames.
-                    await page.mouse.click(x, y)
+                    try:
+                        # Douyin inserts a transparent verification overlay above
+                        # React click targets. Dispatch to the chosen target when
+                        # Playwright's actionability check sees that overlay.
+                        await element.dispatch_event("click")
+                    except PlaywrightError:
+                        await page.mouse.click(x, y)
                 return
             bounds = await element.evaluate(
                 "element => { const rect = element.getBoundingClientRect(); "

@@ -41,6 +41,7 @@ class RecordingPage:
         self.waits: list[int] = []
         self.element_clicks: list[tuple[float, float]] = []
         self.hit_tests: list[tuple[float, float]] = []
+        self.hit_test_scripts: list[str] = []
         self.nested_frame = nested_frame
         self.frame_offset = frame_offset
 
@@ -48,6 +49,7 @@ class RecordingPage:
         self.waits.append(milliseconds)
 
     async def evaluate_handle(self, _script: str, point: dict[str, float]):
+        self.hit_test_scripts.append(_script)
         self.hit_tests.append((point["x"], point["y"]))
         return RecordingHandle(self, point["x"], point["y"])
 
@@ -62,6 +64,12 @@ class RecordingElement:
         assert timeout == 2_000
         if getattr(self.page, "intercept_element_click", False):
             raise RuntimeError("pointer events were intercepted")
+        self.page.element_clicks.append((self.x, self.y))
+
+    async def dispatch_event(self, event: str) -> None:
+        assert event == "click"
+        if getattr(self.page, "intercept_direct_click", False):
+            raise RuntimeError("direct click dispatch failed")
         self.page.element_clicks.append((self.x, self.y))
 
     async def content_frame(self) -> RecordingPage | None:
@@ -145,6 +153,19 @@ async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_
     assert page.waits == [120]
 
 
+async def test_click_hit_testing_finds_interactive_elements_below_transparent_overlays() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "up", 0.5, 0.5)
+
+    hit_test_script = page.hit_test_scripts[0]
+    assert "elementsFromPoint" in hit_test_script
+    assert "cursor === 'pointer'" in hit_test_script
+    assert "__reactProps$" in hit_test_script
+
+
 async def test_replay_pointer_clicks_through_a_nested_verification_frame() -> None:
     verification_frame = RecordingPage()
     page = RecordingPage(nested_frame=verification_frame, frame_offset=(40.0, 80.0))
@@ -159,9 +180,24 @@ async def test_replay_pointer_clicks_through_a_nested_verification_frame() -> No
     assert verification_frame.element_clicks == [(600.0, 320.0)]
 
 
-async def test_replay_pointer_falls_back_to_native_click_when_overlay_intercepts_element() -> None:
+async def test_replay_pointer_dispatches_click_directly_when_overlay_intercepts_element() -> None:
     page = RecordingPage()
     page.intercept_element_click = True
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "up", 0.5, 0.5)
+
+    assert page.element_clicks == [(640.0, 400.0)]
+    assert page.mouse.events == []
+    assert gesture.origin is None
+    assert gesture.pressed is False
+
+
+async def test_replay_pointer_falls_back_to_native_click_when_direct_dispatch_fails() -> None:
+    page = RecordingPage()
+    page.intercept_element_click = True
+    page.intercept_direct_click = True
     gesture = PointerGesture()
 
     await replay_pointer(page, gesture, "down", 0.5, 0.5)
