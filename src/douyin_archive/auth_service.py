@@ -52,6 +52,8 @@ class AuthBrowserProtocol(Protocol):
 
     async def cookies(self, login_id: str) -> list[dict[str, object]]: ...
 
+    async def drag(self, login_id: str, points: list[tuple[float, float]]) -> None: ...
+
     async def close(self, login_id: str) -> None: ...
 
     async def cancel(self, login_id: str) -> None: ...
@@ -194,6 +196,15 @@ class AuthService:
         cancelled = status.with_state("cancelled", screenshot_png=None)
         self.sessions[login_id] = cancelled
         return cancelled
+
+    async def drag(
+        self, login_id: str, points: list[tuple[float, float]]
+    ) -> LoginStatus:
+        status = self._get(login_id)
+        if status.state not in {"starting", "awaiting_scan"}:
+            raise ValueError("login session is not interactive")
+        await self.browser.drag(login_id, points)
+        return await self.get_status(login_id)
 
     async def load_cookies(self) -> list[dict[str, object]] | None:
         row = await self.database.fetchone(

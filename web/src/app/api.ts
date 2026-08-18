@@ -33,6 +33,8 @@ export type LoginStatus = {
   errorCode?: string;
 };
 
+export type PointerPoint = { x: number; y: number };
+
 export type BootstrapStatus = {
   configured: boolean;
   authenticated: boolean;
@@ -106,6 +108,11 @@ export const beginDouyinLogin = () =>
   request<LoginStatus>("/api/douyin/login", { method: "POST" });
 export const getDouyinLogin = (id: string) => request<LoginStatus>(`/api/douyin/login/${id}`);
 export const douyinQrUrl = (id: string) => `/api/douyin/login/${id}/qr.png`;
+export const submitDouyinDrag = (id: string, points: PointerPoint[]) =>
+  request<LoginStatus>(`/api/douyin/login/${id}/drag`, {
+    method: "POST",
+    body: JSON.stringify({ points }),
+  });
 export const triggerSync = (fullScan = false) =>
   request<{ runId: number }>("/api/sync", {
     method: "POST",

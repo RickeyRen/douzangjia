@@ -1,7 +1,14 @@
 import { QrCode, ShieldCheck } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-import { beginDouyinLogin, douyinQrUrl, getDouyinLogin, type LoginStatus } from "../../app/api";
+import {
+  beginDouyinLogin,
+  douyinQrUrl,
+  getDouyinLogin,
+  submitDouyinDrag,
+  type LoginStatus,
+  type PointerPoint,
+} from "../../app/api";
 import { useI18n } from "../../i18n/context";
 
 export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => void }) {
@@ -9,30 +16,90 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   const [status, setStatus] = useState<LoginStatus | null>(null);
   const [error, setError] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [interacting, setInteracting] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [frameVersion, setFrameVersion] = useState(0);
+  const activePointer = useRef<number | null>(null);
+  const dragPath = useRef<PointerPoint[]>([]);
 
   useEffect(() => {
-    if (!status || !["starting", "awaiting_scan"].includes(status.state)) return;
+    if (interacting || !status || !["starting", "awaiting_scan"].includes(status.state)) return;
     const timer = window.setInterval(() => {
       void getDouyinLogin(status.id)
         .then((next) => {
           setStatus(next);
+          if (next.hasScreenshot) setFrameVersion((version) => version + 1);
           if (next.state === "authenticated") onAuthenticated?.();
         })
         .catch(() => setError(true));
     }, 1800);
     return () => window.clearInterval(timer);
-  }, [onAuthenticated, status]);
+  }, [interacting, onAuthenticated, status]);
 
   async function begin() {
     setStarting(true);
     setError(false);
     try {
       setStatus(await beginDouyinLogin());
+      setFrameVersion((version) => version + 1);
     } catch {
       setError(true);
     } finally {
       setStarting(false);
     }
+  }
+
+  function normalizedPoint(event: ReactPointerEvent<HTMLImageElement>): PointerPoint {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const clamp = (value: number) => Math.min(1, Math.max(0, value));
+    return {
+      x: Number(clamp((event.clientX - bounds.left) / bounds.width).toFixed(4)),
+      y: Number(clamp((event.clientY - bounds.top) / bounds.height).toFixed(4)),
+    };
+  }
+
+  function startDrag(event: ReactPointerEvent<HTMLImageElement>) {
+    if (!status || interacting) return;
+    activePointer.current = event.pointerId;
+    dragPath.current = [normalizedPoint(event)];
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDragging(true);
+  }
+
+  function continueDrag(event: ReactPointerEvent<HTMLImageElement>) {
+    if (activePointer.current !== event.pointerId || dragPath.current.length >= 119) return;
+    dragPath.current.push(normalizedPoint(event));
+  }
+
+  async function finishDrag(event: ReactPointerEvent<HTMLImageElement>) {
+    if (!status || activePointer.current !== event.pointerId) return;
+    dragPath.current.push(normalizedPoint(event));
+    const points = dragPath.current;
+    activePointer.current = null;
+    dragPath.current = [];
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setDragging(false);
+    if (points.length < 2) return;
+
+    setInteracting(true);
+    setError(false);
+    try {
+      const next = await submitDouyinDrag(status.id, points);
+      setStatus(next);
+      setFrameVersion((version) => version + 1);
+      if (next.state === "authenticated") onAuthenticated?.();
+    } catch {
+      setError(true);
+    } finally {
+      setInteracting(false);
+    }
+  }
+
+  function cancelDrag(event: ReactPointerEvent<HTMLImageElement>) {
+    if (activePointer.current !== event.pointerId) return;
+    activePointer.current = null;
+    dragPath.current = [];
+    setDragging(false);
   }
 
   const statusText =
@@ -55,8 +122,24 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
 
         {status?.hasScreenshot ? (
           <div className="mt-8 overflow-hidden rounded-xl border border-white/10 bg-white p-3">
-            <img className="mx-auto max-h-[360px] w-auto" src={douyinQrUrl(status.id)} alt={t("qrAlt")} />
+            <img
+              className={`mx-auto max-h-[min(68dvh,680px)] max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+              src={`${douyinQrUrl(status.id)}?v=${frameVersion}`}
+              alt={t("qrAlt")}
+              draggable={false}
+              onDragStart={(event) => event.preventDefault()}
+              onPointerDown={startDrag}
+              onPointerMove={continueDrag}
+              onPointerUp={(event) => void finishDrag(event)}
+              onPointerCancel={cancelDrag}
+            />
           </div>
+        ) : null}
+
+        {status?.hasScreenshot ? (
+          <p className="mt-3 text-xs leading-5 text-[#7f8590]">
+            {interacting ? t("dragApplying") : t("dragHint")}
+          </p>
         ) : null}
 
         {status ? (

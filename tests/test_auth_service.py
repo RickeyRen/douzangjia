@@ -17,6 +17,7 @@ class FakeAuthBrowser:
             {"domain": ".example.com", "name": "sessionid", "value": "other-site"},
         ]
         self.closed: list[str] = []
+        self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
 
     async def start(self, *, timeout_seconds: int) -> BrowserLogin:
         assert timeout_seconds == 300
@@ -34,6 +35,10 @@ class FakeAuthBrowser:
 
     async def cancel(self, login_id: str) -> None:
         self.closed.append(login_id)
+
+    async def drag(self, login_id: str, points: list[tuple[float, float]]) -> None:
+        self.dragged.append((login_id, points))
+        self.screenshot = b"\x89PNG\r\nupdated"
 
 
 @pytest.fixture
@@ -89,6 +94,18 @@ async def test_cancel_closes_temporary_browser(auth_components) -> None:
     status = await service.cancel("login-1")
     assert status.state == "cancelled"
     assert browser.closed == ["login-1"]
+
+
+async def test_drag_replays_points_and_refreshes_the_login_screenshot(auth_components) -> None:
+    service, browser, _ = auth_components
+    await service.begin_login()
+    points = [(0.12, 0.4), (0.58, 0.4), (0.91, 0.4)]
+
+    status = await service.drag("login-1", points)
+
+    assert browser.dragged == [("login-1", points)]
+    assert status.state == "awaiting_scan"
+    assert status.screenshot_png == b"\x89PNG\r\nupdated"
 
 
 async def test_authenticated_login_notifies_runtime_for_initial_sync(

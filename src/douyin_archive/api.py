@@ -32,6 +32,15 @@ class SyncRequest(BaseModel):
     full_scan: bool = Field(default=False, alias="fullScan")
 
 
+class PointerPoint(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class DragRequest(BaseModel):
+    points: list[PointerPoint] = Field(min_length=2, max_length=120)
+
+
 class AdminStore:
     """Small first-boot credential store; the database layer replaces this facade later."""
 
@@ -304,6 +313,25 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             return JSONResponse(
                 status_code=404,
                 content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        return status.as_public_dict()
+
+    @app.post("/api/douyin/login/{login_id}/drag")
+    async def drag_douyin_login(
+        login_id: str, payload: DragRequest, request: Request
+    ):
+        points = [(point.x, point.y) for point in payload.points]
+        try:
+            status = await request.app.state.auth_service.drag(login_id, points)
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "LOGIN_NOT_INTERACTIVE", "message": "登录画面已不可操作"},
             )
         return status.as_public_dict()
 

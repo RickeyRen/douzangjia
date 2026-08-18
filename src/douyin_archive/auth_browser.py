@@ -9,6 +9,33 @@ from typing import Any
 from .auth_service import BrowserLogin
 from .browser_launch import chromium_launch_options
 
+LOGIN_VIEWPORT_WIDTH = 520
+LOGIN_VIEWPORT_HEIGHT = 680
+
+
+async def replay_drag(page: Any, points: list[tuple[float, float]]) -> None:
+    """Replay a user-provided normalized drag path in the login viewport."""
+
+    if len(points) < 2:
+        raise ValueError("a drag path requires at least two points")
+    if any(not (0 <= x <= 1 and 0 <= y <= 1) for x, y in points):
+        raise ValueError("drag points must be normalized")
+
+    first_x, first_y = points[0]
+    await page.mouse.move(
+        first_x * LOGIN_VIEWPORT_WIDTH,
+        first_y * LOGIN_VIEWPORT_HEIGHT,
+    )
+    await page.mouse.down()
+    for x, y in points[1:]:
+        await page.mouse.move(
+            x * LOGIN_VIEWPORT_WIDTH,
+            y * LOGIN_VIEWPORT_HEIGHT,
+        )
+        await page.wait_for_timeout(16)
+    await page.mouse.up()
+    await page.wait_for_timeout(700)
+
 
 @dataclass(slots=True)
 class _BrowserSession:
@@ -35,7 +62,7 @@ class AuthBrowser:
         playwright = await async_playwright().start()
         browser = await playwright.chromium.launch(**chromium_launch_options())
         context = await browser.new_context(
-            viewport={"width": 520, "height": 680},
+            viewport={"width": LOGIN_VIEWPORT_WIDTH, "height": LOGIN_VIEWPORT_HEIGHT},
             locale="zh-CN",
             timezone_id="Asia/Shanghai",
         )
@@ -74,6 +101,9 @@ class AuthBrowser:
     async def cookies(self, login_id: str) -> list[dict[str, object]]:
         return await self._sessions[login_id].context.cookies()
 
+    async def drag(self, login_id: str, points: list[tuple[float, float]]) -> None:
+        await replay_drag(self._sessions[login_id].page, points)
+
     async def close(self, login_id: str) -> None:
         session = self._sessions.pop(login_id, None)
         if session is None:
@@ -103,24 +133,4 @@ class AuthBrowser:
 
     @staticmethod
     async def _capture_login_area(page: Any) -> bytes:
-        from playwright.async_api import Error as PlaywrightError
-
-        for selector in (
-            "img[src*='qrcode']",
-            "img[alt*='二维码']",
-            "[class*='qr'] canvas",
-            "[class*='login'] canvas",
-        ):
-            locator = page.locator(selector).first
-            with suppress(PlaywrightError):
-                box = await locator.bounding_box(timeout=1_000)
-                if box and 100 <= box["width"] <= 500 and 100 <= box["height"] <= 500:
-                    padding = 36
-                    clip = {
-                        "x": max(0, box["x"] - padding),
-                        "y": max(0, box["y"] - padding),
-                        "width": min(520 - max(0, box["x"] - padding), box["width"] + 72),
-                        "height": min(680 - max(0, box["y"] - padding), box["height"] + 72),
-                    }
-                    return await page.screenshot(type="png", clip=clip)
         return await page.screenshot(type="png", full_page=False)
