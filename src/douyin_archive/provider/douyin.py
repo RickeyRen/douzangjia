@@ -234,10 +234,18 @@ class PlaywrightDouyinSource:
                 if remote_id == ALL_FAVORITES_REMOTE_ID
                 else {"collects_id": remote_id}
             )
-            payload = await self._browser_json(
-                path,
-                {**collection_params, "cursor": cursor, "count": 20},
-            )
+            for attempt in range(3):
+                try:
+                    payload = await self._browser_json(
+                        path,
+                        {**collection_params, "cursor": cursor, "count": 20},
+                    )
+                except ProviderChanged:
+                    if attempt == 2:
+                        raise
+                    await self._page.wait_for_timeout(1_000)
+                else:
+                    break
             yield payload
             page = normalize_page(payload)
             if not page.has_more or page.next_cursor is None:
@@ -249,8 +257,9 @@ class PlaywrightDouyinSource:
 
     async def _browser_json(self, path: str, params: dict[str, object]) -> dict:
         try:
-            payload = await self._page.evaluate(
-                """
+            payload = await asyncio.wait_for(
+                self._page.evaluate(
+                    """
             async ({path, params}) => {
               const url = new URL(path, window.location.origin);
               const common = {
@@ -291,8 +300,10 @@ class PlaywrightDouyinSource:
                 window.clearTimeout(timer);
               }
             }
-                """,
-                {"path": path, "params": params},
+                    """,
+                    {"path": path, "params": params},
+                ),
+                timeout=25,
             )
         except Exception as error:
             logger.warning(

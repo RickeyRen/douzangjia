@@ -179,6 +179,57 @@ async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
         await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
 
 
+async def test_browser_api_evaluate_has_an_outer_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ResponsivePage(FakePage):
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            return {"status_code": 0, "collects_list": []}
+
+    async def timeout_immediately(awaitable, *, timeout):
+        assert timeout == 25
+        awaitable.close()
+        raise TimeoutError
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = ResponsivePage()
+    monkeypatch.setattr(douyin_module.asyncio, "wait_for", timeout_immediately)
+
+    with pytest.raises(ProviderChanged):
+        await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
+
+
+async def test_collection_page_retries_a_transient_browser_timeout() -> None:
+    class TransientPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts = 0
+            self.waits: list[int] = []
+
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            self.attempts += 1
+            if self.attempts == 1:
+                return {"__browser_error": "timeout"}
+            return {
+                "status_code": 0,
+                "aweme_list": [{"aweme_id": "recovered"}],
+                "cursor": 20,
+                "has_more": 0,
+            }
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            self.waits.append(milliseconds)
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = TransientPage()
+
+    pages = [page async for page in source._iter_collection_api("2001")]
+
+    assert pages[0]["aweme_list"][0]["aweme_id"] == "recovered"
+    assert source._page.attempts == 2
+    assert source._page.waits == [1_000]
+
+
 async def test_collection_api_retries_empty_transient_response() -> None:
     class TransientPage(FakePage):
         def __init__(self) -> None:
