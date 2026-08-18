@@ -57,7 +57,11 @@ class PlaywrightDouyinSource:
     FAVORITES_URL = (
         "https://www.douyin.com/user/self?from_tab_name=main&showTab=favorite_collection"
     )
-    COLLECTION_PATH_MARKERS = ("mix/listcollection", "collection/list")
+    COLLECTION_PATH_MARKERS = (
+        "mix/listcollection",
+        "aweme/listcollection",
+        "collection/list",
+    )
     ITEM_PATH_MARKERS = ("mix/aweme", "collection/aweme", "aweme/favorite")
 
     def __init__(self, coordinator: BrowserCoordinator) -> None:

@@ -56,6 +56,26 @@ async def test_source_uses_coordinator_page_without_launching_browser() -> None:
     assert coordinator.closed is False
 
 
+async def test_source_captures_current_listcollection_endpoint() -> None:
+    class FakeResponse:
+        def __init__(self) -> None:
+            self.url = (
+                "https://www.douyin.com/aweme/v1/web/aweme/listcollection/"
+                "?device_platform=webapp"
+            )
+            self.headers = {"content-type": "application/json; charset=utf-8"}
+
+        async def json(self) -> dict:
+            return {"mix_list": [{"mix_id": "1001", "mix_name": "想去的地方"}]}
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    await source.open()
+    await source._capture_response(FakeResponse())
+
+    assert source._responses.qsize() == 1
+    await source.close()
+
+
 async def test_response_timeout_logs_only_sanitized_paths(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
