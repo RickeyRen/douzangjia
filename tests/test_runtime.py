@@ -36,8 +36,10 @@ class FakeSource:
 
 
 class FakeBrowserCoordinator:
-    def __init__(self, *, authenticated: bool = True) -> None:
-        self.authenticated = authenticated
+    def __init__(self, *, authenticated: bool | list[bool] = True) -> None:
+        self.authentication_results = (
+            list(authenticated) if isinstance(authenticated, list) else [authenticated]
+        )
         self.added_cookies: list[dict[str, object]] = []
         self.authentication_checks = 0
 
@@ -46,7 +48,9 @@ class FakeBrowserCoordinator:
 
     async def is_douyin_authenticated(self) -> bool:
         self.authentication_checks += 1
-        return self.authenticated
+        if len(self.authentication_results) > 1:
+            return self.authentication_results.pop(0)
+        return self.authentication_results[0]
 
 
 async def test_trigger_sync_returns_run_id_and_finishes_in_background(
@@ -76,9 +80,7 @@ async def test_trigger_sync_returns_run_id_and_finishes_in_background(
     assert finished["status"] == "completed"
     assert await JobRepository(database).count() == 1
     assert source.closed is True
-    assert browser_coordinator.added_cookies == [
-        {"name": "sessionid", "value": "encrypted-before-use"}
-    ]
+    assert browser_coordinator.added_cookies == []
     assert browser_coordinator.authentication_checks == 1
     await coordinator.close()
     await database.close()
@@ -120,6 +122,72 @@ async def test_stale_browser_session_is_marked_expired_without_opening_source(
     assert row is not None
     assert row["status"] == "expired"
     assert source_created is False
+    assert coordinator.browser_coordinator.authentication_checks == 2
+    assert coordinator.browser_coordinator.added_cookies == [
+        {"name": "sessionid", "value": "encrypted-before-use"}
+    ]
+    await coordinator.close()
+    await database.close()
+
+
+async def test_cookie_backup_is_only_injected_when_profile_needs_recovery(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    browser_coordinator = FakeBrowserCoordinator(authenticated=[False, True])
+    source = FakeSource()
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        browser_coordinator,
+        source_factory=lambda: source,
+    )
+
+    result = await coordinator.run_incremental()
+
+    assert result.status == "completed"
+    assert browser_coordinator.authentication_checks == 2
+    assert browser_coordinator.added_cookies == [
+        {"name": "sessionid", "value": "encrypted-before-use"}
+    ]
+    await coordinator.close()
+    await database.close()
+
+
+async def test_provider_expiry_marks_saved_session_expired(tmp_path: Path) -> None:
+    from douyin_archive.provider.base import SessionExpired
+
+    class ExpiredSource(FakeSource):
+        async def fetch_collections(self) -> dict:
+            raise SessionExpired("expired")
+
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO auth_sessions "
+        "(provider, encrypted_cookies, status, last_verified_at, updated_at) "
+        "VALUES ('douyin', ?, 'authenticated', 1, 1)",
+        (b"encrypted",),
+    )
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(authenticated=True),
+        source_factory=ExpiredSource,
+    )
+
+    result = await coordinator.run_incremental()
+    row = await database.fetchone(
+        "SELECT status FROM auth_sessions WHERE provider='douyin'"
+    )
+
+    assert result.error_code == "DOUYIN_SESSION_EXPIRED"
+    assert row is not None and row["status"] == "expired"
     await coordinator.close()
     await database.close()
 

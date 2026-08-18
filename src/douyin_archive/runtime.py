@@ -93,24 +93,31 @@ class RuntimeSyncCoordinator:
         async with self._lock:
             cookies = await self.auth.load_cookies()
             source = None
-            if cookies:
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated and cookies:
                 await self.browser_coordinator.add_cookies(cookies)
-                if await self.browser_coordinator.is_douyin_authenticated():
-                    source = self.source_factory()
-                    known_ids = await self.archive.list_known_item_ids()
-                    provider = DouyinProvider(source, known_ids=known_ids)
-                else:
+                authenticated = (
+                    await self.browser_coordinator.is_douyin_authenticated()
+                )
+            if authenticated:
+                source = self.source_factory()
+                known_ids = await self.archive.list_known_item_ids()
+                provider = DouyinProvider(source, known_ids=known_ids)
+            else:
+                await self.database.execute(
+                    "UPDATE auth_sessions SET status='expired' WHERE provider='douyin'"
+                )
+                provider = _ExpiredProvider()
+            try:
+                result = await SyncService(provider, self.archive, self.jobs).run(
+                    full_scan=full_scan, run_id=run_id
+                )
+                if result.error_code == SessionExpired.code:
                     await self.database.execute(
                         "UPDATE auth_sessions SET status='expired' "
                         "WHERE provider='douyin'"
                     )
-                    provider = _ExpiredProvider()
-            else:
-                provider = _ExpiredProvider()
-            try:
-                return await SyncService(provider, self.archive, self.jobs).run(
-                    full_scan=full_scan, run_id=run_id
-                )
+                return result
             finally:
                 if source is not None:
                     await source.close()

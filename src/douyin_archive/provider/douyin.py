@@ -151,6 +151,10 @@ class PlaywrightDouyinSource:
             _payload_shape(direct_payload),
             signer_capabilities,
         )
+        # Validate authentication/rate-limit status even when the response no
+        # longer contains a collection list. This prevents an expired session
+        # from being misreported as a provider layout change.
+        normalize_collections(direct_payload)
         if _has_collection_schema(direct_payload):
             collections = normalize_collections(direct_payload)
             self._collection_names = {
