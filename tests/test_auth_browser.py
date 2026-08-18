@@ -200,6 +200,21 @@ async def test_replay_pointer_keeps_small_cursor_jitter_as_a_click() -> None:
     assert page.element_clicks == [(642.56, 401.6)]
 
 
+async def test_replay_pointer_keeps_normal_hand_jitter_as_a_click() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "move", 0.506, 0.505)
+    await replay_pointer(page, gesture, "up", 0.506, 0.505)
+
+    assert page.mouse.events == []
+    assert len(page.element_clicks) == 1
+    x, y = page.element_clicks[0]
+    assert round(x, 2) == 647.68
+    assert y == 404.0
+
+
 async def test_replay_pointer_forwards_hover_moves_without_a_pressed_pointer() -> None:
     page = RecordingPage()
     gesture = PointerGesture()
