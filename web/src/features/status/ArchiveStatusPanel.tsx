@@ -7,15 +7,21 @@ import {
   fetchSyncRuns,
   triggerSync,
   type BootstrapStatus,
-  type DownloadJob,
+  type DownloadSnapshot,
   type SyncRun,
 } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import type { UtilityPanel } from "../navigation/CollectionRail";
+import { DownloadMonitor } from "./DownloadMonitor";
+
+const EMPTY_DOWNLOAD_SNAPSHOT: DownloadSnapshot = {
+  summary: { pending: 0, running: 0, retry: 0, failed: 0, completed: 0, downloadedBytes: 0, totalBytes: 0, speedBps: 0, etaSeconds: 0 },
+  items: [],
+};
 
 export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onClose: () => void }) {
   const { locale, setLocale, t } = useI18n();
-  const [jobs, setJobs] = useState<DownloadJob[]>([]);
+  const [downloads, setDownloads] = useState<DownloadSnapshot>(EMPTY_DOWNLOAD_SNAPSHOT);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [status, setStatus] = useState<BootstrapStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,12 +42,12 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
         if (kind === "activity") {
           const [jobResult, runResult] = await Promise.all([fetchJobs(), fetchSyncRuns()]);
           if (!cancelled) {
-            setJobs(jobResult.items);
+            setDownloads(jobResult);
             setRuns(runResult.items);
           }
         } else if (kind === "downloads") {
           const result = await fetchJobs();
-          if (!cancelled) setJobs(result.items);
+          if (!cancelled) setDownloads(result);
         } else if (kind === "sync") {
           const result = await fetchSyncRuns();
           if (!cancelled) setRuns(result.items);
@@ -57,7 +63,8 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
       }
     }
     void load(true);
-    const interval = kind === "settings" ? undefined : window.setInterval(() => void load(false), 5_000);
+    const refreshMilliseconds = kind === "settings" ? undefined : kind === "sync" ? 5_000 : 1_000;
+    const interval = refreshMilliseconds === undefined ? undefined : window.setInterval(() => void load(false), refreshMilliseconds);
     return () => {
       cancelled = true;
       if (interval !== undefined) window.clearInterval(interval);
@@ -90,14 +97,14 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
           {loading ? <p className="flex items-center gap-2 text-sm text-[#8f959f]"><CircleNotch className="animate-spin" size={18} />{t("loadingStatus")}</p> : null}
           {error ? <p className="rounded-xl border border-[#f16761]/25 bg-[#f16761]/10 p-4 text-sm text-[#f5aaa6]">{t("statusLoadFailed")}</p> : null}
-          {!loading && !error && kind === "downloads" ? <DownloadList jobs={jobs} /> : null}
-          {!loading && !error && kind === "activity" ? (
+          {!loading && kind === "downloads" ? <DownloadMonitor snapshot={downloads} /> : null}
+          {!loading && kind === "activity" ? (
             <div>
               <div role="tablist" aria-label={t("activityTabs")} className="mb-5 grid grid-cols-2 rounded-xl bg-white/[.05] p-1">
                 <button role="tab" aria-selected={activityTab === "downloads"} type="button" onClick={() => setActivityTab("downloads")} className={`touch-target min-h-11 rounded-lg text-sm font-medium ${activityTab === "downloads" ? "bg-white text-[#101318]" : "text-[#aeb3bc]"}`}>{t("activityDownloads")}</button>
                 <button role="tab" aria-selected={activityTab === "sync"} type="button" onClick={() => setActivityTab("sync")} className={`touch-target min-h-11 rounded-lg text-sm font-medium ${activityTab === "sync" ? "bg-white text-[#101318]" : "text-[#aeb3bc]"}`}>{t("activitySync")}</button>
               </div>
-              {activityTab === "downloads" ? <DownloadList jobs={jobs} /> : <SyncPanel runs={runs} syncing={syncing} queuedRun={queuedRun} onSync={runFullSync} />}
+              {activityTab === "downloads" ? <DownloadMonitor snapshot={downloads} /> : <SyncPanel runs={runs} syncing={syncing} queuedRun={queuedRun} onSync={runFullSync} />}
             </div>
           ) : null}
           {!loading && !error && kind === "sync" ? (
@@ -120,12 +127,6 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
       </aside>
     </div>
   );
-}
-
-function DownloadList({ jobs }: { jobs: DownloadJob[] }) {
-  const { t } = useI18n();
-  if (!jobs.length) return <p className="text-sm text-[#8f959f]">{t("jobsEmpty")}</p>;
-  return <div className="grid gap-3">{jobs.map((job) => <article key={job.id} className="rounded-xl border border-white/8 bg-white/[.03] p-4"><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium">{t("itemLabel")} {job.remoteId}</p><span className="rounded-full bg-white/[.06] px-2.5 py-1 text-xs text-[#b9bec6]">{job.status}</span></div><p className="mt-2 text-xs text-[#737984]">{t("attemptsLabel")} {job.attempts}{job.errorCode ? ` · ${job.errorCode}` : ""}</p></article>)}</div>;
 }
 
 function SyncList({ runs }: { runs: SyncRun[] }) {

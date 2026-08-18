@@ -48,16 +48,36 @@ describe("FeedPage", () => {
       nextCursor: null,
     }));
     vi.mocked(api.fetchJobs).mockResolvedValue({
+      summary: {
+        pending: 0,
+        running: 0,
+        retry: 0,
+        failed: 0,
+        completed: 1,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        speedBps: 0,
+        etaSeconds: 0,
+      },
       items: [
         {
           id: 1,
           kind: "download",
           remoteId: "734",
+          author: "",
+          description: "",
+          collections: [],
           status: "completed",
           attempts: 1,
           nextAttemptAt: 1,
           errorCode: null,
           updatedAt: 1,
+          currentAssetIndex: null,
+          downloadedBytes: 0,
+          totalBytes: 0,
+          speedBps: 0,
+          etaSeconds: 0,
+          assets: [],
         },
       ],
     });

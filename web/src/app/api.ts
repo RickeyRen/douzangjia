@@ -46,11 +46,49 @@ export type DownloadJob = {
   id: number;
   kind: string;
   remoteId: string;
+  author: string;
+  description: string;
+  collections: string[];
   status: string;
   attempts: number;
   nextAttemptAt: number;
   errorCode: string | null;
   updatedAt: number;
+  currentAssetIndex: number | null;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  speedBps: number;
+  etaSeconds: number | null;
+  assets: DownloadAsset[];
+};
+
+export type DownloadAsset = {
+  index: number;
+  fileName: string;
+  mediaType: string;
+  status: string;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  speedBps: number;
+  etaSeconds: number | null;
+  updatedAt: number | null;
+};
+
+export type DownloadSummary = {
+  pending: number;
+  running: number;
+  retry: number;
+  failed: number;
+  completed: number;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  speedBps: number;
+  etaSeconds: number | null;
+};
+
+export type DownloadSnapshot = {
+  summary: DownloadSummary;
+  items: DownloadJob[];
 };
 
 export type SyncRun = {
@@ -113,7 +151,7 @@ export const loginAdmin = (password: string) =>
     body: JSON.stringify({ password }),
   });
 export const fetchCollections = () => request<{ items: Collection[] }>("/api/collections");
-export const fetchJobs = () => request<{ items: DownloadJob[] }>("/api/jobs?limit=50");
+export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchFeed = ({
   collectionId,

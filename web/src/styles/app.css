@@ -23,6 +23,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid #f16761; outline-
 .media-progress::-webkit-progress-bar { background: rgb(255 255 255 / 24%); }
 .media-progress::-webkit-progress-value { background: #f16761; }
 .media-progress::-moz-progress-bar { background: #f16761; }
+.download-progress { appearance: none; border: 0; border-radius: 999px; overflow: hidden; background: rgb(255 255 255 / 10%); }
+.download-progress::-webkit-progress-bar { background: rgb(255 255 255 / 10%); }
+.download-progress::-webkit-progress-value { border-radius: 999px; background: linear-gradient(90deg, #f16761, #ff9b72); }
+.download-progress::-moz-progress-bar { border-radius: 999px; background: linear-gradient(90deg, #f16761, #ff9b72); }
+.download-progress-indeterminate::after { content: ""; display: block; width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, transparent, #f16761, #ff9b72); animation: download-progress-slide 1.15s ease-in-out infinite; }
+.download-task-card { content-visibility: auto; contain-intrinsic-size: 150px; }
+.download-status-running { background: rgb(75 194 133 / 14%); color: #79d9a5; }
+.download-status-pending { background: rgb(255 255 255 / 8%); color: #c5c8ce; }
+.download-status-retry { background: rgb(236 168 79 / 14%); color: #f0ba73; }
+.download-status-failed { background: rgb(241 103 97 / 14%); color: #f5aaa6; }
+.download-status-completed { background: rgb(108 137 255 / 14%); color: #aebcff; }
+
+@keyframes download-progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(265%); }
+}
 
 @media (max-width: 1023px) {
   body { overflow: hidden; }
