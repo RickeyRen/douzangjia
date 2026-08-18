@@ -44,6 +44,10 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
                 """
                 ({x, y}) => {
                   const stack = document.elementsFromPoint(x, y);
+                  const nestedFrame = stack.find(
+                    (node) => node instanceof HTMLIFrameElement
+                  );
+                  if (nestedFrame) return nestedFrame;
                   const selector = [
                     'button', 'a', '[role="button"]', '[onclick]',
                     'input', 'label', '[tabindex]'
@@ -61,18 +65,16 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
                     (key) => key.startsWith('__reactProps$') &&
                       typeof node[key]?.onClick === 'function'
                   );
-                  for (const hit of stack) {
-                    const candidate = ancestors(hit).find(
-                      (node) => node.matches(selector) || hasReactClick(node)
-                    );
-                    if (candidate) return candidate;
-                  }
-                  for (const hit of stack) {
-                    const candidate = ancestors(hit).find(
-                      (node) => getComputedStyle(node).cursor === 'pointer'
-                    );
-                    if (candidate) return candidate;
-                  }
+                  const candidates = stack.flatMap(ancestors).filter(
+                    (node) => node.matches(selector) || hasReactClick(node) ||
+                      getComputedStyle(node).cursor === 'pointer'
+                  );
+                  candidates.sort((left, right) => {
+                    const a = left.getBoundingClientRect();
+                    const b = right.getBoundingClientRect();
+                    return (a.width * a.height) - (b.width * b.height);
+                  });
+                  if (candidates[0]) return candidates[0];
                   return stack[0] || null;
                 }
                 """,
@@ -86,15 +88,12 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
             nested_frame = await element.content_frame()
             if nested_frame is None:
                 try:
-                    await element.click(timeout=2_000)
+                    # Dispatch directly to the smallest interactive target. This
+                    # avoids Douyin's empty overlay passing Playwright's checks
+                    # while swallowing the resulting mouse event.
+                    await element.dispatch_event("click")
                 except PlaywrightError:
-                    try:
-                        # Douyin inserts a transparent verification overlay above
-                        # React click targets. Dispatch to the chosen target when
-                        # Playwright's actionability check sees that overlay.
-                        await element.dispatch_event("click")
-                    except PlaywrightError:
-                        await page.mouse.click(x, y)
+                    await page.mouse.click(x, y)
                 return
             bounds = await element.evaluate(
                 "element => { const rect = element.getBoundingClientRect(); "
