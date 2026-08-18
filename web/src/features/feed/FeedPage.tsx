@@ -183,7 +183,7 @@ export function FeedPage() {
               </div>
             ))}
             {nextCursor || loadMoreError ? (
-              <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
+              <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 snap-start snap-always items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
                 <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="touch-target min-h-11 rounded-full border border-white/10 bg-[#15181d]/92 px-5 text-sm text-[#d8dbe0] active:scale-[.98] disabled:opacity-60">
                   {loadingMore ? t("loadingMore") : loadMoreError ? t("retryLoadMore") : t("loadMore")}
                 </button>

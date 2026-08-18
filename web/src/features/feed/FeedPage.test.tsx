@@ -220,6 +220,7 @@ describe("FeedPage", () => {
       .mockResolvedValueOnce({ items: [], nextCursor: null });
     render(<FeedPage />);
     const loadMore = await screen.findByRole("button", { name: "加载更多" });
+    expect(loadMore.closest(".pagination-sentinel")).toHaveClass("snap-start");
 
     await waitFor(() => expect(observers.some((observer) => observer.elements.some((element) => element.contains(loadMore)))).toBe(true));
     const paginationObserver = observers.find((observer) => observer.elements.some((element) => element.contains(loadMore)));
