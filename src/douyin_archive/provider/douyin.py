@@ -282,20 +282,31 @@ class PlaywrightDouyinSource:
                 url.searchParams.set(key, String(value));
               }
               const controller = new AbortController();
-              const timer = window.setTimeout(() => controller.abort(), 20_000);
+              const request = (async () => {
+                try {
+                  const response = await fetch(url.toString(), {
+                    credentials: 'include',
+                    headers: {Accept: 'application/json, text/plain, */*'},
+                    signal: controller.signal,
+                  });
+                  if (!response.ok) return {status_code: response.status};
+                  const data = await response.json();
+                  return data && typeof data === 'object' ? data : {};
+                } catch (error) {
+                  return {
+                    __browser_error: error?.name === 'AbortError' ? 'timeout' : 'network',
+                  };
+                }
+              })();
+              let timer;
+              const timeout = new Promise((resolve) => {
+                timer = window.setTimeout(() => {
+                  controller.abort();
+                  resolve({__browser_error: 'timeout'});
+                }, 20_000);
+              });
               try {
-                const response = await fetch(url.toString(), {
-                  credentials: 'include',
-                  headers: {Accept: 'application/json, text/plain, */*'},
-                  signal: controller.signal,
-                });
-                if (!response.ok) return {status_code: response.status};
-                const data = await response.json();
-                return data && typeof data === 'object' ? data : {};
-              } catch (error) {
-                return {
-                  __browser_error: error?.name === 'AbortError' ? 'timeout' : 'network',
-                };
+                return await Promise.race([request, timeout]);
               } finally {
                 window.clearTimeout(timer);
               }
@@ -310,6 +321,12 @@ class PlaywrightDouyinSource:
                 evaluation.add_done_callback(self._consume_task_result)
                 raise TimeoutError("Douyin browser API evaluation timed out")
             payload = evaluation.result()
+        except asyncio.CancelledError as error:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise
+            logger.warning("Douyin browser API child task was cancelled")
+            raise ProviderChanged("Douyin browser API task was cancelled") from error
         except Exception as error:
             logger.warning(
                 "Douyin browser API evaluation failed error_type=%s",

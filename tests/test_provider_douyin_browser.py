@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import pytest
@@ -174,6 +175,18 @@ async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
 
     source = PlaywrightDouyinSource(FakeCoordinator())
     source._page = TimedOutPage()
+
+    with pytest.raises(ProviderChanged):
+        await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
+
+
+async def test_cancelled_browser_child_is_a_stable_provider_error() -> None:
+    class CancelledPage(FakePage):
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            raise asyncio.CancelledError
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = CancelledPage()
 
     with pytest.raises(ProviderChanged):
         await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
