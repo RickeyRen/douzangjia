@@ -3,6 +3,11 @@ from __future__ import annotations
 import time
 from types import SimpleNamespace
 
+try:
+    from playwright.async_api import Error as SimulatedPlaywrightError
+except ModuleNotFoundError:
+    SimulatedPlaywrightError = RuntimeError
+
 from douyin_archive.auth_browser import (
     LOGIN_VIEWPORT_HEIGHT,
     LOGIN_VIEWPORT_WIDTH,
@@ -70,7 +75,7 @@ class RecordingElement:
     async def dispatch_event(self, event: str) -> None:
         assert event == "click"
         if getattr(self.page, "intercept_direct_click", False):
-            raise RuntimeError("direct click dispatch failed")
+            raise SimulatedPlaywrightError("direct click dispatch failed")
         self.page.element_clicks.append((self.x, self.y))
 
     async def content_frame(self) -> RecordingPage | None:
@@ -94,6 +99,52 @@ class RecordingHandle:
 class EmptyCookieContext:
     async def cookies(self) -> list[dict[str, object]]:
         return []
+
+
+class HiddenLocator:
+    first: HiddenLocator
+
+    def __init__(self) -> None:
+        self.first = self
+
+    async def is_visible(self, *, timeout: int) -> bool:
+        assert timeout == 1_500
+        return False
+
+
+class LoginPage:
+    def __init__(self) -> None:
+        self.visited: list[str] = []
+
+    async def goto(self, url: str, **_options: object) -> None:
+        self.visited.append(url)
+
+    def locator(self, _selector: str) -> HiddenLocator:
+        return HiddenLocator()
+
+    async def screenshot(self, **_options: object) -> bytes:
+        return b"login-image"
+
+
+class LoginLease:
+    def __init__(self) -> None:
+        self.page = LoginPage()
+        self.context = EmptyCookieContext()
+        self.released = False
+
+    async def release(self) -> None:
+        self.released = True
+
+
+class LoginCoordinator:
+    def __init__(self) -> None:
+        self.lease = LoginLease()
+        self.requested_viewports: list[tuple[int, int]] = []
+        self.closed = False
+
+    async def acquire_page(self, *, viewport: tuple[int, int]) -> LoginLease:
+        self.requested_viewports.append(viewport)
+        return self.lease
 
 
 class ExpiredQrLocator:
@@ -125,6 +176,19 @@ class ExpiredQrPage:
 def test_login_viewport_uses_full_douyin_desktop_layout() -> None:
     assert LOGIN_VIEWPORT_WIDTH == 1280
     assert LOGIN_VIEWPORT_HEIGHT == 800
+
+
+async def test_login_releases_its_page_without_closing_persistent_browser() -> None:
+    coordinator = LoginCoordinator()
+    browser = AuthBrowser(coordinator)
+
+    login = await browser.start(timeout_seconds=60)
+    await browser.close(login.id)
+
+    assert login.state == "awaiting_scan"
+    assert coordinator.requested_viewports == [(1280, 800)]
+    assert coordinator.lease.released is True
+    assert coordinator.closed is False
 
 
 async def test_poll_refreshes_an_expired_qr_inside_the_existing_browser() -> None:

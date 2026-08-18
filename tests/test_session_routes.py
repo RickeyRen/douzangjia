@@ -10,6 +10,20 @@ def build_client(tmp_path: Path, master_key: str) -> TestClient:
     return TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key)))
 
 
+def test_default_auth_browser_uses_app_persistent_coordinator(
+    tmp_path: Path, master_key: str
+) -> None:
+    app = create_app(Settings(archive_root=tmp_path, master_key=master_key))
+
+    with TestClient(app):
+        coordinator = app.state.browser_coordinator
+        browser = app.state.auth_service.browser
+        assert browser.coordinator is coordinator
+        assert coordinator.profile_store.profile_path == (
+            tmp_path / "data" / "chromium-profile"
+        )
+
+
 def test_first_run_setup_creates_admin_and_session(tmp_path: Path, master_key: str) -> None:
     with build_client(tmp_path, master_key) as client:
         response = client.post("/api/setup", json={"password": "a secure local passphrase"})

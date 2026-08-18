@@ -8,7 +8,7 @@ from math import hypot
 from typing import Any
 
 from .auth_service import BrowserLogin
-from .browser_launch import chromium_launch_options
+from .browser_coordinator import BrowserCoordinator, CoordinatorPageLease
 
 LOGIN_VIEWPORT_WIDTH = 1280
 LOGIN_VIEWPORT_HEIGHT = 800
@@ -191,8 +191,7 @@ async def replay_drag(page: Any, points: list[tuple[float, float]]) -> None:
 
 @dataclass(slots=True)
 class _BrowserSession:
-    playwright: Any
-    browser: Any
+    lease: CoordinatorPageLease
     context: Any
     page: Any
     deadline: float
@@ -200,30 +199,26 @@ class _BrowserSession:
 
 
 class AuthBrowser:
-    """Temporary headless Chromium contexts used only for Douyin QR login."""
+    """Interactive Douyin login pages leased from the persistent browser."""
 
     LOGIN_URL = "https://www.douyin.com/"
 
-    def __init__(self) -> None:
+    def __init__(self, coordinator: BrowserCoordinator | None = None) -> None:
+        self.coordinator = coordinator
         self._sessions: dict[str, _BrowserSession] = {}
 
     async def start(self, *, timeout_seconds: int) -> BrowserLogin:
         from playwright.async_api import Error as PlaywrightError
-        from playwright.async_api import async_playwright
-
         login_id = secrets.token_urlsafe(18)
-        playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(**chromium_launch_options())
-        context = await browser.new_context(
-            viewport={"width": LOGIN_VIEWPORT_WIDTH, "height": LOGIN_VIEWPORT_HEIGHT},
-            locale="zh-CN",
-            timezone_id="Asia/Shanghai",
+        if self.coordinator is None:
+            raise RuntimeError("AuthBrowser requires a BrowserCoordinator")
+        lease = await self.coordinator.acquire_page(
+            viewport=(LOGIN_VIEWPORT_WIDTH, LOGIN_VIEWPORT_HEIGHT)
         )
-        page = await context.new_page()
+        page = lease.page
         session = _BrowserSession(
-            playwright=playwright,
-            browser=browser,
-            context=context,
+            lease=lease,
+            context=lease.context,
             page=page,
             deadline=time.monotonic() + timeout_seconds,
         )
@@ -322,9 +317,7 @@ class AuthBrowser:
         session = self._sessions.pop(login_id, None)
         if session is None:
             return
-        await session.context.close()
-        await session.browser.close()
-        await session.playwright.stop()
+        await session.lease.release()
 
     async def cancel(self, login_id: str) -> None:
         await self.close(login_id)

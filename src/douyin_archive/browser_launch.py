@@ -15,3 +15,9 @@ def chromium_launch_options() -> dict[str, Any]:
     if executable:
         options["executable_path"] = executable
     return options
+
+
+def chromium_persistent_launch_options() -> dict[str, Any]:
+    """Return launch options accepted by ``launch_persistent_context``."""
+
+    return chromium_launch_options()

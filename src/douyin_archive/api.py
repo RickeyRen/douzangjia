@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .browser_coordinator import BrowserCoordinator
+from .browser_profile import BrowserProfileStore
 from .config import Settings
 from .db import Database
 from .repositories import ArchiveRepository, JobRepository
@@ -119,6 +121,8 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         application.state.database = owned_database
         application.state.archive_repository = ArchiveRepository(owned_database)
         application.state.job_repository = JobRepository(owned_database)
+        browser_coordinator = BrowserCoordinator(BrowserProfileStore(settings.archive_root))
+        application.state.browser_coordinator = browser_coordinator
         owns_auth_service = auth_service is None
         if auth_service is None:
             from .auth_browser import AuthBrowser
@@ -127,7 +131,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             application.state.auth_service = AuthService(
                 owned_database,
                 cipher,
-                AuthBrowser(),
+                AuthBrowser(browser_coordinator),
             )
         else:
             application.state.auth_service = auth_service
@@ -146,6 +150,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
                 await runtime.stop()
             if owns_auth_service:
                 await application.state.auth_service.close()
+            await browser_coordinator.close()
             await owned_database.close()
 
     app = FastAPI(title="Douyin NAS Archive", lifespan=lifespan)
