@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from functools import partial
 from pathlib import Path
 
 import anyio
@@ -67,18 +68,8 @@ class ArchiveJobHandler:
             )
 
         for asset in assets:
-            async def persist(snapshot: DownloadProgressSnapshot) -> None:
-                await self.progress.update(
-                    asset.remote_id,
-                    asset.asset_index,
-                    status="running",
-                    downloaded_bytes=snapshot.downloaded_bytes,
-                    total_bytes=snapshot.total_bytes,
-                    speed_bps=snapshot.speed_bps,
-                )
-
             object_file = await self.downloader.download(
-                asset, on_progress=persist
+                asset, on_progress=partial(self._persist_snapshot, asset)
             )
             relative_path = object_file.resolve().relative_to(self.archive_root).as_posix()
             byte_size = object_file.stat().st_size
@@ -107,6 +98,18 @@ class ArchiveJobHandler:
                 await self.projector.project(
                     str(collection["name"]), title, job.remote_id, object_file
                 )
+
+    async def _persist_snapshot(
+        self, asset: MediaAsset, snapshot: DownloadProgressSnapshot
+    ) -> None:
+        await self.progress.update(
+            asset.remote_id,
+            asset.asset_index,
+            status="running",
+            downloaded_bytes=snapshot.downloaded_bytes,
+            total_bytes=snapshot.total_bytes,
+            speed_bps=snapshot.speed_bps,
+        )
 
     @staticmethod
     def _asset(value: object) -> MediaAsset:
