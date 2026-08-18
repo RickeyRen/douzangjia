@@ -21,6 +21,24 @@ def test_collection_names_ids_and_counts_are_normalized() -> None:
     ]
 
 
+def test_current_collects_list_schema_is_normalized() -> None:
+    collections = normalize_collections(
+        {
+            "collects_list": [
+                {
+                    "collects_id_str": "2001",
+                    "collects_name": "想去的地方",
+                    "aweme_count": 12,
+                }
+            ]
+        }
+    )
+
+    assert [(item.remote_id, item.name, item.item_count) for item in collections] == [
+        ("2001", "想去的地方", 12)
+    ]
+
+
 def test_video_and_gallery_assets_are_normalized() -> None:
     page = normalize_page(load_fixture("collection_items.json"))
     video, gallery = page.items

@@ -90,6 +90,48 @@ async def test_collection_wait_skips_flat_favorite_video_response() -> None:
     await source.close()
 
 
+async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
+    class DirectApiPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[dict] = []
+
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            self.calls.append(arguments)
+            if arguments["path"].endswith("/collects/list/"):
+                return {
+                    "status_code": 0,
+                    "collects_list": [
+                        {
+                            "collects_id_str": "2001",
+                            "collects_name": "想去的地方",
+                        }
+                    ],
+                    "has_more": 0,
+                }
+            cursor = arguments["params"]["cursor"]
+            return {
+                "status_code": 0,
+                "aweme_list": [{"aweme_id": f"item-{cursor}"}],
+                "cursor": 20,
+                "has_more": int(cursor == 0),
+            }
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = DirectApiPage()
+
+    collections = await source._fetch_collections_api()
+    pages = [page async for page in source._iter_collection_api("2001")]
+
+    assert collections["collects_list"][0]["collects_id_str"] == "2001"
+    assert [page["aweme_list"][0]["aweme_id"] for page in pages] == [
+        "item-0",
+        "item-20",
+    ]
+    assert source._page.calls[0]["path"].endswith("/collects/list/")
+    assert source._page.calls[1]["params"]["collects_id"] == "2001"
+
+
 def test_payload_shape_never_contains_response_values() -> None:
     shape = _payload_shape(
         {

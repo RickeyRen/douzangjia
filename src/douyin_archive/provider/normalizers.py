@@ -44,15 +44,28 @@ def _first_list(payload: dict[str, Any], keys: Iterable[str]) -> list[dict[str, 
 def normalize_collections(payload: dict[str, Any]) -> list[RemoteCollection]:
     _check_status(payload)
     data = _envelope(payload)
-    records = _first_list(data, ("mix_infos", "mix_list", "collections", "items"))
+    records = _first_list(
+        data, ("collects_list", "mix_infos", "mix_list", "collections", "items")
+    )
     result: list[RemoteCollection] = []
     for record in records:
-        remote_id = record.get("mix_id", record.get("id", record.get("collection_id")))
-        name = record.get("mix_name", record.get("name", record.get("title")))
+        remote_id = record.get(
+            "collects_id_str",
+            record.get(
+                "collects_id",
+                record.get("mix_id", record.get("id", record.get("collection_id"))),
+            ),
+        )
+        name = record.get(
+            "collects_name",
+            record.get("mix_name", record.get("name", record.get("title"))),
+        )
         if remote_id is None or not str(name or "").strip():
             continue
         statistics = record.get("statis") if isinstance(record.get("statis"), dict) else {}
-        raw_count = statistics.get("aweme_count", record.get("item_count"))
+        raw_count = statistics.get(
+            "aweme_count", record.get("aweme_count", record.get("item_count"))
+        )
         try:
             count = int(raw_count) if raw_count is not None else None
         except (TypeError, ValueError):

@@ -41,7 +41,7 @@ def _has_collection_schema(payload: dict[str, Any]) -> bool:
     envelope = data if isinstance(data, dict) else payload
     return any(
         isinstance(envelope.get(key), list)
-        for key in ("mix_infos", "mix_list", "collections", "items")
+        for key in ("collects_list", "mix_infos", "mix_list", "collections", "items")
     )
 
 
@@ -93,6 +93,8 @@ class PlaywrightDouyinSource:
         "collection/list",
     )
     ITEM_PATH_MARKERS = ("mix/aweme", "collection/aweme", "aweme/favorite")
+    COLLECTS_LIST_PATH = "/aweme/v1/web/collects/list/"
+    COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
 
     def __init__(self, coordinator: BrowserCoordinator) -> None:
         self.coordinator = coordinator
@@ -101,6 +103,7 @@ class PlaywrightDouyinSource:
         self._responses: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         self._collection_names: dict[str, str] = {}
         self._observed_paths: deque[str] = deque(maxlen=32)
+        self._direct_collections = False
 
     async def open(self) -> None:
         if self._page is not None:
@@ -121,12 +124,25 @@ class PlaywrightDouyinSource:
         self._responses = asyncio.Queue()
         self._collection_names.clear()
         self._observed_paths.clear()
+        self._direct_collections = False
 
     async def fetch_collections(self) -> dict:
         await self.open()
         await self._page.goto(
             self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000
         )
+        direct_payload = await self._fetch_collections_api()
+        logger.warning(
+            "Douyin direct collection response shape=%s",
+            _payload_shape(direct_payload),
+        )
+        if _has_collection_schema(direct_payload):
+            collections = normalize_collections(direct_payload)
+            self._collection_names = {
+                item.remote_id: item.name for item in collections
+            }
+            self._direct_collections = True
+            return direct_payload
         await self._click_text_candidates(("收藏", "收藏夹"))
         payload = await self._wait_for_collections()
         collections = normalize_collections(payload)
@@ -137,6 +153,10 @@ class PlaywrightDouyinSource:
         await self.open()
         if not self._collection_names:
             await self.fetch_collections()
+        if self._direct_collections:
+            async for payload in self._iter_collection_api(remote_id):
+                yield payload
+            return
         await self._open_collection(remote_id)
         while True:
             try:
@@ -149,6 +169,68 @@ class PlaywrightDouyinSource:
                 return
             await self._page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await self._page.wait_for_timeout(900)
+
+    async def _fetch_collections_api(self) -> dict:
+        return await self._browser_json(
+            self.COLLECTS_LIST_PATH,
+            {"cursor": 0, "count": 50},
+        )
+
+    async def _iter_collection_api(self, remote_id: str) -> AsyncIterator[dict]:
+        cursor: int | str = 0
+        seen: set[str] = set()
+        while True:
+            payload = await self._browser_json(
+                self.COLLECTS_ITEMS_PATH,
+                {"collects_id": remote_id, "cursor": cursor, "count": 20},
+            )
+            yield payload
+            page = normalize_page(payload)
+            if not page.has_more or page.next_cursor is None:
+                return
+            if page.next_cursor in seen:
+                return
+            seen.add(page.next_cursor)
+            cursor = page.next_cursor
+
+    async def _browser_json(self, path: str, params: dict[str, object]) -> dict:
+        payload = await self._page.evaluate(
+            """
+            async ({path, params}) => {
+              const url = new URL(path, window.location.origin);
+              const common = {
+                device_platform: 'webapp',
+                aid: '6383',
+                channel: 'channel_pc_web',
+                pc_client_type: '1',
+                version_code: '170400',
+                version_name: '17.4.0',
+                cookie_enabled: 'true',
+                browser_language: navigator.language || 'zh-CN',
+                browser_platform: navigator.platform || 'Linux x86_64',
+                browser_name: 'Chrome',
+                browser_online: String(navigator.onLine),
+                engine_name: 'Blink',
+                os_name: 'Linux',
+                platform: 'PC',
+              };
+              for (const [key, value] of Object.entries({...common, ...params})) {
+                url.searchParams.set(key, String(value));
+              }
+              const response = await fetch(url.toString(), {
+                credentials: 'include',
+                headers: {Accept: 'application/json, text/plain, */*'},
+              });
+              if (!response.ok) return {status_code: response.status};
+              const data = await response.json();
+              return data && typeof data === 'object' ? data : {};
+            }
+            """,
+            {"path": path, "params": params},
+        )
+        if not isinstance(payload, dict):
+            raise ProviderChanged("Douyin browser API returned a non-object payload")
+        return payload
 
     async def _capture_response(self, response: Any) -> None:
         url = response.url
