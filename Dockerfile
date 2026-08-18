@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS web-builder
+FROM docker.m.daocloud.io/library/node:22-bookworm-slim AS web-builder
 
 WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 
-FROM python:3.13-slim-bookworm AS runtime
+FROM docker.m.daocloud.io/library/python:3.13-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

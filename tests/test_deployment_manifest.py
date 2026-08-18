@@ -29,3 +29,10 @@ def test_docker_image_exposes_the_installed_full_chromium() -> None:
 
     assert "PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/local/bin/douyin-chromium" in dockerfile
     assert "chrome-linux/chrome" in dockerfile
+
+
+def test_docker_image_bypasses_the_broken_nas_hub_mirror() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "FROM docker.m.daocloud.io/library/node:22-bookworm-slim" in dockerfile
+    assert "FROM docker.m.daocloud.io/library/python:3.13-slim-bookworm" in dockerfile
