@@ -66,7 +66,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
           <MediaAction label={t("showCollections")} onClick={onOpenCollections} icon={<FolderSimple size={22} />} />
           <MediaAction label={t("itemInformation")} onClick={() => onOpenDetails?.(item)} icon={<Info size={22} />} />
         </div>
-        {item.type === "video" && item.media.length > 0 ? <div className="absolute inset-x-5 bottom-[calc(86px+env(safe-area-inset-bottom))] z-[2] hidden max-lg:block"><progress aria-label={t("videoProgress")} className="media-progress h-1 w-full" max={1} value={progress} /></div> : null}
+        {item.type === "video" && item.media.length > 0 ? <div className="absolute inset-x-5 bottom-[calc(68px+env(safe-area-inset-bottom))] z-[2] hidden max-lg:block"><progress aria-label={t("videoProgress")} className="media-progress h-1 w-full" max={1} value={progress} /></div> : null}
       </div>
     </article>
   );
