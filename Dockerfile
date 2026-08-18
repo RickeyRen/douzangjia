@@ -12,19 +12,26 @@ FROM docker.m.daocloud.io/library/python:3.13-slim-bookworm AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/local/bin/douyin-chromium \
     HOME=/tmp \
     WEB_DIST=/app/web-dist
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY src/ ./src/
+COPY docker/douyin_archive/ ./src/douyin_archive/
+RUN sed -i \
+    -e 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+    -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+    /etc/apt/sources.list.d/debian.sources
 RUN pip install --no-cache-dir ".[browser,worker]" \
     && playwright install --with-deps --no-shell chromium \
     && chmod -R a+rX /app /ms-playwright
 RUN find /ms-playwright -path '*/chrome-linux*/chrome' -type f \
     -exec ln -s {} /usr/local/bin/douyin-chromium \; -quit \
     && test -x /usr/local/bin/douyin-chromium
+COPY src/ ./src/
+RUN pip install --no-cache-dir --no-deps .
 COPY --from=web-builder /build/web/dist/ /app/web-dist/
 
 EXPOSE 8099
