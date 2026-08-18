@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from types import SimpleNamespace
 
+import pytest
+
 try:
     from playwright.async_api import Error as SimulatedPlaywrightError
 except ModuleNotFoundError:
@@ -99,6 +101,22 @@ class RecordingHandle:
 class EmptyCookieContext:
     async def cookies(self) -> list[dict[str, object]]:
         return []
+
+
+class SessionCookieContext:
+    async def cookies(self) -> list[dict[str, object]]:
+        return [{"name": "sessionid", "domain": ".douyin.com", "value": "stale"}]
+
+
+class CollectionStatusPage:
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+
+    async def evaluate(self, _script: str) -> dict[str, object]:
+        return {
+            "status_code": self.status_code,
+            "collects_list": [] if self.status_code == 0 else None,
+        }
 
 
 class HiddenLocator:
@@ -249,6 +267,20 @@ async def test_poll_refreshes_an_expired_qr_inside_the_existing_browser() -> Non
 
     assert status.state == "awaiting_scan"
     assert page.clicked == ["button:has-text('刷新')"]
+
+
+@pytest.mark.parametrize("status_code, expected", [(0, True), (8, False)])
+async def test_login_requires_live_collection_api_not_just_session_cookie(
+    status_code: int,
+    expected: bool,
+) -> None:
+    browser = AuthBrowser()
+    session = SimpleNamespace(
+        context=SessionCookieContext(),
+        page=CollectionStatusPage(status_code),
+    )
+
+    assert await browser._session_is_authenticated(session) is expected
 
 
 async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_events() -> None:

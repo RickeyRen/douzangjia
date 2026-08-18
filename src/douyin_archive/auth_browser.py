@@ -240,12 +240,7 @@ class AuthBrowser:
         session = self._sessions[login_id]
         if time.monotonic() >= session.deadline:
             return BrowserLogin(login_id, "expired", None)
-        cookies = await session.context.cookies()
-        if any(
-            cookie.get("name") in {"sessionid", "sessionid_ss"}
-            and str(cookie.get("domain", "")).endswith("douyin.com")
-            for cookie in cookies
-        ):
+        if await self._session_is_authenticated(session):
             return BrowserLogin(login_id, "authenticated", None)
         await self._refresh_expired_qr(session.page)
         screenshot = (
@@ -254,6 +249,52 @@ class AuthBrowser:
             else None
         )
         return BrowserLogin(login_id, "awaiting_scan", screenshot)
+
+    async def _session_is_authenticated(self, session: _BrowserSession) -> bool:
+        from playwright.async_api import Error as PlaywrightError
+
+        cookies = await session.context.cookies()
+        has_session_cookie = any(
+            cookie.get("name") in {"sessionid", "sessionid_ss"}
+            and str(cookie.get("domain", "")).endswith("douyin.com")
+            for cookie in cookies
+        )
+        if not has_session_cookie:
+            return False
+        try:
+            payload = await session.page.evaluate(
+                """
+                async () => {
+                  const url = new URL('/aweme/v1/web/collects/list/', location.origin);
+                  for (const [key, value] of Object.entries({
+                    device_platform: 'webapp', aid: '6383', channel: 'channel_pc_web',
+                    pc_client_type: '1', cursor: '0', count: '1',
+                    version_code: '170400', version_name: '17.4.0',
+                  })) url.searchParams.set(key, value);
+                  const controller = new AbortController();
+                  const timer = setTimeout(() => controller.abort(), 8_000);
+                  try {
+                    const response = await fetch(url.toString(), {
+                      credentials: 'include',
+                      headers: {Accept: 'application/json, text/plain, */*'},
+                      signal: controller.signal,
+                    });
+                    return response.ok ? await response.json() : {};
+                  } catch {
+                    return {};
+                  } finally {
+                    clearTimeout(timer);
+                  }
+                }
+                """
+            )
+        except PlaywrightError:
+            return False
+        return (
+            isinstance(payload, dict)
+            and payload.get("status_code") == 0
+            and isinstance(payload.get("collects_list"), list)
+        )
 
     @staticmethod
     async def _refresh_expired_qr(page: Any) -> bool:
