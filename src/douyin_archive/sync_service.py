@@ -36,17 +36,31 @@ class SyncService:
         self.jobs = jobs
         self.db = archive.db
 
-    async def run(self, *, full_scan: bool) -> SyncResult:
+    async def create_run(self, *, full_scan: bool, status: str = "running") -> int:
         now = int(time.time())
         cursor = await self.db.execute(
             "INSERT INTO sync_runs (mode, phase, status, started_at) "
-            "VALUES (?, 'discovering', 'running', ?) RETURNING id",
-            ("full" if full_scan else "incremental", now),
+            "VALUES (?, ?, ?, ?) RETURNING id",
+            (
+                "full" if full_scan else "incremental",
+                "queued" if status == "queued" else "discovering",
+                status,
+                now,
+            ),
         )
         row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("sync run creation failed")
-        run_id = int(row["id"])
+        return int(row["id"])
+
+    async def run(self, *, full_scan: bool, run_id: int | None = None) -> SyncResult:
+        if run_id is None:
+            run_id = await self.create_run(full_scan=full_scan)
+        else:
+            await self.db.execute(
+                "UPDATE sync_runs SET phase='discovering', status='running' WHERE id=?",
+                (run_id,),
+            )
         discovered = 0
         enqueued = 0
         try:

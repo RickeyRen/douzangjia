@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal, Protocol
@@ -119,11 +120,13 @@ class AuthService:
         browser: AuthBrowserProtocol,
         *,
         timeout_seconds: int = 300,
+        on_authenticated: Callable[[], Awaitable[object]] | None = None,
     ) -> None:
         self.database = database
         self.cipher = cipher
         self.browser = browser
         self.timeout_seconds = timeout_seconds
+        self.on_authenticated = on_authenticated
         self.sessions: dict[str, LoginStatus] = {}
 
     async def begin_login(self) -> LoginStatus:
@@ -172,6 +175,8 @@ class AuthService:
             )
             await self.browser.close(login_id)
             status = status.with_state("authenticated", screenshot_png=None)
+            if self.on_authenticated is not None:
+                await self.on_authenticated()
         elif browser_login.state in {"failed", "expired"}:
             await self.browser.close(login_id)
             status = status.with_state(

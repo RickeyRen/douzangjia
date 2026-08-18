@@ -56,3 +56,19 @@ async def test_completed_job_is_not_claimed_again(job_repository: JobRepository)
     completed = await job_repository.get(queued.id)
     assert completed is not None
     assert completed.status == "completed"
+
+
+async def test_new_discovery_requeues_a_completed_download(
+    job_repository: JobRepository,
+) -> None:
+    queued = await job_repository.enqueue_unique("download", "734", {"url": "old"})
+    claimed = await job_repository.claim_next(worker_id="worker-a")
+    assert claimed is not None
+    await job_repository.complete(claimed.id)
+
+    refreshed = await job_repository.enqueue_unique("download", "734", {"url": "fresh"})
+    reclaimed = await job_repository.claim_next(worker_id="worker-b")
+
+    assert refreshed.id == queued.id
+    assert reclaimed is not None
+    assert reclaimed.payload == {"url": "fresh"}

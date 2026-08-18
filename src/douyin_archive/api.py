@@ -28,6 +28,10 @@ class SessionRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class SyncRequest(BaseModel):
+    full_scan: bool = Field(default=False, alias="fullScan")
+
+
 class AdminStore:
     """Small first-boot credential store; the database layer replaces this facade later."""
 
@@ -66,7 +70,7 @@ def _prepare_directories(root: Path) -> None:
         (root / relative).mkdir(parents=True, exist_ok=True)
 
 
-def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
+def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -> FastAPI:
     cipher = CookieCipher(settings.master_key.get_secret_value())
     password_hasher = PasswordHasher()
     admin_store = AdminStore(settings.archive_root / "data" / "admin.json")
@@ -91,9 +95,19 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
             )
         else:
             application.state.auth_service = auth_service
+        runtime = (
+            runtime_factory(settings, owned_database, application.state.auth_service)
+            if runtime_factory is not None
+            else None
+        )
+        application.state.runtime = runtime
+        if runtime is not None:
+            await runtime.start()
         try:
             yield
         finally:
+            if runtime is not None:
+                await runtime.stop()
             if owns_auth_service:
                 await application.state.auth_service.close()
             await owned_database.close()
@@ -237,6 +251,17 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
     @app.post("/api/protected-test")
     async def protected_test() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.post("/api/sync", status_code=202)
+    async def trigger_sync(payload: SyncRequest, request: Request):
+        runtime = request.app.state.runtime
+        if runtime is None:
+            return JSONResponse(
+                status_code=503,
+                content={"code": "RUNTIME_UNAVAILABLE", "message": "同步服务未启动"},
+            )
+        run_id = await runtime.trigger_sync(full_scan=payload.full_scan)
+        return {"runId": run_id}
 
     @app.post("/api/douyin/login", status_code=201)
     async def begin_douyin_login(request: Request) -> dict[str, object]:

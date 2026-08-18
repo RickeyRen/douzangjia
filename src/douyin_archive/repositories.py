@@ -149,7 +149,16 @@ class JobRepository:
             "(kind, remote_id, payload_json, status, attempts, next_attempt_at, created_at, updated_at) "
             "VALUES (?, ?, ?, 'pending', 0, ?, ?, ?) "
             "ON CONFLICT(kind, remote_id) DO UPDATE SET "
-            "payload_json=excluded.payload_json, updated_at=excluded.updated_at "
+            "payload_json=excluded.payload_json, "
+            "status=CASE WHEN download_jobs.status IN ('completed', 'failed') "
+            "THEN 'pending' ELSE download_jobs.status END, "
+            "attempts=CASE WHEN download_jobs.status IN ('completed', 'failed') "
+            "THEN 0 ELSE download_jobs.attempts END, "
+            "next_attempt_at=CASE WHEN download_jobs.status IN ('completed', 'failed') "
+            "THEN excluded.next_attempt_at ELSE download_jobs.next_attempt_at END, "
+            "last_error_code=CASE WHEN download_jobs.status IN ('completed', 'failed') "
+            "THEN NULL ELSE download_jobs.last_error_code END, "
+            "updated_at=excluded.updated_at "
             "RETURNING *",
             (kind, remote_id, json.dumps(payload, separators=(",", ":")), now, now, now),
         )

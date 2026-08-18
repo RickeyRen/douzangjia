@@ -56,3 +56,39 @@ def test_public_status_reports_only_setup_and_session_booleans(
     }
     assert signed_out.status_code == 200
     assert signed_out.json()["authenticated"] is False
+
+
+def test_manual_sync_is_handed_to_the_runtime(
+    tmp_path: Path, master_key: str
+) -> None:
+    class FakeRuntime:
+        def __init__(self, *_args) -> None:
+            self.full_scan: bool | None = None
+
+        async def start(self) -> None:
+            pass
+
+        async def stop(self) -> None:
+            pass
+
+        async def trigger_sync(self, *, full_scan: bool) -> int:
+            self.full_scan = full_scan
+            return 42
+
+    runtime = FakeRuntime()
+    app = create_app(
+        Settings(archive_root=tmp_path, master_key=master_key),
+        runtime_factory=lambda *_args: runtime,
+    )
+    with TestClient(app) as client:
+        client.post("/api/setup", json={"password": "a secure local passphrase"})
+        csrf = client.cookies.get("archive_csrf")
+        response = client.post(
+            "/api/sync",
+            headers={"X-CSRF-Token": csrf or ""},
+            json={"fullScan": True},
+        )
+
+    assert response.status_code == 202
+    assert response.json() == {"runId": 42}
+    assert runtime.full_scan is True

@@ -89,3 +89,29 @@ async def test_cancel_closes_temporary_browser(auth_components) -> None:
     status = await service.cancel("login-1")
     assert status.state == "cancelled"
     assert browser.closed == ["login-1"]
+
+
+async def test_authenticated_login_notifies_runtime_for_initial_sync(
+    tmp_path: Path, master_key: str
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    browser = FakeAuthBrowser()
+    called = 0
+
+    async def on_authenticated() -> None:
+        nonlocal called
+        called += 1
+
+    service = AuthService(
+        database,
+        CookieCipher(master_key),
+        browser,
+        on_authenticated=on_authenticated,
+    )
+    await service.begin_login()
+    browser.state = "authenticated"
+    await service.get_status("login-1")
+
+    assert called == 1
+    await database.close()
