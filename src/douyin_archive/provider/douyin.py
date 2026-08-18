@@ -132,9 +132,21 @@ class PlaywrightDouyinSource:
             self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000
         )
         direct_payload = await self._fetch_collections_api()
+        signer_capabilities = await self._page.evaluate(
+            """
+            () => ({
+              bytedAcrawler: typeof globalThis.byted_acrawler,
+              bytedSign: typeof globalThis.byted_acrawler?.sign,
+              webmssdk: typeof globalThis._webmsSDK,
+              webmssdkSign: typeof globalThis._webmsSDK?.sign,
+            })
+            """
+        )
         logger.warning(
-            "Douyin direct collection response shape=%s",
+            "Douyin direct collection response status=%s shape=%s signer=%s",
+            direct_payload.get("status_code"),
             _payload_shape(direct_payload),
+            signer_capabilities,
         )
         if _has_collection_schema(direct_payload):
             collections = normalize_collections(direct_payload)
