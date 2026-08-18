@@ -95,8 +95,10 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[dict] = []
+            self.scripts: list[str] = []
 
         async def evaluate(self, script: str, arguments: dict) -> dict:
+            self.scripts.append(script)
             self.calls.append(arguments)
             if arguments["path"].endswith("/collects/list/"):
                 return {
@@ -130,6 +132,19 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
     ]
     assert source._page.calls[0]["path"].endswith("/collects/list/")
     assert source._page.calls[1]["params"]["collects_id"] == "2001"
+    assert "AbortController" in source._page.scripts[0]
+
+
+async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
+    class TimedOutPage(FakePage):
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            return {"__browser_error": "timeout"}
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = TimedOutPage()
+
+    with pytest.raises(ProviderChanged):
+        await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
 
 
 def test_payload_shape_never_contains_response_values() -> None:

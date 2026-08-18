@@ -229,19 +229,32 @@ class PlaywrightDouyinSource:
               for (const [key, value] of Object.entries({...common, ...params})) {
                 url.searchParams.set(key, String(value));
               }
-              const response = await fetch(url.toString(), {
-                credentials: 'include',
-                headers: {Accept: 'application/json, text/plain, */*'},
-              });
-              if (!response.ok) return {status_code: response.status};
-              const data = await response.json();
-              return data && typeof data === 'object' ? data : {};
+              const controller = new AbortController();
+              const timer = window.setTimeout(() => controller.abort(), 20_000);
+              try {
+                const response = await fetch(url.toString(), {
+                  credentials: 'include',
+                  headers: {Accept: 'application/json, text/plain, */*'},
+                  signal: controller.signal,
+                });
+                if (!response.ok) return {status_code: response.status};
+                const data = await response.json();
+                return data && typeof data === 'object' ? data : {};
+              } catch (error) {
+                return {
+                  __browser_error: error?.name === 'AbortError' ? 'timeout' : 'network',
+                };
+              } finally {
+                window.clearTimeout(timer);
+              }
             }
             """,
             {"path": path, "params": params},
         )
         if not isinstance(payload, dict):
             raise ProviderChanged("Douyin browser API returned a non-object payload")
+        if payload.get("__browser_error") in {"timeout", "network"}:
+            raise ProviderChanged("Douyin browser API request did not complete")
         return payload
 
     async def _capture_response(self, response: Any) -> None:
