@@ -14,6 +14,9 @@ def test_settings_reject_filesystem_root(master_key: str) -> None:
 def test_settings_resolve_archive_root(tmp_path: Path, master_key: str) -> None:
     settings = Settings(archive_root=tmp_path / "archive", master_key=master_key)
     assert settings.archive_root == (tmp_path / "archive").resolve()
+    assert settings.browser_profile_path == (
+        tmp_path / "archive" / "data" / "chromium-profile"
+    ).resolve()
     assert settings.sync_interval_seconds == 300
 
 

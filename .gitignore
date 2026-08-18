@@ -6,6 +6,7 @@ __pycache__/
 htmlcov/
 .env
 archive-data/
+chromium-profile*/
 .worktrees/
 web/node_modules/
 web/dist/

@@ -46,3 +46,7 @@ class Settings(BaseSettings):
     @classmethod
     def resolve_web_dist(cls, value: Path | None) -> Path | None:
         return value.expanduser().resolve() if value is not None else None
+
+    @property
+    def browser_profile_path(self) -> Path:
+        return self.archive_root / "data" / "chromium-profile"

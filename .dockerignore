@@ -5,6 +5,7 @@
 __pycache__
 *.py[cod]
 archive-data
+chromium-profile*
 web/node_modules
 web/dist
 docs/design
