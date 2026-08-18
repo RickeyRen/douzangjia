@@ -1,4 +1,6 @@
-from douyin_archive.auth_browser import replay_drag, replay_pointer
+from __future__ import annotations
+
+from douyin_archive.auth_browser import PointerGesture, replay_drag, replay_pointer
 
 
 class RecordingMouse:
@@ -16,36 +18,134 @@ class RecordingMouse:
 
 
 class RecordingPage:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        nested_frame: RecordingPage | None = None,
+        frame_offset: tuple[float, float] = (0.0, 0.0),
+    ) -> None:
         self.mouse = RecordingMouse()
         self.waits: list[int] = []
+        self.element_clicks: list[tuple[float, float]] = []
+        self.hit_tests: list[tuple[float, float]] = []
+        self.nested_frame = nested_frame
+        self.frame_offset = frame_offset
 
     async def wait_for_timeout(self, milliseconds: int) -> None:
         self.waits.append(milliseconds)
 
+    async def evaluate_handle(self, _script: str, point: dict[str, float]):
+        self.hit_tests.append((point["x"], point["y"]))
+        return RecordingHandle(self, point["x"], point["y"])
 
-async def test_replay_pointer_uses_native_click_sequence_without_fake_drag() -> None:
+
+class RecordingElement:
+    def __init__(self, page: RecordingPage, x: float, y: float) -> None:
+        self.page = page
+        self.x = x
+        self.y = y
+
+    async def click(self, *, timeout: int) -> None:
+        assert timeout == 2_000
+        self.page.element_clicks.append((self.x, self.y))
+
+    async def content_frame(self) -> RecordingPage | None:
+        return self.page.nested_frame
+
+    async def evaluate(self, _script: str) -> dict[str, float]:
+        return {"x": self.page.frame_offset[0], "y": self.page.frame_offset[1]}
+
+
+class RecordingHandle:
+    def __init__(self, page: RecordingPage, x: float, y: float) -> None:
+        self.element = RecordingElement(page, x, y)
+
+    def as_element(self) -> RecordingElement:
+        return self.element
+
+    async def dispose(self) -> None:
+        return None
+
+
+async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_events() -> None:
     page = RecordingPage()
+    gesture = PointerGesture()
 
-    await replay_pointer(page, "down", 0.5, 0.5)
-    await replay_pointer(page, "up", 0.5, 0.5)
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "up", 0.5, 0.5)
 
-    assert page.mouse.events == [
-        ("move", 260.0, 340.0, 1),
-        ("down",),
-        ("move", 260.0, 340.0, 1),
-        ("up",),
-    ]
+    assert page.mouse.events == []
+    assert page.element_clicks == [(260.0, 340.0)]
     assert page.waits == [120]
 
 
-async def test_replay_pointer_forwards_live_moves_while_pressed() -> None:
-    page = RecordingPage()
+async def test_replay_pointer_clicks_through_a_nested_verification_frame() -> None:
+    verification_frame = RecordingPage()
+    page = RecordingPage(nested_frame=verification_frame, frame_offset=(40.0, 80.0))
+    gesture = PointerGesture()
 
-    await replay_pointer(page, "move", 0.75, 0.25)
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "up", 0.5, 0.5)
+
+    assert page.element_clicks == []
+    assert page.hit_tests == [(260.0, 340.0)]
+    assert verification_frame.hit_tests == [(220.0, 260.0)]
+    assert verification_frame.element_clicks == [(220.0, 260.0)]
+
+
+async def test_replay_pointer_starts_a_native_drag_after_real_movement() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.1, 0.4)
+    await replay_pointer(page, gesture, "move", 0.5, 0.4)
+    await replay_pointer(page, gesture, "up", 0.9, 0.4)
+
+    assert page.mouse.events == [
+        ("move", 52.0, 272.0, 1),
+        ("down",),
+        ("move", 260.0, 272.0, 1),
+        ("move", 468.0, 272.0, 1),
+        ("up",),
+    ]
+    assert page.element_clicks == []
+    assert page.waits == [120]
+
+
+async def test_replay_pointer_keeps_small_cursor_jitter_as_a_click() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+    await replay_pointer(page, gesture, "move", 0.502, 0.502)
+    await replay_pointer(page, gesture, "up", 0.502, 0.502)
+
+    assert page.mouse.events == []
+    assert page.element_clicks == [(261.04, 341.36)]
+
+
+async def test_replay_pointer_forwards_hover_moves_without_a_pressed_pointer() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "move", 0.75, 0.25)
 
     assert page.mouse.events == [("move", 390.0, 170.0, 1)]
+    assert page.element_clicks == []
     assert page.waits == []
+
+
+async def test_replay_pointer_down_resets_an_unfinished_drag() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture(origin=(10.0, 20.0), pressed=True)
+
+    await replay_pointer(page, gesture, "down", 0.5, 0.5)
+
+    assert page.mouse.events == [
+        ("up",),
+    ]
+    assert gesture.origin == (260.0, 340.0)
+    assert gesture.pressed is False
 
 
 async def test_replay_drag_maps_normalized_points_to_the_login_viewport() -> None:

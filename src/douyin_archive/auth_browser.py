@@ -3,7 +3,8 @@ from __future__ import annotations
 import secrets
 import time
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import hypot
 from typing import Any
 
 from .auth_service import BrowserLogin
@@ -11,9 +12,65 @@ from .browser_launch import chromium_launch_options
 
 LOGIN_VIEWPORT_WIDTH = 520
 LOGIN_VIEWPORT_HEIGHT = 680
+DRAG_START_DISTANCE = 4.0
 
 
-async def replay_pointer(page: Any, action: str, x: float, y: float) -> None:
+@dataclass(slots=True)
+class PointerGesture:
+    origin: tuple[float, float] | None = None
+    pressed: bool = False
+
+
+async def _click_element_at(page: Any, x: float, y: float) -> None:
+    """Click the actual interactive DOM element at a viewport coordinate."""
+
+    surface = page
+    local_x = x
+    local_y = y
+    handles: list[Any] = []
+    try:
+        for _depth in range(6):
+            handle = await surface.evaluate_handle(
+                """
+                ({x, y}) => {
+                  const hit = document.elementFromPoint(x, y);
+                  if (!hit) return null;
+                  return hit.closest(
+                    'button, a, [role="button"], [onclick], input, label'
+                  ) || hit;
+                }
+                """,
+                {"x": local_x, "y": local_y},
+            )
+            handles.append(handle)
+            element = handle.as_element()
+            if element is None:
+                await page.mouse.click(x, y)
+                return
+            nested_frame = await element.content_frame()
+            if nested_frame is None:
+                await element.click(timeout=2_000)
+                return
+            bounds = await element.evaluate(
+                "element => { const rect = element.getBoundingClientRect(); "
+                "return {x: rect.x, y: rect.y}; }"
+            )
+            local_x -= float(bounds["x"])
+            local_y -= float(bounds["y"])
+            surface = nested_frame
+        await page.mouse.click(x, y)
+    finally:
+        for handle in reversed(handles):
+            await handle.dispose()
+
+
+async def replay_pointer(
+    page: Any,
+    gesture: PointerGesture,
+    action: str,
+    x: float,
+    y: float,
+) -> None:
     """Forward one normalized pointer event to the login viewport."""
 
     if action not in {"down", "move", "up"}:
@@ -21,11 +78,35 @@ async def replay_pointer(page: Any, action: str, x: float, y: float) -> None:
     if not (0 <= x <= 1 and 0 <= y <= 1):
         raise ValueError("pointer coordinates must be normalized")
 
-    await page.mouse.move(x * LOGIN_VIEWPORT_WIDTH, y * LOGIN_VIEWPORT_HEIGHT)
+    viewport_x = x * LOGIN_VIEWPORT_WIDTH
+    viewport_y = y * LOGIN_VIEWPORT_HEIGHT
     if action == "down":
-        await page.mouse.down()
+        if gesture.pressed:
+            await page.mouse.up()
+        gesture.origin = (viewport_x, viewport_y)
+        gesture.pressed = False
+    elif action == "move":
+        if gesture.origin is None:
+            await page.mouse.move(viewport_x, viewport_y)
+            return
+        if not gesture.pressed and hypot(
+            viewport_x - gesture.origin[0], viewport_y - gesture.origin[1]
+        ) >= DRAG_START_DISTANCE:
+            await page.mouse.move(*gesture.origin)
+            await page.mouse.down()
+            gesture.pressed = True
+        if gesture.pressed:
+            await page.mouse.move(viewport_x, viewport_y)
     elif action == "up":
-        await page.mouse.up()
+        if gesture.origin is None:
+            return
+        if gesture.pressed:
+            await page.mouse.move(viewport_x, viewport_y)
+            await page.mouse.up()
+        else:
+            await _click_element_at(page, viewport_x, viewport_y)
+        gesture.origin = None
+        gesture.pressed = False
         await page.wait_for_timeout(120)
 
 
@@ -60,6 +141,7 @@ class _BrowserSession:
     context: Any
     page: Any
     deadline: float
+    pointer_gesture: PointerGesture = field(default_factory=PointerGesture)
 
 
 class AuthBrowser:
@@ -123,7 +205,8 @@ class AuthBrowser:
     async def pointer(
         self, login_id: str, action: str, x: float, y: float
     ) -> None:
-        await replay_pointer(self._sessions[login_id].page, action, x, y)
+        session = self._sessions[login_id]
+        await replay_pointer(session.page, session.pointer_gesture, action, x, y)
 
     async def close(self, login_id: str) -> None:
         session = self._sessions.pop(login_id, None)
