@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal, Protocol
 
+from .browser_stream import CdpScreencast
 from .db import Database
 from .security import CookieCipher
 
@@ -54,6 +55,8 @@ class AuthBrowserProtocol(Protocol):
     ) -> BrowserLogin: ...
 
     async def frame(self, login_id: str) -> bytes: ...
+
+    async def screencast(self, login_id: str) -> CdpScreencast: ...
 
     async def cookies(self, login_id: str) -> list[dict[str, object]]: ...
 
@@ -214,6 +217,12 @@ class AuthService:
         if status.state not in {"starting", "awaiting_scan"}:
             raise ValueError("login session is not interactive")
         return await self.browser.frame(login_id)
+
+    async def screencast(self, login_id: str) -> CdpScreencast:
+        status = self._get(login_id)
+        if status.state not in {"starting", "awaiting_scan"}:
+            raise ValueError("login session is not interactive")
+        return await self.browser.screencast(login_id)
 
     async def cancel(self, login_id: str) -> LoginStatus:
         status = self._get(login_id)

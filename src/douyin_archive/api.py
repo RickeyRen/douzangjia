@@ -7,17 +7,19 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .browser_coordinator import BrowserCoordinator
 from .browser_profile import BrowserProfileStore
+from .browser_socket import handle_browser_socket
 from .config import Settings
 from .db import Database
 from .repositories import ArchiveRepository, JobRepository
 from .security import CookieCipher, PasswordHasher
+from .session_auth import SessionCodec
 
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
@@ -110,6 +112,7 @@ def _prepare_directories(root: Path) -> None:
 
 def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -> FastAPI:
     cipher = CookieCipher(settings.master_key.get_secret_value())
+    session_codec = SessionCodec(cipher)
     password_hasher = PasswordHasher()
     admin_store = AdminStore(settings.archive_root / "data" / "admin.json")
 
@@ -163,18 +166,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app.state.admin_store = admin_store
 
     def decode_session(request: Request) -> bool:
-        token = request.cookies.get(SESSION_COOKIE)
-        if not token:
-            return False
-        try:
-            session = cipher.decrypt(token)
-            return bool(
-                isinstance(session, dict)
-                and session.get("sub") == "admin"
-                and session.get("expiresAt", 0) > int(time.time())
-            )
-        except (ValueError, AttributeError, TypeError):
-            return False
+        return session_codec.is_valid(request.cookies.get(SESSION_COOKIE))
 
     def issue_session(response: Response) -> None:
         csrf_token = secrets.token_urlsafe(32)
@@ -313,6 +305,16 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     async def begin_douyin_login(request: Request) -> dict[str, object]:
         status = await request.app.state.auth_service.begin_login()
         return status.as_public_dict()
+
+    @app.websocket("/ws/douyin/login/{login_id}")
+    async def douyin_login_socket(websocket: WebSocket, login_id: str) -> None:
+        await handle_browser_socket(
+            websocket,
+            login_id,
+            auth_service=websocket.app.state.auth_service,
+            session_codec=session_codec,
+            session_cookie=SESSION_COOKIE,
+        )
 
     @app.get("/api/douyin/login/{login_id}")
     async def douyin_login_status(login_id: str, request: Request):
