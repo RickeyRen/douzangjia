@@ -104,12 +104,27 @@ async def test_replay_pointer_starts_a_native_drag_after_real_movement() -> None
     assert page.mouse.events == [
         ("move", 52.0, 272.0, 1),
         ("down",),
-        ("move", 260.0, 272.0, 1),
-        ("move", 468.0, 272.0, 1),
+        ("move", 260.0, 272.0, 12),
+        ("move", 468.0, 272.0, 12),
         ("up",),
     ]
     assert page.element_clicks == []
-    assert page.waits == [120]
+    assert page.waits == [48, 16, 64, 120]
+
+
+async def test_replay_pointer_paces_long_drag_before_releasing() -> None:
+    page = RecordingPage()
+    gesture = PointerGesture()
+
+    await replay_pointer(page, gesture, "down", 0.1, 0.4)
+    await replay_pointer(page, gesture, "move", 0.5, 0.4)
+    await replay_pointer(page, gesture, "up", 0.9, 0.4)
+
+    drag_moves = [event for event in page.mouse.events if event[0] == "move"]
+    assert drag_moves[1][3] > 1
+    assert drag_moves[2][3] > 1
+    assert len(page.waits) > 1
+    assert page.waits[-1] == 120
 
 
 async def test_replay_pointer_keeps_small_cursor_jitter_as_a_click() -> None:

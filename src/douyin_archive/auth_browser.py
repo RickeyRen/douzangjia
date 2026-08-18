@@ -13,6 +13,10 @@ from .browser_launch import chromium_launch_options
 LOGIN_VIEWPORT_WIDTH = 520
 LOGIN_VIEWPORT_HEIGHT = 680
 DRAG_START_DISTANCE = 4.0
+DRAG_MOVE_STEPS = 12
+DRAG_PRESS_DELAY_MS = 48
+DRAG_MOVE_DELAY_MS = 16
+DRAG_RELEASE_DELAY_MS = 64
 
 
 @dataclass(slots=True)
@@ -94,14 +98,25 @@ async def replay_pointer(
         ) >= DRAG_START_DISTANCE:
             await page.mouse.move(*gesture.origin)
             await page.mouse.down()
+            await page.wait_for_timeout(DRAG_PRESS_DELAY_MS)
             gesture.pressed = True
         if gesture.pressed:
-            await page.mouse.move(viewport_x, viewport_y)
+            await page.mouse.move(
+                viewport_x,
+                viewport_y,
+                steps=DRAG_MOVE_STEPS,
+            )
+            await page.wait_for_timeout(DRAG_MOVE_DELAY_MS)
     elif action == "up":
         if gesture.origin is None:
             return
         if gesture.pressed:
-            await page.mouse.move(viewport_x, viewport_y)
+            await page.mouse.move(
+                viewport_x,
+                viewport_y,
+                steps=DRAG_MOVE_STEPS,
+            )
+            await page.wait_for_timeout(DRAG_RELEASE_DELAY_MS)
             await page.mouse.up()
         else:
             await _click_element_at(page, viewport_x, viewport_y)
