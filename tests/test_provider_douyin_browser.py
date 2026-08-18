@@ -186,14 +186,13 @@ async def test_browser_api_evaluate_has_an_outer_timeout(
         async def evaluate(self, script: str, arguments: dict) -> dict:
             return {"status_code": 0, "collects_list": []}
 
-    async def timeout_immediately(awaitable, *, timeout):
+    async def timeout_immediately(awaitables, *, timeout):
         assert timeout == 25
-        awaitable.close()
-        raise TimeoutError
+        return set(), set(awaitables)
 
     source = PlaywrightDouyinSource(FakeCoordinator())
     source._page = ResponsivePage()
-    monkeypatch.setattr(douyin_module.asyncio, "wait_for", timeout_immediately)
+    monkeypatch.setattr(douyin_module.asyncio, "wait", timeout_immediately)
 
     with pytest.raises(ProviderChanged):
         await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})

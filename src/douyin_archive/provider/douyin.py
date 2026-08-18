@@ -257,7 +257,7 @@ class PlaywrightDouyinSource:
 
     async def _browser_json(self, path: str, params: dict[str, object]) -> dict:
         try:
-            payload = await asyncio.wait_for(
+            evaluation = asyncio.create_task(
                 self._page.evaluate(
                     """
             async ({path, params}) => {
@@ -302,9 +302,14 @@ class PlaywrightDouyinSource:
             }
                     """,
                     {"path": path, "params": params},
-                ),
-                timeout=25,
+                )
             )
+            completed, _ = await asyncio.wait({evaluation}, timeout=25)
+            if evaluation not in completed:
+                evaluation.cancel()
+                evaluation.add_done_callback(self._consume_task_result)
+                raise TimeoutError("Douyin browser API evaluation timed out")
+            payload = evaluation.result()
         except Exception as error:
             logger.warning(
                 "Douyin browser API evaluation failed error_type=%s",
@@ -316,6 +321,11 @@ class PlaywrightDouyinSource:
         if payload.get("__browser_error") in {"timeout", "network"}:
             raise ProviderChanged("Douyin browser API request did not complete")
         return payload
+
+    @staticmethod
+    def _consume_task_result(task: asyncio.Task[Any]) -> None:
+        with suppress(asyncio.CancelledError, Exception):
+            task.result()
 
     async def _capture_response(self, response: Any) -> None:
         url = response.url
