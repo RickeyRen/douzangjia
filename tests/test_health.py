@@ -1,3 +1,4 @@
+import stat
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -21,4 +22,6 @@ def test_readiness_reports_archive_directory(tmp_path: Path, master_key: str) ->
         response = client.get("/health/ready")
     assert response.status_code == 200
     assert response.json()["checks"]["archiveRoot"] == "ok"
-
+    assert response.json()["checks"]["browserProfile"] == "ok"
+    profile = root / "data" / "chromium-profile"
+    assert stat.S_IMODE(profile.stat().st_mode) == 0o700

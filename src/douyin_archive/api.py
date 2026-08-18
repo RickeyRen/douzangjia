@@ -231,18 +231,32 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return {"status": "ok"}
 
     @app.get("/health/ready")
-    async def readiness() -> dict[str, object]:
+    async def readiness(request: Request) -> dict[str, object]:
         try:
             _prepare_directories(settings.archive_root)
             probe = settings.archive_root / "tmp" / ".write-probe"
             probe.write_bytes(b"ok")
             probe.unlink()
             archive_status = "ok"
-            status = "ok"
         except OSError:
             archive_status = "error"
-            status = "error"
-        return {"status": status, "checks": {"archiveRoot": archive_status}}
+        try:
+            request.app.state.browser_coordinator.profile_store.prepare()
+            browser_profile_status = "ok"
+        except OSError:
+            browser_profile_status = "error"
+        status = (
+            "ok"
+            if archive_status == "ok" and browser_profile_status == "ok"
+            else "error"
+        )
+        return {
+            "status": status,
+            "checks": {
+                "archiveRoot": archive_status,
+                "browserProfile": browser_profile_status,
+            },
+        }
 
     @app.post("/api/setup", status_code=201)
     async def setup(payload: SetupRequest, response: Response) -> dict[str, bool]:

@@ -12,7 +12,9 @@ def test_compose_keeps_archive_outside_the_container_and_stays_unprivileged() ->
     assert service["restart"] == "unless-stopped"
     assert service["user"] == "${PUID:-1000}:${PGID:-1000}"
     assert service.get("privileged", False) is False
-    assert "${ARCHIVE_PATH:-./archive-data}:/archive" in service["volumes"]
+    assert service["read_only"] is True
+    assert service["cap_drop"] == ["ALL"]
+    assert service["volumes"] == ["${ARCHIVE_PATH:-./archive-data}:/archive"]
     assert service["environment"]["ARCHIVE_MASTER_KEY"] == "${ARCHIVE_MASTER_KEY:?required}"
     assert service["healthcheck"]["test"][-1].endswith("/health/ready')")
 
