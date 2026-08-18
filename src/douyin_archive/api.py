@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .config import Settings
+from .db import Database
 from .security import CookieCipher, PasswordHasher
 
 SESSION_COOKIE = "archive_session"
@@ -50,15 +51,34 @@ def _prepare_directories(root: Path) -> None:
         (root / relative).mkdir(parents=True, exist_ok=True)
 
 
-def create_app(settings: Settings) -> FastAPI:
+def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
     cipher = CookieCipher(settings.master_key.get_secret_value())
     password_hasher = PasswordHasher()
     admin_store = AdminStore(settings.archive_root / "data" / "admin.json")
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(application: FastAPI):
         _prepare_directories(settings.archive_root)
-        yield
+        owned_database = None
+        if auth_service is None:
+            from .auth_browser import AuthBrowser
+            from .auth_service import AuthService
+
+            owned_database = Database(settings.archive_root / "data" / "archive.sqlite3")
+            await owned_database.open()
+            application.state.auth_service = AuthService(
+                owned_database,
+                cipher,
+                AuthBrowser(),
+            )
+        else:
+            application.state.auth_service = auth_service
+        try:
+            yield
+        finally:
+            if owned_database is not None:
+                await application.state.auth_service.close()
+                await owned_database.close()
 
     app = FastAPI(title="Douyin NAS Archive", lifespan=lifespan)
     app.state.settings = settings
@@ -147,5 +167,49 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post("/api/protected-test")
     async def protected_test() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.post("/api/douyin/login", status_code=201)
+    async def begin_douyin_login(request: Request) -> dict[str, object]:
+        status = await request.app.state.auth_service.begin_login()
+        return status.as_public_dict()
+
+    @app.get("/api/douyin/login/{login_id}")
+    async def douyin_login_status(login_id: str, request: Request):
+        try:
+            status = await request.app.state.auth_service.get_status(login_id)
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        return status.as_public_dict()
+
+    @app.get("/api/douyin/login/{login_id}/qr.png")
+    async def douyin_login_qr(login_id: str, request: Request):
+        try:
+            status = await request.app.state.auth_service.get_status(login_id)
+        except KeyError:
+            status = None
+        if status is None or status.screenshot_png is None:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "QR_NOT_AVAILABLE", "message": "二维码不可用"},
+            )
+        return Response(
+            content=status.screenshot_png,
+            media_type="image/png",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.post("/api/douyin/login/{login_id}/cancel")
+    async def cancel_douyin_login(login_id: str, request: Request):
+        try:
+            status = await request.app.state.auth_service.cancel(login_id)
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        return status.as_public_dict()
 
     return app
