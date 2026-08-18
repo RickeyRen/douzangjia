@@ -13,6 +13,22 @@ LOGIN_VIEWPORT_WIDTH = 520
 LOGIN_VIEWPORT_HEIGHT = 680
 
 
+async def replay_pointer(page: Any, action: str, x: float, y: float) -> None:
+    """Forward one normalized pointer event to the login viewport."""
+
+    if action not in {"down", "move", "up"}:
+        raise ValueError("unsupported pointer action")
+    if not (0 <= x <= 1 and 0 <= y <= 1):
+        raise ValueError("pointer coordinates must be normalized")
+
+    await page.mouse.move(x * LOGIN_VIEWPORT_WIDTH, y * LOGIN_VIEWPORT_HEIGHT)
+    if action == "down":
+        await page.mouse.down()
+    elif action == "up":
+        await page.mouse.up()
+        await page.wait_for_timeout(120)
+
+
 async def replay_drag(page: Any, points: list[tuple[float, float]]) -> None:
     """Replay a user-provided normalized drag path in the login viewport."""
 
@@ -103,6 +119,11 @@ class AuthBrowser:
 
     async def drag(self, login_id: str, points: list[tuple[float, float]]) -> None:
         await replay_drag(self._sessions[login_id].page, points)
+
+    async def pointer(
+        self, login_id: str, action: str, x: float, y: float
+    ) -> None:
+        await replay_pointer(self._sessions[login_id].page, action, x, y)
 
     async def close(self, login_id: str) -> None:
         session = self._sessions.pop(login_id, None)

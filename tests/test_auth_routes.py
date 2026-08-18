@@ -13,6 +13,7 @@ class FakeAuthService:
             login_id="login-1", state="awaiting_scan", screenshot_png=b"\x89PNG\r\nqr"
         )
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
+        self.pointer_events: list[tuple[str, str, float, float]] = []
 
     async def begin_login(self) -> LoginStatus:
         return self.status
@@ -31,6 +32,9 @@ class FakeAuthService:
     ) -> LoginStatus:
         self.dragged.append((login_id, points))
         return self.status
+
+    async def pointer(self, login_id: str, action: str, x: float, y: float) -> None:
+        self.pointer_events.append((login_id, action, x, y))
 
 
 def authenticated_client(tmp_path: Path, master_key: str) -> tuple[TestClient, str]:
@@ -110,3 +114,25 @@ def test_drag_route_requires_csrf_and_forwards_normalized_pointer_path(
     assert service.dragged == [
         ("login-1", [(0.1, 0.4), (0.5, 0.4), (0.9, 0.4)])
     ]
+
+
+def test_pointer_route_requires_csrf_and_forwards_each_live_event(
+    tmp_path: Path, master_key: str
+) -> None:
+    client, csrf = authenticated_client(tmp_path, master_key)
+    payload = {"action": "down", "x": 0.5, "y": 0.4}
+    try:
+        rejected = client.post("/api/douyin/login/login-1/pointer", json=payload)
+        accepted = client.post(
+            "/api/douyin/login/login-1/pointer",
+            json=payload,
+            headers={"X-CSRF-Token": csrf},
+        )
+        service = client.app.state.auth_service
+    finally:
+        client.__exit__(None, None, None)
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 202
+    assert accepted.json() == {"accepted": True}
+    assert service.pointer_events == [("login-1", "down", 0.5, 0.4)]

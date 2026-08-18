@@ -5,7 +5,7 @@ import {
   beginDouyinLogin,
   douyinQrUrl,
   getDouyinLogin,
-  submitDouyinDrag,
+  submitDouyinPointer,
   type LoginStatus,
   type PointerPoint,
 } from "../../app/api";
@@ -20,21 +20,36 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   const [dragging, setDragging] = useState(false);
   const [frameVersion, setFrameVersion] = useState(0);
   const activePointer = useRef<number | null>(null);
-  const dragPath = useRef<PointerPoint[]>([]);
+  const pointerQueue = useRef<Promise<void>>(Promise.resolve());
+  const lastMoveAt = useRef(0);
+  const loginId = status?.id;
+  const loginState = status?.state;
 
   useEffect(() => {
-    if (interacting || !status || !["starting", "awaiting_scan"].includes(status.state)) return;
-    const timer = window.setInterval(() => {
-      void getDouyinLogin(status.id)
+    if (!loginId || !loginState || !["starting", "awaiting_scan"].includes(loginState)) return;
+    let stopped = false;
+    let timer = 0;
+    const poll = () => {
+      void getDouyinLogin(loginId)
         .then((next) => {
+          if (stopped) return;
           setStatus(next);
           if (next.hasScreenshot) setFrameVersion((version) => version + 1);
           if (next.state === "authenticated") onAuthenticated?.();
         })
-        .catch(() => setError(true));
-    }, 1800);
-    return () => window.clearInterval(timer);
-  }, [interacting, onAuthenticated, status]);
+        .catch(() => {
+          if (!stopped) setError(true);
+        })
+        .finally(() => {
+          if (!stopped) timer = window.setTimeout(poll, 250);
+        });
+    };
+    timer = window.setTimeout(poll, 250);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [loginId, loginState, onAuthenticated]);
 
   async function begin() {
     setStarting(true);
@@ -42,11 +57,22 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     try {
       setStatus(await beginDouyinLogin());
       setFrameVersion((version) => version + 1);
+      pointerQueue.current = Promise.resolve();
     } catch {
       setError(true);
     } finally {
       setStarting(false);
     }
+  }
+
+  function forwardPointer(action: "down" | "move" | "up", point: PointerPoint) {
+    if (!status) return;
+    const id = status.id;
+    pointerQueue.current = pointerQueue.current
+      .catch(() => undefined)
+      .then(() => submitDouyinPointer(id, { action, ...point }))
+      .then(() => undefined)
+      .catch(() => setError(true));
   }
 
   function normalizedPoint(event: ReactPointerEvent<HTMLImageElement>): PointerPoint {
@@ -61,45 +87,37 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   function startDrag(event: ReactPointerEvent<HTMLImageElement>) {
     if (!status || interacting) return;
     activePointer.current = event.pointerId;
-    dragPath.current = [normalizedPoint(event)];
+    lastMoveAt.current = 0;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setDragging(true);
+    setInteracting(true);
+    forwardPointer("down", normalizedPoint(event));
   }
 
   function continueDrag(event: ReactPointerEvent<HTMLImageElement>) {
-    if (activePointer.current !== event.pointerId || dragPath.current.length >= 119) return;
-    dragPath.current.push(normalizedPoint(event));
+    if (activePointer.current !== event.pointerId) return;
+    if (lastMoveAt.current && event.timeStamp - lastMoveAt.current < 50) return;
+    lastMoveAt.current = event.timeStamp;
+    forwardPointer("move", normalizedPoint(event));
   }
 
   async function finishDrag(event: ReactPointerEvent<HTMLImageElement>) {
     if (!status || activePointer.current !== event.pointerId) return;
-    dragPath.current.push(normalizedPoint(event));
-    const points = dragPath.current;
     activePointer.current = null;
-    dragPath.current = [];
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     setDragging(false);
-    if (points.length < 2) return;
-
-    setInteracting(true);
     setError(false);
-    try {
-      const next = await submitDouyinDrag(status.id, points);
-      setStatus(next);
-      setFrameVersion((version) => version + 1);
-      if (next.state === "authenticated") onAuthenticated?.();
-    } catch {
-      setError(true);
-    } finally {
-      setInteracting(false);
-    }
+    forwardPointer("up", normalizedPoint(event));
+    await pointerQueue.current;
+    setInteracting(false);
   }
 
   function cancelDrag(event: ReactPointerEvent<HTMLImageElement>) {
     if (activePointer.current !== event.pointerId) return;
     activePointer.current = null;
-    dragPath.current = [];
     setDragging(false);
+    forwardPointer("up", normalizedPoint(event));
+    void pointerQueue.current.finally(() => setInteracting(false));
   }
 
   const statusText =

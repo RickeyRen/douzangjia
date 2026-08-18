@@ -8,7 +8,7 @@ import { DouyinLoginPage } from "./DouyinLoginPage";
 vi.mock("../../app/api", () => ({
   beginDouyinLogin: vi.fn(),
   getDouyinLogin: vi.fn(),
-  submitDouyinDrag: vi.fn(),
+  submitDouyinPointer: vi.fn(),
   douyinQrUrl: vi.fn((id: string) => `/api/douyin/login/${id}/qr.png`),
 }));
 
@@ -33,7 +33,7 @@ it("shows the NAS-generated QR without exposing cookie text", async () => {
   expect(screen.queryByText(/sessionid/i)).not.toBeInTheDocument();
 });
 
-it("forwards a manual pointer path from the login image", async () => {
+it("forwards pointer down, move, and up while the gesture is happening", async () => {
   const awaiting = {
     id: "login-1",
     state: "awaiting_scan" as const,
@@ -41,7 +41,7 @@ it("forwards a manual pointer path from the login image", async () => {
     hasScreenshot: true,
   };
   vi.mocked(api.beginDouyinLogin).mockResolvedValue(awaiting);
-  vi.mocked(api.submitDouyinDrag).mockResolvedValue(awaiting);
+  vi.mocked(api.submitDouyinPointer).mockResolvedValue({ accepted: true });
   const user = userEvent.setup();
   render(<DouyinLoginPage />);
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
@@ -59,12 +59,26 @@ it("forwards a manual pointer path from the login image", async () => {
   });
 
   fireEvent.pointerDown(image, { pointerId: 7, clientX: 62, clientY: 292 });
+  await vi.waitFor(() => {
+    expect(api.submitDouyinPointer).toHaveBeenCalledWith("login-1", {
+      action: "down",
+      x: 0.1,
+      y: 0.4,
+    });
+  });
+
   fireEvent.pointerMove(image, { pointerId: 7, clientX: 270, clientY: 292 });
   fireEvent.pointerUp(image, { pointerId: 7, clientX: 478, clientY: 292 });
-
-  expect(api.submitDouyinDrag).toHaveBeenCalledWith("login-1", [
-    { x: 0.1, y: 0.4 },
-    { x: 0.5, y: 0.4 },
-    { x: 0.9, y: 0.4 },
-  ]);
+  await vi.waitFor(() => {
+    expect(api.submitDouyinPointer).toHaveBeenNthCalledWith(2, "login-1", {
+      action: "move",
+      x: 0.5,
+      y: 0.4,
+    });
+    expect(api.submitDouyinPointer).toHaveBeenLastCalledWith("login-1", {
+      action: "up",
+      x: 0.9,
+      y: 0.4,
+    });
+  });
 });

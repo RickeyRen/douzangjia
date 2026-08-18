@@ -18,6 +18,7 @@ class FakeAuthBrowser:
         ]
         self.closed: list[str] = []
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
+        self.pointer_events: list[tuple[str, str, float, float]] = []
 
     async def start(self, *, timeout_seconds: int) -> BrowserLogin:
         assert timeout_seconds == 300
@@ -39,6 +40,9 @@ class FakeAuthBrowser:
     async def drag(self, login_id: str, points: list[tuple[float, float]]) -> None:
         self.dragged.append((login_id, points))
         self.screenshot = b"\x89PNG\r\nupdated"
+
+    async def pointer(self, login_id: str, action: str, x: float, y: float) -> None:
+        self.pointer_events.append((login_id, action, x, y))
 
 
 @pytest.fixture
@@ -106,6 +110,17 @@ async def test_drag_replays_points_and_refreshes_the_login_screenshot(auth_compo
     assert browser.dragged == [("login-1", points)]
     assert status.state == "awaiting_scan"
     assert status.screenshot_png == b"\x89PNG\r\nupdated"
+
+
+async def test_pointer_event_is_forwarded_without_waiting_for_a_screenshot(
+    auth_components,
+) -> None:
+    service, browser, _ = auth_components
+    await service.begin_login()
+
+    await service.pointer("login-1", "down", 0.5, 0.4)
+
+    assert browser.pointer_events == [("login-1", "down", 0.5, 0.4)]
 
 
 async def test_authenticated_login_notifies_runtime_for_initial_sync(

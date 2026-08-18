@@ -4,6 +4,7 @@ import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -39,6 +40,12 @@ class PointerPoint(BaseModel):
 
 class DragRequest(BaseModel):
     points: list[PointerPoint] = Field(min_length=2, max_length=120)
+
+
+class PointerRequest(BaseModel):
+    action: Literal["down", "move", "up"]
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
 
 
 class AdminStore:
@@ -334,6 +341,26 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
                 content={"code": "LOGIN_NOT_INTERACTIVE", "message": "登录画面已不可操作"},
             )
         return status.as_public_dict()
+
+    @app.post("/api/douyin/login/{login_id}/pointer", status_code=202)
+    async def pointer_douyin_login(
+        login_id: str, payload: PointerRequest, request: Request
+    ):
+        try:
+            await request.app.state.auth_service.pointer(
+                login_id, payload.action, payload.x, payload.y
+            )
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "LOGIN_NOT_INTERACTIVE", "message": "登录画面已不可操作"},
+            )
+        return {"accepted": True}
 
     from .routes.feed import router as feed_router
     from .routes.jobs import router as jobs_router

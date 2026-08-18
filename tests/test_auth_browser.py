@@ -1,4 +1,4 @@
-from douyin_archive.auth_browser import replay_drag
+from douyin_archive.auth_browser import replay_drag, replay_pointer
 
 
 class RecordingMouse:
@@ -22,6 +22,30 @@ class RecordingPage:
 
     async def wait_for_timeout(self, milliseconds: int) -> None:
         self.waits.append(milliseconds)
+
+
+async def test_replay_pointer_uses_native_click_sequence_without_fake_drag() -> None:
+    page = RecordingPage()
+
+    await replay_pointer(page, "down", 0.5, 0.5)
+    await replay_pointer(page, "up", 0.5, 0.5)
+
+    assert page.mouse.events == [
+        ("move", 260.0, 340.0, 1),
+        ("down",),
+        ("move", 260.0, 340.0, 1),
+        ("up",),
+    ]
+    assert page.waits == [120]
+
+
+async def test_replay_pointer_forwards_live_moves_while_pressed() -> None:
+    page = RecordingPage()
+
+    await replay_pointer(page, "move", 0.75, 0.25)
+
+    assert page.mouse.events == [("move", 390.0, 170.0, 1)]
+    assert page.waits == []
 
 
 async def test_replay_drag_maps_normalized_points_to_the_login_viewport() -> None:

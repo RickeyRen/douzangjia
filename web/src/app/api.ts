@@ -34,6 +34,7 @@ export type LoginStatus = {
 };
 
 export type PointerPoint = { x: number; y: number };
+export type PointerEventPayload = PointerPoint & { action: "down" | "move" | "up" };
 
 export type BootstrapStatus = {
   configured: boolean;
@@ -112,6 +113,11 @@ export const submitDouyinDrag = (id: string, points: PointerPoint[]) =>
   request<LoginStatus>(`/api/douyin/login/${id}/drag`, {
     method: "POST",
     body: JSON.stringify({ points }),
+  });
+export const submitDouyinPointer = (id: string, event: PointerEventPayload) =>
+  request<{ accepted: boolean }>(`/api/douyin/login/${id}/pointer`, {
+    method: "POST",
+    body: JSON.stringify(event),
   });
 export const triggerSync = (fullScan = false) =>
   request<{ runId: number }>("/api/sync", {
