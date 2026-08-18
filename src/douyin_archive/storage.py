@@ -10,6 +10,14 @@ import anyio
 
 from .paths import sanitize_segment
 
+_MAX_PROJECTION_FILENAME_BYTES = 240
+
+
+def _truncate_utf8(value: str, max_bytes: int) -> str:
+    if len(value.encode("utf-8")) <= max_bytes:
+        return value
+    return value.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+
 
 class ObjectStore:
     def __init__(self, archive_root: Path) -> None:
@@ -69,7 +77,12 @@ class CollectionProjector:
     ) -> Path:
         extension = object_file.suffix.lower()
         asset_suffix = "" if object_file.stem == "000" else f"_{object_file.stem}"
-        filename = sanitize_segment(f"{title}_{remote_id}{asset_suffix}") + extension
+        identity_suffix = f"_{sanitize_segment(remote_id)}{asset_suffix}{extension}"
+        title_budget = _MAX_PROJECTION_FILENAME_BYTES - len(
+            identity_suffix.encode("utf-8")
+        )
+        safe_title = _truncate_utf8(sanitize_segment(title), max(1, title_budget))
+        filename = f"{safe_title}{identity_suffix}"
         destination = self.library / sanitize_segment(collection_name) / filename
 
         def create_projection() -> Path:

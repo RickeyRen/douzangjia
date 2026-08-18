@@ -48,6 +48,28 @@ async def test_collection_rename_keeps_old_projection(tmp_path: Path) -> None:
     assert new_path.exists()
 
 
+async def test_long_chinese_title_projects_within_filesystem_filename_limit(
+    tmp_path: Path,
+) -> None:
+    store = ObjectStore(tmp_path)
+    projector = CollectionProjector(tmp_path)
+    part = store.part_path("7673431909393682914", "000.mp4")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    part.write_bytes(b"media")
+    object_file = await store.finalize(part, "7673431909393682914", "000.mp4")
+
+    projected = await projector.project(
+        "想去的地方",
+        "这是一个很长的中文标题" * 80,
+        "7673431909393682914",
+        object_file,
+    )
+
+    assert projected.exists()
+    assert len(projected.name.encode("utf-8")) <= 255
+    assert "7673431909393682914" in projected.name
+
+
 async def test_cross_device_hardlink_falls_back_to_copy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
