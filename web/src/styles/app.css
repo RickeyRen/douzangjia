@@ -7,18 +7,37 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; min-width: 320px; min-height: 100%; background: #0c0e11; }
+html, body, #root { margin: 0; width: 100%; min-width: 320px; min-height: 100%; background: #0c0e11; }
+html, body { overflow-x: hidden; }
 button, input { font: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
+button:focus-visible, input:focus-visible { outline: 2px solid #f16761; outline-offset: 2px; }
+.touch-target { min-width: 44px; min-height: 44px; }
+.iphone-feed-shell { isolation: isolate; }
 
-.feed-viewport { scrollbar-width: none; overscroll-behavior-y: contain; }
+.feed-viewport { scrollbar-width: none; overscroll-behavior-y: contain; touch-action: pan-y pinch-zoom; }
 .feed-viewport::-webkit-scrollbar, .gallery-strip::-webkit-scrollbar { display: none; }
-.gallery-strip { scrollbar-width: none; }
+.gallery-strip { scrollbar-width: none; touch-action: pan-x pinch-zoom; }
 .feed-card { scroll-snap-stop: always; content-visibility: auto; contain-intrinsic-size: 100dvh; }
+.media-progress { appearance: none; border: 0; border-radius: 999px; overflow: hidden; background: rgb(255 255 255 / 24%); }
+.media-progress::-webkit-progress-bar { background: rgb(255 255 255 / 24%); }
+.media-progress::-webkit-progress-value { background: #f16761; }
+.media-progress::-moz-progress-bar { background: #f16761; }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   body { overflow: hidden; }
   .media-frame { max-width: none; }
+  .feed-viewport { scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .feed-card { min-height: 100dvh; }
+  .media-frame video, .media-frame img { -webkit-user-drag: none; user-select: none; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .iphone-bottom-nav { grid-auto-flow: column; padding-top: 4px; }
+  .iphone-bottom-nav button { min-height: 44px; }
+  .iphone-bottom-nav button span { display: none; }
+  .mobile-media-actions { bottom: 72px; right: 12px; grid-auto-flow: column; gap: 8px; }
+  .mobile-media-actions button > span:last-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

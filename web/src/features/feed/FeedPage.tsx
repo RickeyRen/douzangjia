@@ -1,12 +1,15 @@
 import { CaretDown, CaretUp, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { fetchCollections, fetchFeed, type Collection, type FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import { CollectionRail } from "../navigation/CollectionRail";
 import type { UtilityPanel } from "../navigation/CollectionRail";
+import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { FeedCard } from "./FeedCard";
+import { ItemDetailsSheet } from "./ItemDetailsSheet";
+import { MobileSearchSheet } from "./MobileSearchSheet";
 
 export function feedIndexFromTarget(target: HTMLElement): number {
   const index = Number(target.dataset.feedIndex);
@@ -18,14 +21,22 @@ export function FeedPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selected, setSelected] = useState<string | undefined>();
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<FeedItem | null>(null);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
+  const paginationSentinel = useRef<HTMLDivElement>(null);
+  const feedRequestId = useRef(0);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,12 +54,17 @@ export function FeedPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const requestId = ++feedRequestId.current;
     setLoading(true);
     setError(false);
+    setLoadMoreError(false);
+    setNextCursor(null);
+    loadingMoreRef.current = false;
     void fetchFeed({ collectionId: selected, search: deferredSearch || undefined })
       .then((result) => {
-        if (!cancelled) {
+        if (!cancelled && requestId === feedRequestId.current) {
           setItems(result.items);
+          setNextCursor(result.nextCursor);
           setActiveIndex(0);
         }
       })
@@ -86,29 +102,80 @@ export function FeedPage() {
     setActiveIndex(next);
   }
 
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMoreRef.current) return;
+    const requestId = feedRequestId.current;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError(false);
+    try {
+      const result = await fetchFeed({ collectionId: selected, search: deferredSearch || undefined, cursor: nextCursor });
+      if (requestId !== feedRequestId.current) return;
+      setItems((current) => {
+        const known = new Set(current.map((item) => item.awemeId));
+        return [...current, ...result.items.filter((item) => !known.has(item.awemeId))];
+      });
+      setNextCursor(result.nextCursor);
+    } catch {
+      if (requestId === feedRequestId.current) setLoadMoreError(true);
+    } finally {
+      loadingMoreRef.current = false;
+      if (requestId === feedRequestId.current) setLoadingMore(false);
+    }
+  }, [deferredSearch, nextCursor, selected]);
+
+  useEffect(() => {
+    const target = paginationSentinel.current;
+    const root = viewport.current;
+    if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMore, loadMoreError, nextCursor]);
+
+  function openMobileDestination(destination: MobileDestination) {
+    if (destination === "collections") setDrawerOpen(true);
+    else if (destination === "search") setSearchOpen(true);
+    else if (destination === "activity" || destination === "settings") setUtilityPanel(destination);
+    else if (destination === "feed") {
+      setDrawerOpen(false);
+      setUtilityPanel(null);
+    }
+  }
+
   return (
-    <main className="flex h-[100dvh] overflow-hidden bg-[#0c0e11] text-[#f7f8fa]">
+    <main data-testid="archive-feed-root" className="iphone-feed-shell flex h-[100dvh] overflow-hidden bg-[#0c0e11] text-[#f7f8fa]">
       <CollectionRail collections={collections} selected={selected} onSelect={setSelected} onOpenPanel={setUtilityPanel} />
       <section className="relative min-w-0 flex-1">
-        <header className="absolute inset-x-0 top-0 z-[2] flex h-[76px] items-center justify-between border-b border-white/8 bg-[#0c0e11]/88 px-6 backdrop-blur-xl max-md:h-auto max-md:border-0 max-md:bg-gradient-to-b max-md:from-[#0c0e11]/90 max-md:to-transparent max-md:px-4 max-md:pb-8 max-md:pt-[calc(14px+env(safe-area-inset-top))]">
+        <header className="absolute inset-x-0 top-0 z-[2] flex h-[76px] items-center justify-between border-b border-white/8 bg-[#0c0e11]/88 px-6 backdrop-blur-xl max-lg:h-auto max-lg:border-0 max-lg:bg-gradient-to-b max-lg:from-[#0c0e11]/90 max-lg:to-transparent max-lg:px-4 max-lg:pb-8 max-lg:pt-[calc(14px+env(safe-area-inset-top))]">
           <button className="flex min-h-11 items-center gap-2 text-base font-semibold lg:pointer-events-none" type="button" onClick={() => setDrawerOpen(true)}>
-            <span className="hidden text-lg tracking-[-.04em] max-md:inline">{t("brand")}</span>
-            <span className="max-md:text-sm max-md:font-medium">{selectedName}</span>
-            <CaretDown className="hidden max-md:block" size={16} />
+            <span className="hidden text-lg tracking-[-.04em] max-lg:inline">{t("brand")}</span>
+            <span className="max-lg:text-sm max-lg:font-medium">{selectedName}</span>
+            <CaretDown className="hidden max-lg:block" size={16} />
           </button>
-          <label className="flex h-10 w-[min(34vw,380px)] items-center gap-2 rounded-lg border border-white/8 bg-white/[.04] px-3 text-[#747a84] focus-within:border-white/20 max-md:w-11 max-md:justify-center max-md:border-0 max-md:bg-transparent max-md:px-0">
+          <label className="flex h-10 w-[min(34vw,380px)] items-center gap-2 rounded-lg border border-white/8 bg-white/[.04] px-3 text-[#747a84] focus-within:border-white/20 max-lg:hidden">
             <MagnifyingGlass size={19} weight="regular" />
-            <input className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-[#656b75] max-md:hidden" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
+            <input aria-label={t("searchArchive")} className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-[#656b75]" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
           </label>
+          <button type="button" onClick={() => setSearchOpen(true)} aria-label={t("searchArchive")} className="touch-target hidden h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#111419]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-md active:scale-[.96] max-lg:grid"><MagnifyingGlass size={20} /></button>
         </header>
 
         {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
           <div ref={viewport} className="feed-viewport h-[100dvh] snap-y snap-mandatory overflow-y-auto">
             {items.map((item, index) => (
               <div key={item.awemeId} data-feed-index={index}>
-                <FeedCard item={item} active={index === activeIndex} />
+                <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} />
               </div>
             ))}
+            {nextCursor || loadMoreError ? (
+              <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
+                <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="touch-target min-h-11 rounded-full border border-white/10 bg-[#15181d]/92 px-5 text-sm text-[#d8dbe0] active:scale-[.98] disabled:opacity-60">
+                  {loadingMore ? t("loadingMore") : loadMoreError ? t("retryLoadMore") : t("loadMore")}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -131,13 +198,12 @@ export function FeedPage() {
           <button aria-label={t("nextItem")} onClick={() => move(1)} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#15181d] active:scale-[.96]"><CaretDown size={19} /></button>
         </div>
 
-        <button type="button" onClick={() => setDrawerOpen(true)} className="absolute inset-x-4 bottom-[calc(12px+env(safe-area-inset-bottom))] z-[2] hidden min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#15181d]/92 text-sm font-medium shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-xl max-md:flex">
-          <Folders size={20} weight="regular" />{t("switchCollection")}
-        </button>
-
         {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { setSelected(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       </section>
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
+      {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
+      {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} /> : null}
+      <MobileNavigation onOpen={openMobileDestination} />
     </main>
   );
 }
@@ -145,8 +211,8 @@ export function FeedPage() {
 function CollectionDrawer({ collections, selected, onSelect, onClose }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
   const { t } = useI18n();
   return (
-    <div className="fixed inset-0 z-[3] bg-[#08090c]/50 backdrop-blur-sm" onClick={onClose}>
-      <section className="absolute inset-x-0 bottom-0 rounded-t-[28px] border-t border-white/10 bg-[#181b20] px-5 pb-[calc(22px+env(safe-area-inset-bottom))] pt-3 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[7] bg-[#08090c]/50 backdrop-blur-sm" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-label={t("switchCollection")} className="absolute inset-x-0 bottom-0 rounded-t-[28px] border-t border-white/10 bg-[#181b20] px-5 pb-[calc(22px+env(safe-area-inset-bottom))] pt-3 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]" onClick={(event) => event.stopPropagation()}>
         <div className="mx-auto h-1 w-11 rounded-full bg-white/25" />
         <div className="mt-5 flex items-center justify-between"><h2 className="text-lg font-semibold">{t("switchCollection")}</h2><button aria-label={t("closeDrawer")} className="grid h-11 w-11 place-items-center" onClick={onClose}><X size={20} /></button></div>
         <div className="mt-3 grid gap-1">

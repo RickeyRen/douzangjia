@@ -3,7 +3,7 @@ import { Archive, DownloadSimple, FolderSimple, Gear, House, Pulse } from "@phos
 import type { Collection } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 
-export type UtilityPanel = "downloads" | "sync" | "settings";
+export type UtilityPanel = "downloads" | "sync" | "activity" | "settings";
 
 export function CollectionRail({ collections, selected, onSelect, onOpenPanel }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void; onOpenPanel: (panel: UtilityPanel) => void }) {
   const { t } = useI18n();
