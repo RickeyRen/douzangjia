@@ -222,7 +222,7 @@ class JobRepository:
         cursor = await self.db.execute(
             "UPDATE download_jobs SET status='retry', claimed_by=NULL, "
             "last_error_code='WORKER_RESTARTED', next_attempt_at=?, updated_at=? "
-            "WHERE status='running' AND claimed_at < ?",
+            "WHERE status='running' AND claimed_at <= ?",
             (int(time.time()), int(time.time()), cutoff),
         )
         return cursor.rowcount

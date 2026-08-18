@@ -3,7 +3,7 @@ from pathlib import Path
 
 from douyin_archive.db import Database
 from douyin_archive.repositories import ArchiveRepository, JobRepository
-from douyin_archive.runtime import RuntimeSyncCoordinator
+from douyin_archive.runtime import RuntimeSyncCoordinator, recover_interrupted_sync_runs
 
 
 class FakeAuth:
@@ -121,4 +121,21 @@ async def test_stale_browser_session_is_marked_expired_without_opening_source(
     assert row["status"] == "expired"
     assert source_created is False
     await coordinator.close()
+    await database.close()
+
+
+async def test_startup_marks_previous_sync_runs_interrupted(tmp_path: Path) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO sync_runs (mode, phase, status, started_at) "
+        "VALUES ('full', 'discovering', 'running', 1)"
+    )
+
+    recovered = await recover_interrupted_sync_runs(database)
+    row = await database.fetchone("SELECT status, error_code FROM sync_runs")
+
+    assert recovered == 1
+    assert row is not None
+    assert (row["status"], row["error_code"]) == ("failed", "SYNC_INTERRUPTED")
     await database.close()

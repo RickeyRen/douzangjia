@@ -183,10 +183,22 @@ class PlaywrightDouyinSource:
             await self._page.wait_for_timeout(900)
 
     async def _fetch_collections_api(self) -> dict:
-        return await self._browser_json(
-            self.COLLECTS_LIST_PATH,
-            {"cursor": 0, "count": 50},
-        )
+        last_payload: dict = {}
+        for attempt in range(3):
+            try:
+                last_payload = await self._browser_json(
+                    self.COLLECTS_LIST_PATH,
+                    {"cursor": 0, "count": 50},
+                )
+            except ProviderChanged:
+                if attempt == 2:
+                    raise
+            else:
+                if _has_collection_schema(last_payload):
+                    return last_payload
+            if attempt < 2:
+                await self._page.wait_for_timeout(1_000)
+        return last_payload
 
     async def _iter_collection_api(self, remote_id: str) -> AsyncIterator[dict]:
         cursor: int | str = 0
@@ -206,8 +218,9 @@ class PlaywrightDouyinSource:
             cursor = page.next_cursor
 
     async def _browser_json(self, path: str, params: dict[str, object]) -> dict:
-        payload = await self._page.evaluate(
-            """
+        try:
+            payload = await self._page.evaluate(
+                """
             async ({path, params}) => {
               const url = new URL(path, window.location.origin);
               const common = {
@@ -248,9 +261,15 @@ class PlaywrightDouyinSource:
                 window.clearTimeout(timer);
               }
             }
-            """,
-            {"path": path, "params": params},
-        )
+                """,
+                {"path": path, "params": params},
+            )
+        except Exception as error:
+            logger.warning(
+                "Douyin browser API evaluation failed error_type=%s",
+                type(error).__name__,
+            )
+            raise ProviderChanged("Douyin browser API evaluation failed") from error
         if not isinstance(payload, dict):
             raise ProviderChanged("Douyin browser API returned a non-object payload")
         if payload.get("__browser_error") in {"timeout", "network"}:

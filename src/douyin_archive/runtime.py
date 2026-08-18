@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from typing import Any, Protocol
@@ -35,6 +36,17 @@ class _ExpiredProvider:
     async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
         if False:  # pragma: no cover - makes this an async iterator
             yield remote_id, full_scan
+
+
+async def recover_interrupted_sync_runs(database: Database) -> int:
+    now = int(time.time())
+    cursor = await database.execute(
+        "UPDATE sync_runs SET phase='finished', status='failed', "
+        "error_code='SYNC_INTERRUPTED', finished_at=? "
+        "WHERE status IN ('queued', 'running')",
+        (now,),
+    )
+    return cursor.rowcount
 
 
 class RuntimeSyncCoordinator:
@@ -163,6 +175,8 @@ class ArchiveRuntime:
     async def start(self) -> None:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+        await recover_interrupted_sync_runs(self.database)
+        await self.jobs.recover_stale_running(older_than_seconds=0)
         await self.browser_coordinator.start()
         self.auth_service.on_authenticated = self._initial_sync
         self._worker_tasks = [

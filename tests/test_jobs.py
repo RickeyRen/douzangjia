@@ -72,3 +72,19 @@ async def test_new_discovery_requeues_a_completed_download(
     assert refreshed.id == queued.id
     assert reclaimed is not None
     assert reclaimed.payload == {"url": "fresh"}
+
+
+async def test_startup_reclaims_jobs_from_the_previous_process(
+    job_repository: JobRepository,
+) -> None:
+    await job_repository.enqueue_unique("download", "734", {"asset": 1})
+    claimed = await job_repository.claim_next(worker_id="old-process")
+    assert claimed is not None
+
+    recovered = await job_repository.recover_stale_running(older_than_seconds=0)
+    job = await job_repository.get(claimed.id)
+
+    assert recovered == 1
+    assert job is not None
+    assert job.status == "retry"
+    assert job.last_error_code == "WORKER_RESTARTED"

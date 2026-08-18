@@ -147,6 +147,30 @@ async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
         await source._browser_json(source.COLLECTS_LIST_PATH, {"cursor": 0})
 
 
+async def test_collection_api_retries_empty_transient_response() -> None:
+    class TransientPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts = 0
+
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            self.attempts += 1
+            if self.attempts == 1:
+                return {"status_code": 0}
+            return {"status_code": 0, "collects_list": [], "has_more": False}
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            assert milliseconds == 1_000
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = TransientPage()
+
+    payload = await source._fetch_collections_api()
+
+    assert "collects_list" in payload
+    assert source._page.attempts == 2
+
+
 def test_payload_shape_never_contains_response_values() -> None:
     shape = _payload_shape(
         {
