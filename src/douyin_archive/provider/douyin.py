@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import Any
 
-from ..browser_launch import chromium_launch_options
+from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
 from .base import ProviderChanged, RawPageSource, RemoteCollection, RemotePage
 from .normalizers import normalize_collections, normalize_page
 
@@ -55,11 +55,9 @@ class PlaywrightDouyinSource:
     COLLECTION_PATH_MARKERS = ("mix/listcollection", "collection/list")
     ITEM_PATH_MARKERS = ("mix/aweme", "collection/aweme", "aweme/favorite")
 
-    def __init__(self, cookies: list[dict[str, object]]) -> None:
-        self.cookies = cookies
-        self._playwright: Any = None
-        self._browser: Any = None
-        self._context: Any = None
+    def __init__(self, coordinator: BrowserCoordinator) -> None:
+        self.coordinator = coordinator
+        self._lease: CoordinatorPageLease | None = None
         self._page: Any = None
         self._responses: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         self._collection_names: dict[str, str] = {}
@@ -67,23 +65,21 @@ class PlaywrightDouyinSource:
     async def open(self) -> None:
         if self._page is not None:
             return
-        from playwright.async_api import async_playwright
-
-        self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(**chromium_launch_options())
-        self._context = await self._browser.new_context(
-            viewport={"width": 1440, "height": 1000}, locale="zh-CN"
-        )
-        await self._context.add_cookies(self.cookies)
-        self._page = await self._context.new_page()
+        self._lease = await self.coordinator.acquire_page(viewport=(1440, 1000))
+        self._page = self._lease.page
         self._page.on("response", self._capture_response)
 
     async def close(self) -> None:
-        if self._context is not None:
-            await self._context.close()
-            await self._browser.close()
-            await self._playwright.stop()
-        self._playwright = self._browser = self._context = self._page = None
+        page = self._page
+        lease = self._lease
+        self._page = None
+        self._lease = None
+        if page is not None:
+            page.remove_listener("response", self._capture_response)
+        if lease is not None:
+            await lease.release()
+        self._responses = asyncio.Queue()
+        self._collection_names.clear()
 
     async def fetch_collections(self) -> dict:
         await self.open()

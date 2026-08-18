@@ -136,7 +136,12 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         else:
             application.state.auth_service = auth_service
         runtime = (
-            runtime_factory(settings, owned_database, application.state.auth_service)
+            runtime_factory(
+                settings,
+                owned_database,
+                application.state.auth_service,
+                browser_coordinator,
+            )
             if runtime_factory is not None
             else None
         )

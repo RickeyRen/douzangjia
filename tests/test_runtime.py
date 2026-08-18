@@ -35,18 +35,34 @@ class FakeSource:
         self.closed = True
 
 
+class FakeBrowserCoordinator:
+    def __init__(self, *, authenticated: bool = True) -> None:
+        self.authenticated = authenticated
+        self.added_cookies: list[dict[str, object]] = []
+        self.authentication_checks = 0
+
+    async def add_cookies(self, cookies: list[dict[str, object]]) -> None:
+        self.added_cookies.extend(cookies)
+
+    async def is_douyin_authenticated(self) -> bool:
+        self.authentication_checks += 1
+        return self.authenticated
+
+
 async def test_trigger_sync_returns_run_id_and_finishes_in_background(
     tmp_path: Path,
 ) -> None:
     database = Database(tmp_path / "archive.sqlite3")
     await database.open()
     source = FakeSource()
+    browser_coordinator = FakeBrowserCoordinator()
     coordinator = RuntimeSyncCoordinator(
         database,
         ArchiveRepository(database),
         JobRepository(database),
         FakeAuth(),
-        source_factory=lambda _: source,
+        browser_coordinator,
+        source_factory=lambda: source,
     )
 
     run_id = await coordinator.trigger_sync(full_scan=True)
@@ -60,5 +76,49 @@ async def test_trigger_sync_returns_run_id_and_finishes_in_background(
     assert finished["status"] == "completed"
     assert await JobRepository(database).count() == 1
     assert source.closed is True
+    assert browser_coordinator.added_cookies == [
+        {"name": "sessionid", "value": "encrypted-before-use"}
+    ]
+    assert browser_coordinator.authentication_checks == 1
+    await coordinator.close()
+    await database.close()
+
+
+async def test_stale_browser_session_is_marked_expired_without_opening_source(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO auth_sessions "
+        "(provider, encrypted_cookies, status, last_verified_at, updated_at) "
+        "VALUES ('douyin', ?, 'authenticated', 1, 1)",
+        (b"encrypted",),
+    )
+    source_created = False
+
+    def source_factory() -> FakeSource:
+        nonlocal source_created
+        source_created = True
+        return FakeSource()
+
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(authenticated=False),
+        source_factory=source_factory,
+    )
+
+    result = await coordinator.run_incremental()
+    row = await database.fetchone(
+        "SELECT status FROM auth_sessions WHERE provider='douyin'"
+    )
+
+    assert result.status == "failed"
+    assert row is not None
+    assert row["status"] == "expired"
+    assert source_created is False
     await coordinator.close()
     await database.close()

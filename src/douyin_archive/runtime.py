@@ -11,6 +11,7 @@ import httpx
 
 from .archive_handler import ArchiveJobHandler
 from .auth_service import AuthService
+from .browser_coordinator import BrowserCoordinator
 from .config import Settings
 from .db import Database
 from .downloader import MediaDownloader
@@ -45,14 +46,18 @@ class RuntimeSyncCoordinator:
         archive: ArchiveRepository,
         jobs: JobRepository,
         auth: CookieLoader,
+        browser_coordinator: BrowserCoordinator,
         *,
-        source_factory: Callable[[list[dict[str, object]]], Any] = PlaywrightDouyinSource,
+        source_factory: Callable[[], Any] | None = None,
     ) -> None:
         self.database = database
         self.archive = archive
         self.jobs = jobs
         self.auth = auth
-        self.source_factory = source_factory
+        self.browser_coordinator = browser_coordinator
+        self.source_factory = source_factory or (
+            lambda: PlaywrightDouyinSource(browser_coordinator)
+        )
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[SyncResult]] = set()
 
@@ -77,9 +82,17 @@ class RuntimeSyncCoordinator:
             cookies = await self.auth.load_cookies()
             source = None
             if cookies:
-                source = self.source_factory(cookies)
-                known_ids = await self.archive.list_known_item_ids()
-                provider = DouyinProvider(source, known_ids=known_ids)
+                await self.browser_coordinator.add_cookies(cookies)
+                if await self.browser_coordinator.is_douyin_authenticated():
+                    source = self.source_factory()
+                    known_ids = await self.archive.list_known_item_ids()
+                    provider = DouyinProvider(source, known_ids=known_ids)
+                else:
+                    await self.database.execute(
+                        "UPDATE auth_sessions SET status='expired' "
+                        "WHERE provider='douyin'"
+                    )
+                    provider = _ExpiredProvider()
             else:
                 provider = _ExpiredProvider()
             try:
@@ -110,14 +123,16 @@ class ArchiveRuntime:
         settings: Settings,
         database: Database,
         auth_service: AuthService,
+        browser_coordinator: BrowserCoordinator,
     ) -> None:
         self.settings = settings
         self.database = database
         self.auth_service = auth_service
+        self.browser_coordinator = browser_coordinator
         self.archive = ArchiveRepository(database)
         self.jobs = JobRepository(database)
         self.sync = RuntimeSyncCoordinator(
-            database, self.archive, self.jobs, auth_service
+            database, self.archive, self.jobs, auth_service, browser_coordinator
         )
         self.http = httpx.AsyncClient(
             follow_redirects=True,
@@ -148,6 +163,7 @@ class ArchiveRuntime:
     async def start(self) -> None:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+        await self.browser_coordinator.start()
         self.auth_service.on_authenticated = self._initial_sync
         self._worker_tasks = [
             asyncio.create_task(worker.run_forever()) for worker in self.workers
