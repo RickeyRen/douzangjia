@@ -81,12 +81,15 @@ def test_browser_socket_rejects_missing_admin_session(
     tmp_path: Path, master_key: str
 ) -> None:
     client, _service = make_client(tmp_path, master_key)
-    with client, pytest.raises(WebSocketDisconnect) as error:
-        with client.websocket_connect(
+    with (
+        client,
+        pytest.raises(WebSocketDisconnect) as error,
+        client.websocket_connect(
             "/ws/douyin/login/login-1",
             headers={"origin": "http://testserver"},
-        ):
-            pass
+        ),
+    ):
+        pass
 
     assert error.value.code == 4401
 
