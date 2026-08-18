@@ -13,6 +13,8 @@ from .base import ProviderChanged, RawPageSource, RemoteCollection, RemotePage
 from .normalizers import normalize_collections, normalize_page
 
 logger = logging.getLogger(__name__)
+ALL_FAVORITES_REMOTE_ID = "__douyin_all_favorites__"
+ALL_FAVORITES_NAME = "抖音全部收藏"
 
 
 def _payload_shape(payload: dict[str, Any]) -> dict[str, object]:
@@ -95,6 +97,7 @@ class PlaywrightDouyinSource:
     ITEM_PATH_MARKERS = ("mix/aweme", "collection/aweme", "aweme/favorite")
     COLLECTS_LIST_PATH = "/aweme/v1/web/collects/list/"
     COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
+    ALL_FAVORITES_PATH = "/aweme/v1/web/aweme/listcollection/"
 
     def __init__(self, coordinator: BrowserCoordinator) -> None:
         self.coordinator = coordinator
@@ -195,7 +198,20 @@ class PlaywrightDouyinSource:
                     raise
             else:
                 if _has_collection_schema(last_payload):
-                    return last_payload
+                    records = list(last_payload.get("collects_list", []))
+                    if not any(
+                        str(record.get("collects_id_str", ""))
+                        == ALL_FAVORITES_REMOTE_ID
+                        for record in records
+                        if isinstance(record, dict)
+                    ):
+                        records.append(
+                            {
+                                "collects_id_str": ALL_FAVORITES_REMOTE_ID,
+                                "collects_name": ALL_FAVORITES_NAME,
+                            }
+                        )
+                    return {**last_payload, "collects_list": records}
             if attempt < 2:
                 await self._page.wait_for_timeout(1_000)
         return last_payload
@@ -203,10 +219,20 @@ class PlaywrightDouyinSource:
     async def _iter_collection_api(self, remote_id: str) -> AsyncIterator[dict]:
         cursor: int | str = 0
         seen: set[str] = set()
+        path = (
+            self.ALL_FAVORITES_PATH
+            if remote_id == ALL_FAVORITES_REMOTE_ID
+            else self.COLLECTS_ITEMS_PATH
+        )
         while True:
+            collection_params = (
+                {}
+                if remote_id == ALL_FAVORITES_REMOTE_ID
+                else {"collects_id": remote_id}
+            )
             payload = await self._browser_json(
-                self.COLLECTS_ITEMS_PATH,
-                {"collects_id": remote_id, "cursor": cursor, "count": 20},
+                path,
+                {**collection_params, "cursor": cursor, "count": 20},
             )
             yield payload
             page = normalize_page(payload)

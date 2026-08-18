@@ -4,7 +4,11 @@ import pytest
 
 from douyin_archive.provider import douyin as douyin_module
 from douyin_archive.provider.base import ProviderChanged
-from douyin_archive.provider.douyin import PlaywrightDouyinSource, _payload_shape
+from douyin_archive.provider.douyin import (
+    ALL_FAVORITES_REMOTE_ID,
+    PlaywrightDouyinSource,
+    _payload_shape,
+)
 
 
 class FakePage:
@@ -126,6 +130,10 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
     pages = [page async for page in source._iter_collection_api("2001")]
 
     assert collections["collects_list"][0]["collects_id_str"] == "2001"
+    assert collections["collects_list"][-1] == {
+        "collects_id_str": ALL_FAVORITES_REMOTE_ID,
+        "collects_name": "抖音全部收藏",
+    }
     assert [page["aweme_list"][0]["aweme_id"] for page in pages] == [
         "item-0",
         "item-20",
@@ -133,6 +141,30 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
     assert source._page.calls[0]["path"].endswith("/collects/list/")
     assert source._page.calls[1]["params"]["collects_id"] == "2001"
     assert "AbortController" in source._page.scripts[0]
+
+
+async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:
+    class FlatFavoritesPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.paths: list[str] = []
+
+        async def evaluate(self, script: str, arguments: dict) -> dict:
+            self.paths.append(arguments["path"])
+            return {
+                "status_code": 0,
+                "aweme_list": [{"aweme_id": "all-1"}],
+                "cursor": 20,
+                "has_more": 0,
+            }
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = FlatFavoritesPage()
+
+    pages = [page async for page in source._iter_collection_api(ALL_FAVORITES_REMOTE_ID)]
+
+    assert pages[0]["aweme_list"][0]["aweme_id"] == "all-1"
+    assert source._page.paths == ["/aweme/v1/web/aweme/listcollection/"]
 
 
 async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
