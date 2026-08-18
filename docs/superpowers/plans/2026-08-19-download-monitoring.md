@@ -148,7 +148,7 @@ Prepare all payload assets, derive each canonical filename with `asset_filename`
 
 - [ ] **Step 4: Run handler, worker, scheduler, and storage tests**
 
-Run: `.venv/bin/pytest tests/test_archive_handler.py tests/test_worker.py tests/test_scheduler.py tests/test_storage.py -q`
+Run: `.venv/bin/pytest tests/test_archive_handler.py tests/test_jobs.py tests/test_scheduler.py tests/test_storage.py -q`
 
 - [ ] **Step 5: Commit**
 
@@ -191,7 +191,7 @@ Bulk-load jobs, items, collection names, and media rows; merge payload assets by
 
 - [ ] **Step 4: Run monitor and API security tests**
 
-Run: `.venv/bin/pytest tests/test_download_monitor.py tests/test_jobs_routes.py tests/test_authz_routes.py -q`
+Run: `.venv/bin/pytest tests/test_download_monitor.py tests/test_jobs_routes.py tests/test_session_routes.py tests/test_feed_api.py -q`
 
 - [ ] **Step 5: Commit**
 
@@ -232,7 +232,7 @@ Also assert indeterminate progress, localized error text, retry countdown, `aria
 
 - [ ] **Step 2: Run focused frontend tests and verify RED**
 
-Run: `npm test -- --run web/src/features/status/downloadFormat.test.ts web/src/features/status/ArchiveStatusPanel.test.tsx`
+Run: `cd web && npm test -- --run src/features/status/downloadFormat.test.ts src/features/status/ArchiveStatusPanel.test.tsx`
 
 - [ ] **Step 3: Implement the API types, formatters, monitor, and translations**
 
@@ -240,7 +240,7 @@ Use native `<progress>` for known totals and an animated CSS bar with `role="pro
 
 - [ ] **Step 4: Run status and feed tests**
 
-Run: `npm test -- --run web/src/features/status web/src/features/feed/FeedPage.test.tsx`
+Run: `cd web && npm test -- --run src/features/status src/features/feed/FeedPage.test.tsx`
 
 - [ ] **Step 5: Commit**
 
