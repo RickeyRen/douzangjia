@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from .db import Database
-from .models import Collection, DownloadJob, RemoteItem
+from .models import Collection, DownloadJob, MediaAsset, MediaProgress, RemoteItem
 
 
 class ArchiveRepository:
@@ -232,3 +232,81 @@ class JobRepository:
     async def count(self) -> int:
         row = await self.db.fetchone("SELECT COUNT(*) AS total FROM download_jobs")
         return int(row["total"]) if row is not None else 0
+
+
+class DownloadProgressRepository:
+    def __init__(self, database: Database) -> None:
+        self.db = database
+
+    async def prepare_asset(
+        self, asset: MediaAsset, *, downloaded_bytes: int = 0
+    ) -> MediaProgress:
+        now = int(time.time())
+        row = await self.db.fetchone(
+            "INSERT INTO media_files "
+            "(item_id, asset_index, media_type, relative_path, byte_size, "
+            "checksum_sha256, mime_type, status, created_at, updated_at, "
+            "downloaded_bytes, total_bytes, speed_bps, progress_updated_at) "
+            "VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'pending', ?, ?, ?, ?, 0, ?) "
+            "ON CONFLICT(item_id, asset_index) DO UPDATE SET "
+            "media_type=excluded.media_type, mime_type=excluded.mime_type, "
+            "status=CASE WHEN media_files.status='ready' THEN 'ready' ELSE 'pending' END, "
+            "downloaded_bytes=CASE WHEN media_files.status='ready' "
+            "THEN COALESCE(media_files.byte_size, media_files.downloaded_bytes) "
+            "ELSE MAX(media_files.downloaded_bytes, excluded.downloaded_bytes) END, "
+            "total_bytes=CASE WHEN media_files.status='ready' "
+            "THEN COALESCE(media_files.byte_size, media_files.total_bytes, excluded.total_bytes) "
+            "ELSE COALESCE(media_files.total_bytes, excluded.total_bytes) END, "
+            "speed_bps=0, progress_updated_at=excluded.progress_updated_at, "
+            "updated_at=excluded.updated_at RETURNING *",
+            (
+                asset.remote_id,
+                asset.asset_index,
+                asset.media_type,
+                asset.mime_type,
+                now,
+                now,
+                max(0, downloaded_bytes),
+                asset.expected_size,
+                now,
+            ),
+        )
+        if row is None:
+            raise RuntimeError("media progress prepare did not return a row")
+        return MediaProgress.from_row(row)
+
+    async def update(
+        self,
+        item_id: str,
+        asset_index: int,
+        *,
+        status: str,
+        downloaded_bytes: int,
+        total_bytes: int | None,
+        speed_bps: float,
+    ) -> MediaProgress:
+        now = int(time.time())
+        row = await self.db.fetchone(
+            "UPDATE media_files SET status=?, downloaded_bytes=?, total_bytes=?, "
+            "speed_bps=?, progress_updated_at=?, updated_at=? "
+            "WHERE item_id=? AND asset_index=? RETURNING *",
+            (
+                status,
+                max(0, downloaded_bytes),
+                total_bytes,
+                max(0.0, speed_bps),
+                now,
+                now,
+                item_id,
+                asset_index,
+            ),
+        )
+        if row is None:
+            raise RuntimeError("media progress asset is not prepared")
+        return MediaProgress.from_row(row)
+
+    async def get_for_item(self, item_id: str) -> list[MediaProgress]:
+        rows = await self.db.fetchall(
+            "SELECT * FROM media_files WHERE item_id=? ORDER BY asset_index", (item_id,)
+        )
+        return [MediaProgress.from_row(row) for row in rows]

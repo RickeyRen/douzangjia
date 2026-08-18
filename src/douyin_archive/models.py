@@ -63,6 +63,39 @@ class MediaAsset:
 
 
 @dataclass(frozen=True, slots=True)
+class MediaProgress:
+    id: int
+    item_id: str
+    asset_index: int
+    media_type: str
+    relative_path: str | None
+    byte_size: int | None
+    mime_type: str | None
+    status: str
+    downloaded_bytes: int
+    total_bytes: int | None
+    speed_bps: float
+    progress_updated_at: int | None
+
+    @classmethod
+    def from_row(cls, row: Row) -> MediaProgress:
+        return cls(
+            id=row["id"],
+            item_id=row["item_id"],
+            asset_index=row["asset_index"],
+            media_type=row["media_type"],
+            relative_path=row["relative_path"],
+            byte_size=row["byte_size"],
+            mime_type=row["mime_type"],
+            status=row["status"],
+            downloaded_bytes=row["downloaded_bytes"],
+            total_bytes=row["total_bytes"],
+            speed_bps=float(row["speed_bps"]),
+            progress_updated_at=row["progress_updated_at"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class RemoteItem:
     remote_id: str
     author_name: str
