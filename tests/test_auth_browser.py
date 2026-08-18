@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import time
+from types import SimpleNamespace
+
 from douyin_archive.auth_browser import (
     LOGIN_VIEWPORT_HEIGHT,
     LOGIN_VIEWPORT_WIDTH,
+    AuthBrowser,
     PointerGesture,
     replay_drag,
     replay_pointer,
@@ -73,9 +77,55 @@ class RecordingHandle:
         return None
 
 
+class EmptyCookieContext:
+    async def cookies(self) -> list[dict[str, object]]:
+        return []
+
+
+class ExpiredQrLocator:
+    def __init__(self, page: ExpiredQrPage, selector: str) -> None:
+        self.page = page
+        self.selector = selector
+        self.first = self
+
+    async def is_visible(self, *, timeout: int) -> bool:
+        assert timeout == 300
+        return "刷新" in self.selector
+
+    async def click(self, *, timeout: int) -> None:
+        assert timeout == 2_000
+        self.page.clicked.append(self.selector)
+
+
+class ExpiredQrPage:
+    def __init__(self) -> None:
+        self.clicked: list[str] = []
+
+    async def evaluate(self, _script: str) -> bool:
+        return True
+
+    def locator(self, selector: str) -> ExpiredQrLocator:
+        return ExpiredQrLocator(self, selector)
+
+
 def test_login_viewport_uses_full_douyin_desktop_layout() -> None:
     assert LOGIN_VIEWPORT_WIDTH == 1280
     assert LOGIN_VIEWPORT_HEIGHT == 800
+
+
+async def test_poll_refreshes_an_expired_qr_inside_the_existing_browser() -> None:
+    browser = AuthBrowser()
+    page = ExpiredQrPage()
+    browser._sessions["login-1"] = SimpleNamespace(
+        deadline=time.monotonic() + 60,
+        context=EmptyCookieContext(),
+        page=page,
+    )
+
+    status = await browser.poll("login-1", capture_screenshot=False)
+
+    assert status.state == "awaiting_scan"
+    assert page.clicked == ["button:has-text('刷新')"]
 
 
 async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_events() -> None:

@@ -35,6 +35,7 @@ COOKIE_FIELDS = {
     "secure",
     "sameSite",
 }
+DEFAULT_LOGIN_TIMEOUT_SECONDS = 30 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +130,7 @@ class AuthService:
         cipher: CookieCipher,
         browser: AuthBrowserProtocol,
         *,
-        timeout_seconds: int = 300,
+        timeout_seconds: int = DEFAULT_LOGIN_TIMEOUT_SECONDS,
         on_authenticated: Callable[[], Awaitable[object]] | None = None,
     ) -> None:
         self.database = database

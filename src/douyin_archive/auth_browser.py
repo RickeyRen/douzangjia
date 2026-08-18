@@ -211,12 +211,44 @@ class AuthBrowser:
             for cookie in cookies
         ):
             return BrowserLogin(login_id, "authenticated", None)
+        await self._refresh_expired_qr(session.page)
         screenshot = (
             await self._capture_login_area(session.page)
             if capture_screenshot
             else None
         )
         return BrowserLogin(login_id, "awaiting_scan", screenshot)
+
+    @staticmethod
+    async def _refresh_expired_qr(page: Any) -> bool:
+        try:
+            from playwright.async_api import Error as PlaywrightError
+        except ModuleNotFoundError:  # Unit tests use a lightweight page double.
+            PlaywrightError = RuntimeError
+
+        expired = await page.evaluate(
+            """
+            () => {
+              const text = document.body?.innerText || '';
+              return ['二维码已失效', '二维码已过期', '二维码过期']
+                .some((label) => text.includes(label));
+            }
+            """
+        )
+        if not expired:
+            return False
+
+        for selector in (
+            "button:has-text('刷新')",
+            "[role='button']:has-text('刷新')",
+            "text=点击刷新",
+        ):
+            locator = page.locator(selector).first
+            with suppress(PlaywrightError):
+                if await locator.is_visible(timeout=300):
+                    await locator.click(timeout=2_000)
+                    return True
+        return False
 
     async def frame(self, login_id: str) -> bytes:
         session = self._sessions[login_id]

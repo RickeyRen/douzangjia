@@ -23,7 +23,7 @@ class FakeAuthBrowser:
         self.jpeg_frame = b"\xff\xd8live-frame\xff\xd9"
 
     async def start(self, *, timeout_seconds: int) -> BrowserLogin:
-        assert timeout_seconds == 300
+        assert timeout_seconds == 30 * 60
         return BrowserLogin("login-1", self.state, self.screenshot)
 
     async def poll(
@@ -100,6 +100,12 @@ async def test_public_status_never_contains_cookie_values(auth_components) -> No
         "hasScreenshot": True,
     }
     assert "secret" not in repr(public)
+
+
+async def test_default_login_timeout_is_thirty_minutes(auth_components) -> None:
+    service, _, _ = auth_components
+
+    assert service.timeout_seconds == 30 * 60
 
 
 async def test_cancel_closes_temporary_browser(auth_components) -> None:
