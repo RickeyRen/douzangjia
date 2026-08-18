@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -61,3 +62,39 @@ async def test_rediscovery_never_removes_collection_membership(database: Databas
     await repository.link_collection_item("folder-1", "734")
 
     assert await repository.count_collection_items("folder-1") == 1
+
+
+async def test_operations_cannot_interleave_with_an_open_transaction(
+    database: Database,
+) -> None:
+    await database.execute("CREATE TABLE transaction_probe (value TEXT NOT NULL)")
+    transaction_started = asyncio.Event()
+    release_transaction = asyncio.Event()
+    outsider_finished = asyncio.Event()
+
+    async def hold_transaction() -> None:
+        async with database.transaction(immediate=True):
+            await database.execute(
+                "INSERT INTO transaction_probe(value) VALUES ('inside')"
+            )
+            transaction_started.set()
+            await release_transaction.wait()
+
+    async def write_outside_transaction() -> None:
+        await transaction_started.wait()
+        await database.execute(
+            "INSERT INTO transaction_probe(value) VALUES ('outside')"
+        )
+        outsider_finished.set()
+
+    transaction_task = asyncio.create_task(hold_transaction())
+    outsider_task = asyncio.create_task(write_outside_transaction())
+    await transaction_started.wait()
+    await asyncio.sleep(0.05)
+    interleaved = outsider_finished.is_set()
+    release_transaction.set()
+    await asyncio.gather(transaction_task, outsider_task)
+
+    assert interleaved is False
+    rows = await database.fetchall("SELECT value FROM transaction_probe ORDER BY rowid")
+    assert [row["value"] for row in rows] == ["inside", "outside"]

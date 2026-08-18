@@ -144,7 +144,7 @@ class JobRepository:
         self, kind: str, remote_id: str, payload: dict[str, Any]
     ) -> DownloadJob:
         now = int(time.time())
-        cursor = await self.db.execute(
+        row = await self.db.fetchone(
             "INSERT INTO download_jobs "
             "(kind, remote_id, payload_json, status, attempts, next_attempt_at, created_at, updated_at) "
             "VALUES (?, ?, ?, 'pending', 0, ?, ?, ?) "
@@ -162,7 +162,6 @@ class JobRepository:
             "RETURNING *",
             (kind, remote_id, json.dumps(payload, separators=(",", ":")), now, now, now),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("job enqueue did not return a row")
         return DownloadJob.from_row(row)
@@ -178,12 +177,11 @@ class JobRepository:
             )
             if candidate is None:
                 return None
-            cursor = await self.db.execute(
+            row = await self.db.fetchone(
                 "UPDATE download_jobs SET status='running', attempts=attempts+1, "
                 "claimed_by=?, claimed_at=?, updated_at=? WHERE id=? RETURNING *",
                 (worker_id, now, now, candidate["id"]),
             )
-            row = await cursor.fetchone()
         return DownloadJob.from_row(row) if row is not None else None
 
     async def get_by_key(self, kind: str, remote_id: str) -> DownloadJob | None:

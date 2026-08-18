@@ -16,7 +16,8 @@ class Database:
     def __init__(self, path: Path) -> None:
         self.path = path
         self._connection: aiosqlite.Connection | None = None
-        self._transaction_lock = asyncio.Lock()
+        self._operation_lock = asyncio.Lock()
+        self._transaction_owner: asyncio.Task[Any] | None = None
 
     @property
     def connection(self) -> aiosqlite.Connection:
@@ -65,19 +66,42 @@ class Database:
     async def execute(
         self, sql: str, parameters: Iterable[Any] = ()
     ) -> aiosqlite.Cursor:
-        return await self.connection.execute(sql, tuple(parameters))
+        async with self._operation():
+            return await self.connection.execute(sql, tuple(parameters))
 
     async def fetchone(self, sql: str, parameters: Iterable[Any] = ()) -> Row | None:
-        cursor = await self.execute(sql, parameters)
-        return await cursor.fetchone()
+        async with self._operation():
+            cursor = await self.connection.execute(sql, tuple(parameters))
+            try:
+                return await cursor.fetchone()
+            finally:
+                await cursor.close()
 
     async def fetchall(self, sql: str, parameters: Iterable[Any] = ()) -> list[Row]:
-        cursor = await self.execute(sql, parameters)
-        return await cursor.fetchall()
+        async with self._operation():
+            cursor = await self.connection.execute(sql, tuple(parameters))
+            try:
+                return await cursor.fetchall()
+            finally:
+                await cursor.close()
+
+    @asynccontextmanager
+    async def _operation(self) -> AsyncIterator[None]:
+        if asyncio.current_task() is self._transaction_owner:
+            yield
+            return
+        async with self._operation_lock:
+            yield
 
     @asynccontextmanager
     async def transaction(self, *, immediate: bool = False) -> AsyncIterator[None]:
-        async with self._transaction_lock:
+        current = asyncio.current_task()
+        if current is None:
+            raise RuntimeError("database transaction requires an asyncio task")
+        if current is self._transaction_owner:
+            raise RuntimeError("nested database transactions are not supported")
+        async with self._operation_lock:
+            self._transaction_owner = current
             await self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             try:
                 yield
@@ -86,3 +110,5 @@ class Database:
                 raise
             else:
                 await self.connection.commit()
+            finally:
+                self._transaction_owner = None

@@ -38,7 +38,7 @@ class SyncService:
 
     async def create_run(self, *, full_scan: bool, status: str = "running") -> int:
         now = int(time.time())
-        cursor = await self.db.execute(
+        row = await self.db.fetchone(
             "INSERT INTO sync_runs (mode, phase, status, started_at) "
             "VALUES (?, ?, ?, ?) RETURNING id",
             (
@@ -48,7 +48,6 @@ class SyncService:
                 now,
             ),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("sync run creation failed")
         return int(row["id"])
