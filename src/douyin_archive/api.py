@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import Settings
@@ -145,8 +146,15 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
         is_mutation = request.method not in SAFE_METHODS
         is_api = request.url.path.startswith("/api/")
         setup_path = request.url.path == "/api/setup"
+        status_path = request.url.path == "/api/status"
         login_path = request.url.path == "/api/session" and request.method == "POST"
-        protected = is_api and admin_store.configured and not setup_path and not login_path
+        protected = (
+            is_api
+            and admin_store.configured
+            and not setup_path
+            and not status_path
+            and not login_path
+        )
         session_valid = decode_session(request)
         if protected and not session_valid:
             return JSONResponse(
@@ -196,6 +204,18 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
 
         issue_session(response)
         return {"configured": True}
+
+    @app.get("/api/status")
+    async def public_status(request: Request) -> dict[str, bool]:
+        douyin = await request.app.state.database.fetchone(
+            "SELECT 1 FROM auth_sessions "
+            "WHERE provider='douyin' AND status='authenticated'"
+        )
+        return {
+            "configured": admin_store.configured,
+            "authenticated": decode_session(request),
+            "douyinAuthenticated": douyin is not None,
+        }
 
     @app.post("/api/session")
     async def login(payload: SessionRequest, response: Response):
@@ -269,5 +289,16 @@ def create_app(settings: Settings, *, auth_service=None) -> FastAPI:
     app.include_router(feed_router)
     app.include_router(jobs_router)
     app.include_router(media_router)
+
+    if settings.web_dist is not None and (settings.web_dist / "index.html").is_file():
+        assets = settings.web_dist / "assets"
+        if assets.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+
+        @app.get("/{spa_path:path}", include_in_schema=False)
+        async def spa(spa_path: str):
+            if spa_path.startswith(("api/", "health/")):
+                return JSONResponse(status_code=404, content={"code": "NOT_FOUND"})
+            return FileResponse(settings.web_dist / "index.html")
 
     return app

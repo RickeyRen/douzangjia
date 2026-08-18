@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist", "SF Pro Display", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --color-archive-bg: #0c0e11;
+  --color-archive-surface: #15181d;
+  --color-archive-accent: #f16761;
+}

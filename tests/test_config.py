@@ -16,3 +16,17 @@ def test_settings_resolve_archive_root(tmp_path: Path, master_key: str) -> None:
     assert settings.archive_root == (tmp_path / "archive").resolve()
     assert settings.sync_interval_seconds == 300
 
+
+def test_settings_use_documented_environment_names(
+    tmp_path: Path, master_key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ARCHIVE_ROOT", str(tmp_path / "archive"))
+    monkeypatch.setenv("ARCHIVE_MASTER_KEY", master_key)
+    monkeypatch.setenv("APP_BIND_HOST", "127.0.0.1")
+    monkeypatch.setenv("APP_PORT", "8123")
+    monkeypatch.setenv("WEB_DIST", str(tmp_path / "web"))
+    settings = Settings()
+    assert settings.archive_root == (tmp_path / "archive").resolve()
+    assert settings.bind_host == "127.0.0.1"
+    assert settings.port == 8123
+    assert settings.web_dist == (tmp_path / "web").resolve()

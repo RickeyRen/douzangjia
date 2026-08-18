@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  font-family: "Geist", "SF Pro Display", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  background: #0c0e11;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-width: 320px; min-height: 100%; background: #0c0e11; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+
+.feed-viewport { scrollbar-width: none; overscroll-behavior-y: contain; }
+.feed-viewport::-webkit-scrollbar, .gallery-strip::-webkit-scrollbar { display: none; }
+.gallery-strip { scrollbar-width: none; }
+.feed-card { scroll-snap-stop: always; content-visibility: auto; contain-intrinsic-size: 100dvh; }
+
+@media (max-width: 767px) {
+  body { overflow: hidden; }
+  .media-frame { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
