@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "douyin-nas-archive"
+version = "0.1.0"
+description = "NAS-only permanent archive for Douyin favorite collections"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "aiosqlite>=0.21",
+  "argon2-cffi>=23.1",
+  "cryptography>=44",
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "pydantic-settings>=2.7",
+  "uvicorn[standard]>=0.34",
+]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.50"]
+worker = ["apscheduler>=3.11"]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "pyyaml>=6.0",
+  "ruff>=0.9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/douyin_archive"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
