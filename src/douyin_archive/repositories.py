@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from .db import Database
-from .models import Collection, DownloadJob
+from .models import Collection, DownloadJob, RemoteItem
 
 
 class ArchiveRepository:
@@ -97,6 +97,44 @@ class ArchiveRepository:
         )
         return int(row["total"]) if row is not None else 0
 
+    async def save_discovery_page(
+        self, collection_id: str, items: tuple[RemoteItem, ...]
+    ) -> None:
+        now = int(time.time())
+        async with self.db.transaction(immediate=True):
+            for item in items:
+                await self.db.execute(
+                    "INSERT INTO items "
+                    "(remote_id, author_name, description, item_type, published_at, "
+                    "first_seen_at, last_seen_at, metadata_digest) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, NULL) "
+                    "ON CONFLICT(remote_id) DO UPDATE SET "
+                    "author_name=excluded.author_name, description=excluded.description, "
+                    "item_type=excluded.item_type, published_at=excluded.published_at, "
+                    "last_seen_at=excluded.last_seen_at",
+                    (
+                        item.remote_id,
+                        item.author_name,
+                        item.description,
+                        item.item_type,
+                        item.published_at,
+                        now,
+                        now,
+                    ),
+                )
+                await self.db.execute(
+                    "INSERT INTO collection_items "
+                    "(collection_id, item_id, first_seen_at, last_seen_at) "
+                    "VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(collection_id, item_id) DO UPDATE SET "
+                    "last_seen_at=excluded.last_seen_at",
+                    (collection_id, item.remote_id, now, now),
+                )
+
+    async def list_known_item_ids(self) -> set[str]:
+        rows = await self.db.fetchall("SELECT remote_id FROM items")
+        return {str(row["remote_id"]) for row in rows}
+
 
 class JobRepository:
     def __init__(self, database: Database) -> None:
@@ -139,6 +177,13 @@ class JobRepository:
             row = await cursor.fetchone()
         return DownloadJob.from_row(row) if row is not None else None
 
+    async def get_by_key(self, kind: str, remote_id: str) -> DownloadJob | None:
+        row = await self.db.fetchone(
+            "SELECT * FROM download_jobs WHERE kind=? AND remote_id=?",
+            (kind, remote_id),
+        )
+        return DownloadJob.from_row(row) if row is not None else None
+
     async def complete(self, job_id: int) -> None:
         await self.db.execute(
             "UPDATE download_jobs SET status='completed', claimed_by=NULL, "
@@ -155,6 +200,23 @@ class JobRepository:
             "last_error_code=?, next_attempt_at=?, updated_at=? WHERE id=?",
             (error_code, now + retry_after_seconds, now, job_id),
         )
+
+    async def fail_terminal(self, job_id: int, error_code: str) -> None:
+        await self.db.execute(
+            "UPDATE download_jobs SET status='failed', claimed_by=NULL, "
+            "last_error_code=?, updated_at=? WHERE id=?",
+            (error_code, int(time.time()), job_id),
+        )
+
+    async def recover_stale_running(self, *, older_than_seconds: int) -> int:
+        cutoff = int(time.time()) - older_than_seconds
+        cursor = await self.db.execute(
+            "UPDATE download_jobs SET status='retry', claimed_by=NULL, "
+            "last_error_code='WORKER_RESTARTED', next_attempt_at=?, updated_at=? "
+            "WHERE status='running' AND claimed_at < ?",
+            (int(time.time()), int(time.time()), cutoff),
+        )
+        return cursor.rowcount
 
     async def get(self, job_id: int) -> DownloadJob | None:
         row = await self.db.fetchone("SELECT * FROM download_jobs WHERE id=?", (job_id,))

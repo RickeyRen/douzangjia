@@ -1,0 +1,85 @@
+import time
+from pathlib import Path
+
+import pytest
+
+from douyin_archive.config import Settings
+from douyin_archive.db import Database
+from douyin_archive.provider.base import RateLimited
+from douyin_archive.repositories import JobRepository
+from douyin_archive.scheduler import configure_scheduler
+from douyin_archive.worker import Worker
+
+
+class FakeScheduler:
+    def __init__(self) -> None:
+        self.jobs: list[tuple[object, str, dict]] = []
+
+    def add_job(self, function, trigger: str, **kwargs) -> None:
+        self.jobs.append((function, trigger, kwargs))
+
+
+class FakeSyncService:
+    async def run_incremental(self) -> None:
+        pass
+
+    async def run_full(self) -> None:
+        pass
+
+
+def test_scheduler_runs_every_five_minutes_without_overlap(
+    tmp_path: Path, master_key: str
+) -> None:
+    scheduler = FakeScheduler()
+    settings = Settings(archive_root=tmp_path, master_key=master_key)
+    configure_scheduler(scheduler, FakeSyncService(), settings)
+
+    interval = next(job for job in scheduler.jobs if job[2]["id"] == "incremental-sync")
+    assert interval[1] == "interval"
+    assert interval[2]["seconds"] == 300
+    assert interval[2]["max_instances"] == 1
+    assert interval[2]["coalesce"] is True
+
+
+@pytest.fixture
+async def jobs(tmp_path: Path):
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    repository = JobRepository(database)
+    yield repository
+    await database.close()
+
+
+async def test_rate_limit_sets_provider_cooldown(jobs: JobRepository) -> None:
+    queued = await jobs.enqueue_unique("download", "734", {"asset": 1})
+
+    async def rate_limited_handler(_):
+        raise RateLimited("cool down", retry_after=900)
+
+    before = int(time.time())
+    handled = await Worker(jobs, rate_limited_handler, worker_id="worker-a").run_once()
+    updated = await jobs.get(queued.id)
+
+    assert handled is True
+    assert updated is not None
+    assert updated.status == "retry"
+    assert updated.last_error_code == "RATE_LIMITED"
+    assert updated.next_attempt_at >= before + 900
+
+
+async def test_restart_recovers_stale_running_job(jobs: JobRepository) -> None:
+    queued = await jobs.enqueue_unique("download", "734", {"asset": 1})
+    claimed = await jobs.claim_next(worker_id="dead-worker")
+    assert claimed is not None
+    await jobs.db.execute(
+        "UPDATE download_jobs SET claimed_at=? WHERE id=?",
+        (int(time.time()) - 3600, claimed.id),
+    )
+
+    recovered = await jobs.recover_stale_running(older_than_seconds=300)
+    updated = await jobs.get(queued.id)
+
+    assert recovered == 1
+    assert updated is not None
+    assert updated.status == "retry"
+    assert updated.last_error_code == "WORKER_RESTARTED"

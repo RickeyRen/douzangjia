@@ -18,6 +18,10 @@ class SessionExpired(ProviderError):
 class RateLimited(ProviderError):
     code = "RATE_LIMITED"
 
+    def __init__(self, message: str, *, retry_after: int = 900) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
 
 class ProviderChanged(ProviderError):
     code = "DOUYIN_RESPONSE_CHANGED"
