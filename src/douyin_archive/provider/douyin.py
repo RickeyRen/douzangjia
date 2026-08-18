@@ -211,7 +211,7 @@ class PlaywrightDouyinSource:
                         await self._page.wait_for_timeout(800)
                         clicked = True
                         break
-                logger.info(
+                logger.warning(
                     "Douyin text candidate label=%s matches=%s clicked=%s",
                     label,
                     count,
