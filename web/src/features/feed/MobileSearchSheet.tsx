@@ -5,7 +5,7 @@ import { useI18n } from "../../i18n/context";
 export function MobileSearchSheet({ value, onChange, onClose }: { value: string; onChange: (value: string) => void; onClose: () => void }) {
   const { t } = useI18n();
   return (
-    <div className="fixed inset-0 z-[8] bg-[#0c0e11]/96 backdrop-blur-xl md:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-[8] bg-[#0c0e11]/96 backdrop-blur-xl lg:hidden" onClick={onClose}>
       <section role="dialog" aria-modal="true" aria-label={t("searchArchive")} className="min-h-[100dvh] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-[calc(14px+env(safe-area-inset-top))]" onClick={(event) => event.stopPropagation()}>
         <header className="flex min-h-12 items-center gap-3">
           <label className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-2xl border border-white/10 bg-white/[.06] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] focus-within:border-white/20">
