@@ -200,11 +200,23 @@ class PlaywrightDouyinSource:
         from playwright.async_api import Error as PlaywrightError
 
         for label in labels:
+            locator = self._page.get_by_text(label, exact=True)
+            clicked = False
             with suppress(PlaywrightError):
-                locator = self._page.get_by_text(label, exact=True).first
-                if await locator.is_visible(timeout=1_000):
-                    await locator.click(timeout=2_000)
-                    await self._page.wait_for_timeout(800)
+                count = await locator.count()
+                for index in range(count):
+                    candidate = locator.nth(index)
+                    if await candidate.is_visible(timeout=1_000):
+                        await candidate.click(timeout=2_000)
+                        await self._page.wait_for_timeout(800)
+                        clicked = True
+                        break
+                logger.info(
+                    "Douyin text candidate label=%s matches=%s clicked=%s",
+                    label,
+                    count,
+                    clicked,
+                )
 
     async def _open_collection(self, remote_id: str) -> None:
         from playwright.async_api import Error as PlaywrightError

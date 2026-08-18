@@ -109,6 +109,51 @@ def test_payload_shape_never_contains_response_values() -> None:
     assert "private-cursor" not in repr(shape)
 
 
+async def test_click_candidates_uses_visible_duplicate_instead_of_hidden_first() -> None:
+    class Candidate:
+        def __init__(self, index: int, clicks: list[int]) -> None:
+            self.index = index
+            self.clicks = clicks
+
+        async def is_visible(self, *, timeout: int) -> bool:
+            return self.index == 1
+
+        async def click(self, *, timeout: int) -> None:
+            self.clicks.append(self.index)
+
+    class TextLocator:
+        def __init__(self, clicks: list[int]) -> None:
+            self.candidates = [Candidate(0, clicks), Candidate(1, clicks)]
+            self.first = self.candidates[0]
+
+        async def count(self) -> int:
+            return len(self.candidates)
+
+        def nth(self, index: int) -> Candidate:
+            return self.candidates[index]
+
+    class TextPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.clicks: list[int] = []
+
+        def get_by_text(self, label: str, *, exact: bool) -> TextLocator:
+            assert label == "收藏夹"
+            assert exact is True
+            return TextLocator(self.clicks)
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            assert milliseconds == 800
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = TextPage()
+    source._page = page
+
+    await source._click_text_candidates(("收藏夹",))
+
+    assert page.clicks == [1]
+
+
 async def test_response_timeout_logs_only_sanitized_paths(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
