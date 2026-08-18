@@ -1,0 +1,29 @@
+{
+  "status_code": 0,
+  "aweme_list": [
+    {
+      "aweme_id": "734",
+      "desc": "海边日落",
+      "create_time": 1700000000,
+      "author": {"uid": "u1", "nickname": "旅行家"},
+      "video": {
+        "play_addr": {
+          "url_list": ["https://media.test/video.mp4?token=redacted"],
+          "data_size": 12345
+        }
+      }
+    },
+    {
+      "aweme_id": "735",
+      "desc": "今日穿搭",
+      "create_time": 1700000010,
+      "author": {"uid": "u2", "nickname": "摄影师"},
+      "images": [
+        {"url_list": ["https://media.test/one.jpeg?token=redacted"]},
+        {"url_list": ["https://media.test/two.webp?token=redacted"]}
+      ]
+    }
+  ],
+  "has_more": 1,
+  "cursor": "page-2"
+}

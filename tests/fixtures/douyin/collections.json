@@ -1,0 +1,15 @@
+{
+  "status_code": 0,
+  "mix_infos": [
+    {
+      "mix_id": "1001",
+      "mix_name": "想去的地方",
+      "statis": {"aweme_count": 42}
+    },
+    {
+      "mix_id": "1002",
+      "mix_name": "好看的美女",
+      "statis": {"aweme_count": 8}
+    }
+  ]
+}
