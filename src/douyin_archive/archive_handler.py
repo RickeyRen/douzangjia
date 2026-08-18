@@ -7,8 +7,10 @@ from pathlib import Path
 import anyio
 
 from .db import Database
-from .downloader import MediaDownloader
+from .downloader import DownloadProgressSnapshot, MediaDownloader
 from .models import DownloadJob, MediaAsset
+from .paths import asset_filename
+from .repositories import DownloadProgressRepository
 from .storage import CollectionProjector
 
 
@@ -27,6 +29,7 @@ class ArchiveJobHandler:
         self.downloader = downloader
         self.projector = projector
         self.archive_root = archive_root.resolve()
+        self.progress = DownloadProgressRepository(database)
 
     async def __call__(self, job: DownloadJob) -> None:
         if job.kind != "download":
@@ -47,30 +50,57 @@ class ArchiveJobHandler:
         )
 
         for asset in assets:
-            object_file = await self.downloader.download(asset)
+            filename = asset_filename(
+                asset.asset_index, asset.media_type, asset.mime_type
+            )
+            object_file = self.downloader.store.object_path(asset.remote_id, filename)
+            part_file = self.downloader.store.part_path(asset.remote_id, filename)
+            downloaded_bytes = (
+                object_file.stat().st_size
+                if object_file.is_file()
+                else part_file.stat().st_size
+                if part_file.is_file()
+                else 0
+            )
+            await self.progress.prepare_asset(
+                asset, downloaded_bytes=downloaded_bytes
+            )
+
+        for asset in assets:
+            async def persist(snapshot: DownloadProgressSnapshot) -> None:
+                await self.progress.update(
+                    asset.remote_id,
+                    asset.asset_index,
+                    status="running",
+                    downloaded_bytes=snapshot.downloaded_bytes,
+                    total_bytes=snapshot.total_bytes,
+                    speed_bps=snapshot.speed_bps,
+                )
+
+            object_file = await self.downloader.download(
+                asset, on_progress=persist
+            )
             relative_path = object_file.resolve().relative_to(self.archive_root).as_posix()
             byte_size = object_file.stat().st_size
             checksum = await anyio.to_thread.run_sync(self._sha256, object_file)
             now = int(time.time())
             await self.database.execute(
-                "INSERT INTO media_files "
-                "(item_id, asset_index, media_type, relative_path, byte_size, "
-                "checksum_sha256, mime_type, status, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?) "
-                "ON CONFLICT(item_id, asset_index) DO UPDATE SET "
-                "media_type=excluded.media_type, relative_path=excluded.relative_path, "
-                "byte_size=excluded.byte_size, checksum_sha256=excluded.checksum_sha256, "
-                "mime_type=excluded.mime_type, status='ready', updated_at=excluded.updated_at",
+                "UPDATE media_files SET media_type=?, relative_path=?, byte_size=?, "
+                "checksum_sha256=?, mime_type=?, status='ready', downloaded_bytes=?, "
+                "total_bytes=?, speed_bps=0, progress_updated_at=?, updated_at=? "
+                "WHERE item_id=? AND asset_index=?",
                 (
-                    job.remote_id,
-                    asset.asset_index,
                     asset.media_type,
                     relative_path,
                     byte_size,
                     checksum,
                     asset.mime_type,
+                    byte_size,
+                    byte_size,
                     now,
                     now,
+                    job.remote_id,
+                    asset.asset_index,
                 ),
             )
             for collection in collections:
