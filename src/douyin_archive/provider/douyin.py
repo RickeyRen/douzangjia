@@ -15,6 +15,27 @@ from .normalizers import normalize_collections, normalize_page
 logger = logging.getLogger(__name__)
 
 
+def _payload_shape(payload: dict[str, Any]) -> dict[str, object]:
+    """Describe response structure without retaining any response values."""
+
+    def describe(value: object, *, nested: bool) -> object:
+        if isinstance(value, list):
+            return f"list[{len(value)}]"
+        if isinstance(value, dict):
+            if nested:
+                return "dict"
+            return {
+                str(key): describe(child, nested=True)
+                for key, child in sorted(value.items(), key=lambda item: str(item[0]))
+            }
+        return type(value).__name__
+
+    return {
+        str(key): describe(value, nested=False)
+        for key, value in sorted(payload.items(), key=lambda item: str(item[0]))
+    }
+
+
 class DouyinProvider:
     def __init__(self, source: RawPageSource, *, known_ids: set[str]) -> None:
         self.source = source
@@ -135,6 +156,10 @@ class PlaywrightDouyinSource:
         with suppress(ValueError):
             payload = await response.json()
             if isinstance(payload, dict):
+                if any(marker in url for marker in self.COLLECTION_PATH_MARKERS):
+                    logger.warning(
+                        "Douyin collection response shape=%s", _payload_shape(payload)
+                    )
                 await self._responses.put((url, payload))
 
     async def _wait_for(self, markers: tuple[str, ...]) -> dict:

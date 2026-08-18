@@ -4,7 +4,7 @@ import pytest
 
 from douyin_archive.provider import douyin as douyin_module
 from douyin_archive.provider.base import ProviderChanged
-from douyin_archive.provider.douyin import PlaywrightDouyinSource
+from douyin_archive.provider.douyin import PlaywrightDouyinSource, _payload_shape
 
 
 class FakePage:
@@ -74,6 +74,25 @@ async def test_source_captures_current_listcollection_endpoint() -> None:
 
     assert source._responses.qsize() == 1
     await source.close()
+
+
+def test_payload_shape_never_contains_response_values() -> None:
+    shape = _payload_shape(
+        {
+            "status_code": 0,
+            "data": {"secret_field": "private-value", "items": [{"id": "private-id"}]},
+            "cursor": "private-cursor",
+        }
+    )
+
+    assert shape == {
+        "cursor": "str",
+        "data": {"items": "list[1]", "secret_field": "str"},
+        "status_code": "int",
+    }
+    assert "private-value" not in repr(shape)
+    assert "private-id" not in repr(shape)
+    assert "private-cursor" not in repr(shape)
 
 
 async def test_response_timeout_logs_only_sanitized_paths(
