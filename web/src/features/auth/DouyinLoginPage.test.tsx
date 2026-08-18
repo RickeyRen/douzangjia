@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -14,13 +14,63 @@ vi.mock("../../app/api", () => ({
   douyinStreamUrl: vi.fn((id: string) => `/api/douyin/login/${id}/stream.mjpeg`),
 }));
 
+class FakeWebSocket {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 3;
+  static instances: FakeWebSocket[] = [];
+
+  binaryType = "";
+  readyState = FakeWebSocket.CONNECTING;
+  sent: string[] = [];
+  onopen: (() => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor(readonly url: string) {
+    FakeWebSocket.instances.push(this);
+  }
+
+  send(payload: string) {
+    this.sent.push(payload);
+  }
+
+  close() {
+    this.readyState = FakeWebSocket.CLOSED;
+  }
+}
+
+function openBrowserSocket() {
+  const socket = FakeWebSocket.instances.at(-1)!;
+  act(() => {
+    socket.readyState = FakeWebSocket.OPEN;
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: "status",
+        state: "awaiting_scan",
+        width: 1280,
+        height: 800,
+        transport: "cdp",
+      }),
+    } as MessageEvent);
+  });
+  return socket;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  FakeWebSocket.instances = [];
+  vi.stubGlobal("WebSocket", FakeWebSocket);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
-it("shows the NAS-generated QR without exposing cookie text", async () => {
+it("shows the full persistent NAS browser without exposing cookie text", async () => {
   vi.mocked(api.beginDouyinLogin).mockResolvedValue({
     id: "login-1",
     state: "awaiting_scan",
@@ -31,13 +81,14 @@ it("shows the NAS-generated QR without exposing cookie text", async () => {
   render(<DouyinLoginPage />);
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
 
-  expect(await screen.findByAltText("抖音登录二维码")).toBeVisible();
-  expect(screen.getByAltText("抖音登录二维码")).toHaveAttribute(
-    "src",
-    "/api/douyin/login/login-1/stream.mjpeg",
-  );
+  const canvas = await screen.findByLabelText("抖音登录二维码");
+  openBrowserSocket();
+  expect(canvas).toBeVisible();
+  expect(canvas.tagName).toBe("CANVAS");
+  expect(canvas).toHaveAttribute("width", "1280");
+  expect(canvas).toHaveAttribute("height", "800");
   expect(screen.getByTestId("douyin-live-view")).toHaveClass("fixed", "inset-0");
-  expect(screen.getByAltText("抖音登录二维码")).toHaveClass(
+  expect(canvas).toHaveClass(
     "max-h-full",
     "max-w-full",
     "object-contain",
@@ -57,8 +108,9 @@ it("forwards pointer down, move, and up while the gesture is happening", async (
   const user = userEvent.setup();
   render(<DouyinLoginPage />);
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
-  const image = await screen.findByAltText("抖音登录二维码");
-  vi.spyOn(image, "getBoundingClientRect").mockReturnValue({
+  const canvas = await screen.findByLabelText("抖音登录二维码");
+  const socket = openBrowserSocket();
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
     x: 10,
     y: 20,
     left: 10,
@@ -70,29 +122,17 @@ it("forwards pointer down, move, and up while the gesture is happening", async (
     toJSON: () => ({}),
   });
 
-  fireEvent.pointerDown(image, { pointerId: 7, clientX: 62, clientY: 292 });
+  fireEvent.pointerDown(canvas, { pointerId: 7, clientX: 62, clientY: 292 });
+  fireEvent.pointerMove(canvas, { pointerId: 7, clientX: 270, clientY: 292 });
+  fireEvent.pointerUp(canvas, { pointerId: 7, clientX: 478, clientY: 292 });
   await vi.waitFor(() => {
-    expect(api.submitDouyinPointer).toHaveBeenCalledWith("login-1", {
-      action: "down",
-      x: 0.1,
-      y: 0.4,
-    });
+    expect(socket.sent.map((payload) => JSON.parse(payload))).toEqual([
+      { type: "pointer", action: "down", x: 0.1, y: 0.4 },
+      { type: "pointer", action: "move", x: 0.5, y: 0.4 },
+      { type: "pointer", action: "up", x: 0.9, y: 0.4 },
+    ]);
   });
-
-  fireEvent.pointerMove(image, { pointerId: 7, clientX: 270, clientY: 292 });
-  fireEvent.pointerUp(image, { pointerId: 7, clientX: 478, clientY: 292 });
-  await vi.waitFor(() => {
-    expect(api.submitDouyinPointer).toHaveBeenNthCalledWith(2, "login-1", {
-      action: "move",
-      x: 0.5,
-      y: 0.4,
-    });
-    expect(api.submitDouyinPointer).toHaveBeenLastCalledWith("login-1", {
-      action: "up",
-      x: 0.9,
-      y: 0.4,
-    });
-  });
+  expect(api.submitDouyinPointer).not.toHaveBeenCalled();
 });
 
 it("forwards OTP digits and editing keys while the live image is focused", async () => {
@@ -107,15 +147,19 @@ it("forwards OTP digits and editing keys while the live image is focused", async
   const user = userEvent.setup();
   render(<DouyinLoginPage />);
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
-  const image = await screen.findByAltText("抖音登录二维码");
+  const canvas = await screen.findByLabelText("抖音登录二维码");
+  const socket = openBrowserSocket();
 
-  image.focus();
+  canvas.focus();
   await user.keyboard("07{Backspace}{Enter}");
 
   await vi.waitFor(() => {
-    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(1, "login-1", "0");
-    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(2, "login-1", "7");
-    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(3, "login-1", "Backspace");
-    expect(api.submitDouyinKey).toHaveBeenNthCalledWith(4, "login-1", "Enter");
+    expect(socket.sent.map((payload) => JSON.parse(payload))).toEqual([
+      { type: "key", key: "0" },
+      { type: "key", key: "7" },
+      { type: "key", key: "Backspace" },
+      { type: "key", key: "Enter" },
+    ]);
   });
+  expect(api.submitDouyinKey).not.toHaveBeenCalled();
 });

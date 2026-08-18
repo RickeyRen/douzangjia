@@ -17,6 +17,7 @@ import {
   type PointerPoint,
 } from "../../app/api";
 import { useI18n } from "../../i18n/context";
+import { useDouyinBrowserSocket } from "./useDouyinBrowserSocket";
 
 export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => void }) {
   const { t } = useI18n();
@@ -25,11 +26,12 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   const [starting, setStarting] = useState(false);
   const [interacting, setInteracting] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const activePointer = useRef<number | null>(null);
-  const pointerQueue = useRef<Promise<void>>(Promise.resolve());
-  const lastMoveAt = useRef(0);
+  const fallbackQueue = useRef<Promise<void>>(Promise.resolve());
   const loginId = status?.id;
   const loginState = status?.state;
+  const browser = useDouyinBrowserSocket({ loginId, canvasRef });
 
   useEffect(() => {
     if (!loginId || !loginState || !["starting", "awaiting_scan"].includes(loginState)) return;
@@ -49,7 +51,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
           if (!stopped) timer = window.setTimeout(poll, 1_000);
         });
     };
-    timer = window.setTimeout(poll, 250);
+    timer = window.setTimeout(poll, 1_000);
     return () => {
       stopped = true;
       window.clearTimeout(timer);
@@ -61,7 +63,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     setError(false);
     try {
       setStatus(await beginDouyinLogin());
-      pointerQueue.current = Promise.resolve();
+      fallbackQueue.current = Promise.resolve();
     } catch {
       setError(true);
     } finally {
@@ -71,15 +73,18 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
 
   function forwardPointer(action: "down" | "move" | "up", point: PointerPoint) {
     if (!status) return;
-    const id = status.id;
-    pointerQueue.current = pointerQueue.current
+    if (browser.transport !== "mjpeg") {
+      browser.sendPointer(action, point);
+      return;
+    }
+    fallbackQueue.current = fallbackQueue.current
       .catch(() => undefined)
-      .then(() => submitDouyinPointer(id, { action, ...point }))
+      .then(() => submitDouyinPointer(status.id, { action, ...point }))
       .then(() => undefined)
       .catch(() => setError(true));
   }
 
-  function normalizedPoint(event: ReactPointerEvent<HTMLImageElement>): PointerPoint {
+  function normalizedPoint(event: ReactPointerEvent<HTMLElement>): PointerPoint {
     const bounds = event.currentTarget.getBoundingClientRect();
     const clamp = (value: number) => Math.min(1, Math.max(0, value));
     return {
@@ -88,10 +93,9 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     };
   }
 
-  function startDrag(event: ReactPointerEvent<HTMLImageElement>) {
+  function startDrag(event: ReactPointerEvent<HTMLElement>) {
     if (!status || interacting) return;
     activePointer.current = event.pointerId;
-    lastMoveAt.current = 0;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     event.currentTarget.focus();
     setDragging(true);
@@ -99,43 +103,48 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     forwardPointer("down", normalizedPoint(event));
   }
 
-  function continueDrag(event: ReactPointerEvent<HTMLImageElement>) {
+  function continueDrag(event: ReactPointerEvent<HTMLElement>) {
     if (activePointer.current !== event.pointerId) return;
-    if (lastMoveAt.current && event.timeStamp - lastMoveAt.current < 50) return;
-    lastMoveAt.current = event.timeStamp;
     forwardPointer("move", normalizedPoint(event));
   }
 
-  async function finishDrag(event: ReactPointerEvent<HTMLImageElement>) {
+  async function finishDrag(event: ReactPointerEvent<HTMLElement>) {
     if (!status || activePointer.current !== event.pointerId) return;
     activePointer.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     setDragging(false);
     setError(false);
     forwardPointer("up", normalizedPoint(event));
-    await pointerQueue.current;
+    if (browser.transport === "mjpeg") await fallbackQueue.current;
     setInteracting(false);
   }
 
-  function cancelDrag(event: ReactPointerEvent<HTMLImageElement>) {
+  function cancelDrag(event: ReactPointerEvent<HTMLElement>) {
     if (activePointer.current !== event.pointerId) return;
     activePointer.current = null;
     setDragging(false);
     forwardPointer("up", normalizedPoint(event));
-    void pointerQueue.current.finally(() => setInteracting(false));
+    if (browser.transport === "mjpeg") {
+      void fallbackQueue.current.finally(() => setInteracting(false));
+    } else {
+      setInteracting(false);
+    }
   }
 
   function forwardKey(key: string) {
     if (!status) return;
-    const id = status.id;
-    pointerQueue.current = pointerQueue.current
+    if (browser.transport !== "mjpeg") {
+      browser.sendKey(key);
+      return;
+    }
+    fallbackQueue.current = fallbackQueue.current
       .catch(() => undefined)
-      .then(() => submitDouyinKey(id, key))
+      .then(() => submitDouyinKey(status.id, key))
       .then(() => undefined)
       .catch(() => setError(true));
   }
 
-  function handleKeyDown(event: ReactKeyboardEvent<HTMLImageElement>) {
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     const allowed = /^[0-9]$/.test(event.key) || ["Backspace", "Enter", "Tab"].includes(event.key);
     if (!allowed) return;
     event.preventDefault();
@@ -150,6 +159,12 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
         : status?.state === "failed" || error
           ? t("loginFailed")
           : t("awaitingScan");
+  const liveStatus =
+    browser.transport === "mjpeg"
+      ? t("liveFallback")
+      : browser.connected
+        ? t("liveConnected")
+        : t("liveReconnecting");
 
   if (status?.hasScreenshot) {
     return (
@@ -158,19 +173,36 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
         data-testid="douyin-live-view"
       >
         <div className="absolute inset-0 grid place-items-center overflow-hidden">
-          <img
-            className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
-            src={douyinStreamUrl(status.id)}
-            alt={t("qrAlt")}
-            draggable={false}
-            tabIndex={0}
-            onDragStart={(event) => event.preventDefault()}
-            onPointerDown={startDrag}
-            onPointerMove={continueDrag}
-            onPointerUp={(event) => void finishDrag(event)}
-            onPointerCancel={cancelDrag}
-            onKeyDown={handleKeyDown}
-          />
+          {browser.transport === "mjpeg" ? (
+            <img
+              className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+              src={douyinStreamUrl(status.id)}
+              alt={t("qrAlt")}
+              draggable={false}
+              tabIndex={0}
+              onDragStart={(event) => event.preventDefault()}
+              onPointerDown={startDrag}
+              onPointerMove={continueDrag}
+              onPointerUp={(event) => void finishDrag(event)}
+              onPointerCancel={cancelDrag}
+              onKeyDown={handleKeyDown}
+            />
+          ) : (
+            <canvas
+              ref={canvasRef}
+              width={1280}
+              height={800}
+              role="img"
+              aria-label={t("qrAlt")}
+              className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+              tabIndex={0}
+              onPointerDown={startDrag}
+              onPointerMove={continueDrag}
+              onPointerUp={(event) => void finishDrag(event)}
+              onPointerCancel={cancelDrag}
+              onKeyDown={handleKeyDown}
+            />
+          )}
         </div>
 
         <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-3 rounded-xl border border-white/10 bg-[#0c0e11]/85 px-4 py-3 shadow-2xl backdrop-blur-xl">
@@ -184,7 +216,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
         <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
           <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0c0e11]/85 px-4 py-2.5 text-sm text-[#d7dae0] shadow-2xl backdrop-blur-xl" role="status">
             <span className="h-2 w-2 rounded-full bg-[#f16761] motion-safe:animate-pulse" />
-            {interacting ? t("dragApplying") : statusText}
+            {interacting ? t("dragApplying") : `${statusText} · ${liveStatus}`}
           </div>
         </div>
       </main>
