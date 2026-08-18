@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import Any
+from urllib.parse import urlsplit
 
 from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
 from .base import ProviderChanged, RawPageSource, RemoteCollection, RemotePage
 from .normalizers import normalize_collections, normalize_page
+
+logger = logging.getLogger(__name__)
 
 
 class DouyinProvider:
@@ -61,6 +66,7 @@ class PlaywrightDouyinSource:
         self._page: Any = None
         self._responses: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         self._collection_names: dict[str, str] = {}
+        self._observed_paths: deque[str] = deque(maxlen=32)
 
     async def open(self) -> None:
         if self._page is not None:
@@ -80,6 +86,7 @@ class PlaywrightDouyinSource:
             await lease.release()
         self._responses = asyncio.Queue()
         self._collection_names.clear()
+        self._observed_paths.clear()
 
     async def fetch_collections(self) -> dict:
         await self.open()
@@ -111,6 +118,9 @@ class PlaywrightDouyinSource:
 
     async def _capture_response(self, response: Any) -> None:
         url = response.url
+        parsed = urlsplit(url)
+        if parsed.hostname and parsed.hostname.lower().endswith("douyin.com"):
+            self._observed_paths.append(parsed.path or "/")
         if not any(
             marker in url for marker in (*self.COLLECTION_PATH_MARKERS, *self.ITEM_PATH_MARKERS)
         ):
@@ -131,7 +141,15 @@ class PlaywrightDouyinSource:
                 continue
             if any(marker in url for marker in markers):
                 return payload
-        raise TimeoutError("expected Douyin browser response was not observed")
+        page_path = urlsplit(str(self._page.url)).path or "/"
+        logger.warning(
+            "Douyin browser response changed: page_path=%s expected=%s "
+            "observed_paths=%s",
+            page_path,
+            markers,
+            list(self._observed_paths),
+        )
+        raise ProviderChanged("expected Douyin browser response was not observed")
 
     async def _click_text_candidates(self, labels: tuple[str, ...]) -> None:
         from playwright.async_api import Error as PlaywrightError
