@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,10 @@ import { FeedPage, feedIndexFromTarget } from "./FeedPage";
 vi.mock("../../app/api", () => ({
   fetchCollections: vi.fn(),
   fetchFeed: vi.fn(),
+  fetchJobs: vi.fn(),
+  fetchStatus: vi.fn(),
+  fetchSyncRuns: vi.fn(),
+  triggerSync: vi.fn(),
 }));
 
 const collections = [
@@ -42,6 +46,41 @@ describe("FeedPage", () => {
       items: [itemFor(collections.find((item) => item.id === collectionId) ?? collections[0])],
       nextCursor: null,
     }));
+    vi.mocked(api.fetchJobs).mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          kind: "download",
+          remoteId: "734",
+          status: "completed",
+          attempts: 1,
+          nextAttemptAt: 1,
+          errorCode: null,
+          updatedAt: 1,
+        },
+      ],
+    });
+    vi.mocked(api.fetchSyncRuns).mockResolvedValue({
+      items: [
+        {
+          id: 9,
+          mode: "full",
+          phase: "finished",
+          status: "completed",
+          discovered: 12,
+          enqueued: 10,
+          errorCode: null,
+          startedAt: 1,
+          finishedAt: 2,
+        },
+      ],
+    });
+    vi.mocked(api.fetchStatus).mockResolvedValue({
+      configured: true,
+      authenticated: true,
+      douyinAuthenticated: true,
+    });
+    vi.mocked(api.triggerSync).mockResolvedValue({ runId: 10 });
   });
 
   it("switches collection and keeps exactly one active media card", async () => {
@@ -66,5 +105,24 @@ describe("FeedPage", () => {
     const target = document.createElement("div");
     target.dataset.feedIndex = "2";
     expect(feedIndexFromTarget(target)).toBe(2);
+  });
+
+  it("opens real download, sync, and settings panels", async () => {
+    const user = userEvent.setup();
+    const view = within(render(<FeedPage />).container);
+
+    await user.click(await view.findByRole("button", { name: "下载任务" }));
+    expect(await view.findByText("作品 734")).toBeVisible();
+    await user.click(view.getByRole("button", { name: "关闭面板" }));
+
+    await user.click(view.getByRole("button", { name: "同步状态" }));
+    expect(await view.findByText("发现 12 · 新增 10")).toBeVisible();
+    await user.click(view.getByRole("button", { name: "立即全量同步" }));
+    expect(await view.findByText("全量同步 #10 已进入队列")).toBeVisible();
+    await user.click(view.getByRole("button", { name: "关闭面板" }));
+
+    await user.click(view.getByRole("button", { name: "设置" }));
+    expect(await view.findByText("抖音已连接")).toBeVisible();
+    expect(view.getByText("永久保留本地原文件")).toBeVisible();
   });
 });

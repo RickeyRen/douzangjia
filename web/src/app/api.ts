@@ -42,6 +42,29 @@ export type BootstrapStatus = {
   douyinAuthenticated: boolean;
 };
 
+export type DownloadJob = {
+  id: number;
+  kind: string;
+  remoteId: string;
+  status: string;
+  attempts: number;
+  nextAttemptAt: number;
+  errorCode: string | null;
+  updatedAt: number;
+};
+
+export type SyncRun = {
+  id: number;
+  mode: string;
+  phase: string;
+  status: string;
+  discovered: number;
+  enqueued: number;
+  errorCode: string | null;
+  startedAt: number;
+  finishedAt: number | null;
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -90,6 +113,8 @@ export const loginAdmin = (password: string) =>
     body: JSON.stringify({ password }),
   });
 export const fetchCollections = () => request<{ items: Collection[] }>("/api/collections");
+export const fetchJobs = () => request<{ items: DownloadJob[] }>("/api/jobs?limit=50");
+export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchFeed = ({
   collectionId,
   search,

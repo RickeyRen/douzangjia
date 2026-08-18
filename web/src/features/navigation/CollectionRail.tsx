@@ -3,7 +3,9 @@ import { Archive, DownloadSimple, FolderSimple, Gear, House, Pulse } from "@phos
 import type { Collection } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 
-export function CollectionRail({ collections, selected, onSelect }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void }) {
+export type UtilityPanel = "downloads" | "sync" | "settings";
+
+export function CollectionRail({ collections, selected, onSelect, onOpenPanel }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void; onOpenPanel: (panel: UtilityPanel) => void }) {
   const { t } = useI18n();
   const items = [{ id: undefined, name: t("allArchives"), icon: House }, ...collections.map((collection) => ({ ...collection, icon: FolderSimple }))];
   return (
@@ -26,9 +28,9 @@ export function CollectionRail({ collections, selected, onSelect }: { collection
         })}
       </nav>
       <div className="my-5 border-t border-white/8" />
-      <button className="flex min-h-11 items-center gap-3 px-3 text-sm text-[#969ba5]"><DownloadSimple size={20} />{t("downloadJobs")}</button>
-      <button className="flex min-h-11 items-center gap-3 px-3 text-sm text-[#969ba5]"><Pulse size={20} />{t("syncStatus")}</button>
-      <button className="mt-auto flex min-h-11 items-center gap-3 border-t border-white/8 px-3 pt-5 text-sm text-[#969ba5]"><Gear size={20} />{t("settings")}</button>
+      <button type="button" onClick={() => onOpenPanel("downloads")} className="flex min-h-11 items-center gap-3 px-3 text-sm text-[#969ba5] transition-colors hover:text-white"><DownloadSimple size={20} />{t("downloadJobs")}</button>
+      <button type="button" onClick={() => onOpenPanel("sync")} className="flex min-h-11 items-center gap-3 px-3 text-sm text-[#969ba5] transition-colors hover:text-white"><Pulse size={20} />{t("syncStatus")}</button>
+      <button type="button" onClick={() => onOpenPanel("settings")} className="mt-auto flex min-h-11 items-center gap-3 border-t border-white/8 px-3 pt-5 text-sm text-[#969ba5] transition-colors hover:text-white"><Gear size={20} />{t("settings")}</button>
       <div className="mt-4 flex items-center gap-2 px-3 text-xs text-[#747a84]"><Archive size={15} /><span>{t("connected")} · {t("autoSync")}</span></div>
     </aside>
   );

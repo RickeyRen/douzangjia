@@ -4,6 +4,8 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { fetchCollections, fetchFeed, type Collection, type FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import { CollectionRail } from "../navigation/CollectionRail";
+import type { UtilityPanel } from "../navigation/CollectionRail";
+import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { FeedCard } from "./FeedCard";
 
 export function feedIndexFromTarget(target: HTMLElement): number {
@@ -22,6 +24,7 @@ export function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [utilityPanel, setUtilityPanel] = useState<UtilityPanel | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,7 +88,7 @@ export function FeedPage() {
 
   return (
     <main className="flex h-[100dvh] overflow-hidden bg-[#0c0e11] text-[#f7f8fa]">
-      <CollectionRail collections={collections} selected={selected} onSelect={setSelected} />
+      <CollectionRail collections={collections} selected={selected} onSelect={setSelected} onOpenPanel={setUtilityPanel} />
       <section className="relative min-w-0 flex-1">
         <header className="absolute inset-x-0 top-0 z-[2] flex h-[76px] items-center justify-between border-b border-white/8 bg-[#0c0e11]/88 px-6 backdrop-blur-xl max-md:h-auto max-md:border-0 max-md:bg-gradient-to-b max-md:from-[#0c0e11]/90 max-md:to-transparent max-md:px-4 max-md:pb-8 max-md:pt-[calc(14px+env(safe-area-inset-top))]">
           <button className="flex min-h-11 items-center gap-2 text-base font-semibold lg:pointer-events-none" type="button" onClick={() => setDrawerOpen(true)}>
@@ -134,6 +137,7 @@ export function FeedPage() {
 
         {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { setSelected(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       </section>
+      {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
     </main>
   );
 }
