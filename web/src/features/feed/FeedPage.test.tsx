@@ -216,7 +216,8 @@ describe("FeedPage", () => {
     vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
     vi.mocked(api.fetchFeed)
       .mockResolvedValueOnce({ items: [itemFor(collections[0])], nextCursor: "page-2" })
-      .mockResolvedValueOnce({ items: [itemFor(collections[1])], nextCursor: null });
+      .mockResolvedValueOnce({ items: [itemFor(collections[1])], nextCursor: "page-3" })
+      .mockResolvedValueOnce({ items: [], nextCursor: null });
     render(<FeedPage />);
     const loadMore = await screen.findByRole("button", { name: "加载更多" });
 
@@ -230,5 +231,12 @@ describe("FeedPage", () => {
 
     await waitFor(() => expect(api.fetchFeed).toHaveBeenCalledWith(expect.objectContaining({ cursor: "page-2" })));
     expect(vi.mocked(api.fetchFeed).mock.calls.filter(([request]) => request.cursor === "page-2")).toHaveLength(1);
+
+    await waitFor(() => expect(observers.filter((observer) => observer.elements.some((element) => element.contains(loadMore))).length).toBeGreaterThan(1));
+    const replacementObserver = observers.filter((observer) => observer.elements.some((element) => element.contains(loadMore))).at(-1)!;
+    act(() => {
+      replacementObserver.callback([{ isIntersecting: true, intersectionRatio: 1, target: loadMore } as unknown as IntersectionObserverEntry], replacementObserver.instance);
+    });
+    expect(vi.mocked(api.fetchFeed).mock.calls.filter(([request]) => request.cursor === "page-3")).toHaveLength(0);
   });
 });

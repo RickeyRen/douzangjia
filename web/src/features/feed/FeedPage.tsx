@@ -41,6 +41,7 @@ export function FeedPage() {
   const paginationSentinel = useRef<HTMLDivElement>(null);
   const feedRequestId = useRef(0);
   const loadingMoreRef = useRef(false);
+  const autoPaginatedRequestId = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +65,7 @@ export function FeedPage() {
     setLoadMoreError(false);
     setNextCursor(null);
     loadingMoreRef.current = false;
+    autoPaginatedRequestId.current = null;
     void fetchFeed({ collectionId: selected, search: deferredSearch || undefined })
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
@@ -133,7 +135,14 @@ export function FeedPage() {
     const root = viewport.current;
     if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
     const observer = new IntersectionObserver((entries) => {
-      if (shouldAutoPaginate(activeIndex, items.length) && entries.some((entry) => entry.isIntersecting)) void loadMore();
+      if (
+        shouldAutoPaginate(activeIndex, items.length)
+        && autoPaginatedRequestId.current !== feedRequestId.current
+        && entries.some((entry) => entry.isIntersecting)
+      ) {
+        autoPaginatedRequestId.current = feedRequestId.current;
+        void loadMore();
+      }
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
     observer.observe(target);
     return () => observer.disconnect();
