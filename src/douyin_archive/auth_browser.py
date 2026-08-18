@@ -29,6 +29,11 @@ class PointerGesture:
 async def _click_element_at(page: Any, x: float, y: float) -> None:
     """Click the actual interactive DOM element at a viewport coordinate."""
 
+    try:
+        from playwright.async_api import Error as PlaywrightError
+    except ModuleNotFoundError:  # Unit tests use lightweight browser doubles.
+        PlaywrightError = RuntimeError
+
     surface = page
     local_x = x
     local_y = y
@@ -54,7 +59,14 @@ async def _click_element_at(page: Any, x: float, y: float) -> None:
                 return
             nested_frame = await element.content_frame()
             if nested_frame is None:
-                await element.click(timeout=2_000)
+                try:
+                    await element.click(timeout=2_000)
+                except PlaywrightError:
+                    # Douyin occasionally inserts a verification overlay between
+                    # hit-testing and Playwright's actionability check. A native
+                    # coordinate click targets the topmost visible surface and
+                    # preserves the user's trusted pointer action across frames.
+                    await page.mouse.click(x, y)
                 return
             bounds = await element.evaluate(
                 "element => { const rect = element.getBoundingClientRect(); "
