@@ -36,6 +36,15 @@ def _payload_shape(payload: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def _has_collection_schema(payload: dict[str, Any]) -> bool:
+    data = payload.get("data")
+    envelope = data if isinstance(data, dict) else payload
+    return any(
+        isinstance(envelope.get(key), list)
+        for key in ("mix_infos", "mix_list", "collections", "items")
+    )
+
+
 class DouyinProvider:
     def __init__(self, source: RawPageSource, *, known_ids: set[str]) -> None:
         self.source = source
@@ -119,7 +128,7 @@ class PlaywrightDouyinSource:
             self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000
         )
         await self._click_text_candidates(("收藏", "收藏夹"))
-        payload = await self._wait_for(self.COLLECTION_PATH_MARKERS)
+        payload = await self._wait_for_collections()
         collections = normalize_collections(payload)
         self._collection_names = {item.remote_id: item.name for item in collections}
         return payload
@@ -179,6 +188,13 @@ class PlaywrightDouyinSource:
             list(self._observed_paths),
         )
         raise ProviderChanged("expected Douyin browser response was not observed")
+
+    async def _wait_for_collections(self) -> dict:
+        for _ in range(12):
+            payload = await self._wait_for(self.COLLECTION_PATH_MARKERS)
+            if _has_collection_schema(payload):
+                return payload
+        raise ProviderChanged("Douyin collection response schema was not observed")
 
     async def _click_text_candidates(self, labels: tuple[str, ...]) -> None:
         from playwright.async_api import Error as PlaywrightError

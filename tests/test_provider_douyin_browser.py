@@ -76,6 +76,20 @@ async def test_source_captures_current_listcollection_endpoint() -> None:
     await source.close()
 
 
+async def test_collection_wait_skips_flat_favorite_video_response() -> None:
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    await source.open()
+    url = "https://www.douyin.com/aweme/v1/web/aweme/listcollection/"
+    await source._responses.put((url, {"aweme_list": [{"aweme_id": "734"}]}))
+    expected = {"mix_list": [{"mix_id": "1001", "mix_name": "想去的地方"}]}
+    await source._responses.put((url, expected))
+
+    payload = await source._wait_for_collections()
+
+    assert payload == expected
+    await source.close()
+
+
 def test_payload_shape_never_contains_response_values() -> None:
     shape = _payload_shape(
         {
