@@ -6,6 +6,7 @@ __pycache__/
 htmlcov/
 .env
 archive-data/
+.worktrees/
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
