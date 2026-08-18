@@ -10,8 +10,9 @@ from typing import Any
 from .auth_service import BrowserLogin
 from .browser_launch import chromium_launch_options
 
-LOGIN_VIEWPORT_WIDTH = 520
-LOGIN_VIEWPORT_HEIGHT = 680
+LOGIN_VIEWPORT_WIDTH = 1280
+LOGIN_VIEWPORT_HEIGHT = 800
+LOGIN_FRAME_QUALITY = 68
 DRAG_START_DISTANCE = 4.0
 DRAG_MOVE_STEPS = 12
 DRAG_PRESS_DELAY_MS = 48
@@ -197,7 +198,9 @@ class AuthBrowser:
             await self.close(login_id)
             return BrowserLogin(login_id, "failed", None, "DOUYIN_LOGIN_PAGE_FAILED")
 
-    async def poll(self, login_id: str) -> BrowserLogin:
+    async def poll(
+        self, login_id: str, *, capture_screenshot: bool = True
+    ) -> BrowserLogin:
         session = self._sessions[login_id]
         if time.monotonic() >= session.deadline:
             return BrowserLogin(login_id, "expired", None)
@@ -208,8 +211,20 @@ class AuthBrowser:
             for cookie in cookies
         ):
             return BrowserLogin(login_id, "authenticated", None)
-        screenshot = await self._capture_login_area(session.page)
+        screenshot = (
+            await self._capture_login_area(session.page)
+            if capture_screenshot
+            else None
+        )
         return BrowserLogin(login_id, "awaiting_scan", screenshot)
+
+    async def frame(self, login_id: str) -> bytes:
+        session = self._sessions[login_id]
+        return await session.page.screenshot(
+            type="jpeg",
+            quality=LOGIN_FRAME_QUALITY,
+            full_page=False,
+        )
 
     async def cookies(self, login_id: str) -> list[dict[str, object]]:
         return await self._sessions[login_id].context.cookies()

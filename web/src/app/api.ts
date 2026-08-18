@@ -109,6 +109,7 @@ export const beginDouyinLogin = () =>
   request<LoginStatus>("/api/douyin/login", { method: "POST" });
 export const getDouyinLogin = (id: string) => request<LoginStatus>(`/api/douyin/login/${id}`);
 export const douyinQrUrl = (id: string) => `/api/douyin/login/${id}/qr.png`;
+export const douyinStreamUrl = (id: string) => `/api/douyin/login/${id}/stream.mjpeg`;
 export const submitDouyinDrag = (id: string, points: PointerPoint[]) =>
   request<LoginStatus>(`/api/douyin/login/${id}/drag`, {
     method: "POST",

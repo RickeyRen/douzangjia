@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import secrets
@@ -7,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,18 @@ from .security import CookieCipher, PasswordHasher
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+MJPEG_BOUNDARY = "frame"
+MJPEG_FRAME_INTERVAL_SECONDS = 1 / 12
+
+
+def _mjpeg_chunk(frame: bytes) -> bytes:
+    return (
+        f"--{MJPEG_BOUNDARY}\r\n".encode()
+        + b"Content-Type: image/jpeg\r\n"
+        + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+        + frame
+        + b"\r\n"
+    )
 
 
 class SetupRequest(BaseModel):
@@ -287,13 +300,51 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     @app.get("/api/douyin/login/{login_id}")
     async def douyin_login_status(login_id: str, request: Request):
         try:
-            status = await request.app.state.auth_service.get_status(login_id)
+            status = await request.app.state.auth_service.get_status(
+                login_id,
+                refresh_screenshot=False,
+            )
         except KeyError:
             return JSONResponse(
                 status_code=404,
                 content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
             )
         return status.as_public_dict()
+
+    @app.get("/api/douyin/login/{login_id}/stream.mjpeg")
+    async def douyin_login_stream(login_id: str, request: Request):
+        service = request.app.state.auth_service
+        try:
+            first_frame = await service.frame(login_id)
+        except KeyError:
+            return JSONResponse(
+                status_code=404,
+                content={"code": "LOGIN_NOT_FOUND", "message": "登录会话不存在"},
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "LOGIN_NOT_INTERACTIVE", "message": "登录画面已不可操作"},
+            )
+
+        async def frames():
+            frame = first_frame
+            while True:
+                yield _mjpeg_chunk(frame)
+                await asyncio.sleep(MJPEG_FRAME_INTERVAL_SECONDS)
+                try:
+                    frame = await service.frame(login_id)
+                except (KeyError, ValueError):
+                    return
+
+        return StreamingResponse(
+            frames(),
+            media_type=f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/api/douyin/login/{login_id}/qr.png")
     async def douyin_login_qr(login_id: str, request: Request):

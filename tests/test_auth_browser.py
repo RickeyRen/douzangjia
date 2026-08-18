@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from douyin_archive.auth_browser import PointerGesture, replay_drag, replay_pointer
+from douyin_archive.auth_browser import (
+    LOGIN_VIEWPORT_HEIGHT,
+    LOGIN_VIEWPORT_WIDTH,
+    PointerGesture,
+    replay_drag,
+    replay_pointer,
+)
 
 
 class RecordingMouse:
@@ -67,6 +73,11 @@ class RecordingHandle:
         return None
 
 
+def test_login_viewport_uses_full_douyin_desktop_layout() -> None:
+    assert LOGIN_VIEWPORT_WIDTH == 1280
+    assert LOGIN_VIEWPORT_HEIGHT == 800
+
+
 async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_events() -> None:
     page = RecordingPage()
     gesture = PointerGesture()
@@ -75,7 +86,7 @@ async def test_replay_pointer_clicks_the_dom_element_instead_of_splitting_mouse_
     await replay_pointer(page, gesture, "up", 0.5, 0.5)
 
     assert page.mouse.events == []
-    assert page.element_clicks == [(260.0, 340.0)]
+    assert page.element_clicks == [(640.0, 400.0)]
     assert page.waits == [120]
 
 
@@ -88,9 +99,9 @@ async def test_replay_pointer_clicks_through_a_nested_verification_frame() -> No
     await replay_pointer(page, gesture, "up", 0.5, 0.5)
 
     assert page.element_clicks == []
-    assert page.hit_tests == [(260.0, 340.0)]
-    assert verification_frame.hit_tests == [(220.0, 260.0)]
-    assert verification_frame.element_clicks == [(220.0, 260.0)]
+    assert page.hit_tests == [(640.0, 400.0)]
+    assert verification_frame.hit_tests == [(600.0, 320.0)]
+    assert verification_frame.element_clicks == [(600.0, 320.0)]
 
 
 async def test_replay_pointer_starts_a_native_drag_after_real_movement() -> None:
@@ -102,10 +113,10 @@ async def test_replay_pointer_starts_a_native_drag_after_real_movement() -> None
     await replay_pointer(page, gesture, "up", 0.9, 0.4)
 
     assert page.mouse.events == [
-        ("move", 52.0, 272.0, 1),
+        ("move", 128.0, 320.0, 1),
         ("down",),
-        ("move", 260.0, 272.0, 12),
-        ("move", 468.0, 272.0, 12),
+        ("move", 640.0, 320.0, 12),
+        ("move", 1152.0, 320.0, 12),
         ("up",),
     ]
     assert page.element_clicks == []
@@ -136,7 +147,7 @@ async def test_replay_pointer_keeps_small_cursor_jitter_as_a_click() -> None:
     await replay_pointer(page, gesture, "up", 0.502, 0.502)
 
     assert page.mouse.events == []
-    assert page.element_clicks == [(261.04, 341.36)]
+    assert page.element_clicks == [(642.56, 401.6)]
 
 
 async def test_replay_pointer_forwards_hover_moves_without_a_pressed_pointer() -> None:
@@ -145,7 +156,7 @@ async def test_replay_pointer_forwards_hover_moves_without_a_pressed_pointer() -
 
     await replay_pointer(page, gesture, "move", 0.75, 0.25)
 
-    assert page.mouse.events == [("move", 390.0, 170.0, 1)]
+    assert page.mouse.events == [("move", 960.0, 200.0, 1)]
     assert page.element_clicks == []
     assert page.waits == []
 
@@ -159,7 +170,7 @@ async def test_replay_pointer_down_resets_an_unfinished_drag() -> None:
     assert page.mouse.events == [
         ("up",),
     ]
-    assert gesture.origin == (260.0, 340.0)
+    assert gesture.origin == (640.0, 400.0)
     assert gesture.pressed is False
 
 
@@ -169,10 +180,10 @@ async def test_replay_drag_maps_normalized_points_to_the_login_viewport() -> Non
     await replay_drag(page, [(0.1, 0.2), (0.5, 0.2), (0.9, 0.2)])
 
     assert page.mouse.events == [
-        ("move", 52.0, 136.0, 1),
+        ("move", 128.0, 160.0, 1),
         ("down",),
-        ("move", 260.0, 136.0, 1),
-        ("move", 468.0, 136.0, 1),
+        ("move", 640.0, 160.0, 1),
+        ("move", 1152.0, 160.0, 1),
         ("up",),
     ]
     assert page.waits == [16, 16, 700]

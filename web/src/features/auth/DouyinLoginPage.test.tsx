@@ -10,6 +10,7 @@ vi.mock("../../app/api", () => ({
   getDouyinLogin: vi.fn(),
   submitDouyinPointer: vi.fn(),
   douyinQrUrl: vi.fn((id: string) => `/api/douyin/login/${id}/qr.png`),
+  douyinStreamUrl: vi.fn((id: string) => `/api/douyin/login/${id}/stream.mjpeg`),
 }));
 
 beforeEach(() => {
@@ -30,6 +31,16 @@ it("shows the NAS-generated QR without exposing cookie text", async () => {
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
 
   expect(await screen.findByAltText("抖音登录二维码")).toBeVisible();
+  expect(screen.getByAltText("抖音登录二维码")).toHaveAttribute(
+    "src",
+    "/api/douyin/login/login-1/stream.mjpeg",
+  );
+  expect(screen.getByTestId("douyin-live-view")).toHaveClass("fixed", "inset-0");
+  expect(screen.getByAltText("抖音登录二维码")).toHaveClass(
+    "max-h-full",
+    "max-w-full",
+    "object-contain",
+  );
   expect(screen.queryByText(/sessionid/i)).not.toBeInTheDocument();
 });
 

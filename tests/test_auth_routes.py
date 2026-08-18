@@ -14,13 +14,24 @@ class FakeAuthService:
         )
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
         self.pointer_events: list[tuple[str, str, float, float]] = []
+        self.status_refresh_modes: list[bool] = []
+        self.frames = [b"\xff\xd8live-frame\xff\xd9"]
 
     async def begin_login(self) -> LoginStatus:
         return self.status
 
-    async def get_status(self, login_id: str) -> LoginStatus:
+    async def get_status(
+        self, login_id: str, *, refresh_screenshot: bool = True
+    ) -> LoginStatus:
         assert login_id == "login-1"
+        self.status_refresh_modes.append(refresh_screenshot)
         return self.status
+
+    async def frame(self, login_id: str) -> bytes:
+        assert login_id == "login-1"
+        if not self.frames:
+            raise ValueError("stream ended")
+        return self.frames.pop(0)
 
     async def cancel(self, login_id: str) -> LoginStatus:
         assert login_id == "login-1"
@@ -66,6 +77,28 @@ def test_login_routes_return_status_and_png_without_secrets(
     assert "cookie" not in status.text.lower()
     assert screenshot.headers["content-type"] == "image/png"
     assert screenshot.content.startswith(b"\x89PNG")
+
+
+def test_login_live_stream_returns_multipart_jpeg_and_status_skips_png_refresh(
+    tmp_path: Path, master_key: str
+) -> None:
+    client, csrf = authenticated_client(tmp_path, master_key)
+    try:
+        client.post("/api/douyin/login", headers={"X-CSRF-Token": csrf})
+        status = client.get("/api/douyin/login/login-1")
+        stream = client.get("/api/douyin/login/login-1/stream.mjpeg")
+        service = client.app.state.auth_service
+    finally:
+        client.__exit__(None, None, None)
+
+    assert status.status_code == 200
+    assert service.status_refresh_modes == [False]
+    assert stream.status_code == 200
+    assert stream.headers["content-type"].startswith(
+        "multipart/x-mixed-replace; boundary=frame"
+    )
+    assert b"Content-Type: image/jpeg" in stream.content
+    assert b"\xff\xd8live-frame\xff\xd9" in stream.content
 
 
 def test_cancel_route_requires_csrf_and_clears_screenshot(

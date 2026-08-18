@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import {
   beginDouyinLogin,
-  douyinQrUrl,
+  douyinStreamUrl,
   getDouyinLogin,
   submitDouyinPointer,
   type LoginStatus,
@@ -18,7 +18,6 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   const [starting, setStarting] = useState(false);
   const [interacting, setInteracting] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [frameVersion, setFrameVersion] = useState(0);
   const activePointer = useRef<number | null>(null);
   const pointerQueue = useRef<Promise<void>>(Promise.resolve());
   const lastMoveAt = useRef(0);
@@ -34,14 +33,13 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
         .then((next) => {
           if (stopped) return;
           setStatus(next);
-          if (next.hasScreenshot) setFrameVersion((version) => version + 1);
           if (next.state === "authenticated") onAuthenticated?.();
         })
         .catch(() => {
           if (!stopped) setError(true);
         })
         .finally(() => {
-          if (!stopped) timer = window.setTimeout(poll, 250);
+          if (!stopped) timer = window.setTimeout(poll, 1_000);
         });
     };
     timer = window.setTimeout(poll, 250);
@@ -56,7 +54,6 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
     setError(false);
     try {
       setStatus(await beginDouyinLogin());
-      setFrameVersion((version) => version + 1);
       pointerQueue.current = Promise.resolve();
     } catch {
       setError(true);
@@ -129,6 +126,44 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
           ? t("loginFailed")
           : t("awaitingScan");
 
+  if (status?.hasScreenshot) {
+    return (
+      <main
+        className="fixed inset-0 overflow-hidden bg-black text-[#f7f8fa]"
+        data-testid="douyin-live-view"
+      >
+        <div className="absolute inset-0 grid place-items-center overflow-hidden">
+          <img
+            className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+            src={douyinStreamUrl(status.id)}
+            alt={t("qrAlt")}
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+            onPointerDown={startDrag}
+            onPointerMove={continueDrag}
+            onPointerUp={(event) => void finishDrag(event)}
+            onPointerCancel={cancelDrag}
+          />
+        </div>
+
+        <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-3 rounded-xl border border-white/10 bg-[#0c0e11]/85 px-4 py-3 shadow-2xl backdrop-blur-xl">
+          <QrCode size={21} weight="regular" />
+          <div>
+            <p className="text-sm font-semibold">{t("douyinLoginTitle")}</p>
+            <p className="mt-0.5 text-[11px] text-[#a7abb3]">{t("dragHint")}</p>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0c0e11]/85 px-4 py-2.5 text-sm text-[#d7dae0] shadow-2xl backdrop-blur-xl" role="status">
+            <span className="h-2 w-2 rounded-full bg-[#f16761] motion-safe:animate-pulse" />
+            {interacting ? t("dragApplying") : statusText}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="grid min-h-[100dvh] place-items-center bg-[#0c0e11] px-5 py-12 text-[#f7f8fa]">
       <section className="w-full max-w-[520px] border-t border-white/10 pt-8 text-left">
@@ -137,28 +172,6 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
         </div>
         <h1 className="text-3xl font-semibold tracking-[-0.035em]">{t("douyinLoginTitle")}</h1>
         <p className="mt-3 max-w-[46ch] text-[15px] leading-7 text-[#969ba5]">{t("douyinLoginBody")}</p>
-
-        {status?.hasScreenshot ? (
-          <div className="mt-8 overflow-hidden rounded-xl border border-white/10 bg-white p-3">
-            <img
-              className={`mx-auto max-h-[min(68dvh,680px)] max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
-              src={`${douyinQrUrl(status.id)}?v=${frameVersion}`}
-              alt={t("qrAlt")}
-              draggable={false}
-              onDragStart={(event) => event.preventDefault()}
-              onPointerDown={startDrag}
-              onPointerMove={continueDrag}
-              onPointerUp={(event) => void finishDrag(event)}
-              onPointerCancel={cancelDrag}
-            />
-          </div>
-        ) : null}
-
-        {status?.hasScreenshot ? (
-          <p className="mt-3 text-xs leading-5 text-[#7f8590]">
-            {interacting ? t("dragApplying") : t("dragHint")}
-          </p>
-        ) : null}
 
         {status ? (
           <div className="mt-5 flex items-center gap-3 text-sm text-[#b8bcc4]" role="status">

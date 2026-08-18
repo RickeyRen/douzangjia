@@ -19,13 +19,23 @@ class FakeAuthBrowser:
         self.closed: list[str] = []
         self.dragged: list[tuple[str, list[tuple[float, float]]]] = []
         self.pointer_events: list[tuple[str, str, float, float]] = []
+        self.poll_modes: list[bool] = []
+        self.jpeg_frame = b"\xff\xd8live-frame\xff\xd9"
 
     async def start(self, *, timeout_seconds: int) -> BrowserLogin:
         assert timeout_seconds == 300
         return BrowserLogin("login-1", self.state, self.screenshot)
 
-    async def poll(self, login_id: str) -> BrowserLogin:
-        return BrowserLogin(login_id, self.state, self.screenshot)
+    async def poll(
+        self, login_id: str, *, capture_screenshot: bool = True
+    ) -> BrowserLogin:
+        self.poll_modes.append(capture_screenshot)
+        screenshot = self.screenshot if capture_screenshot else None
+        return BrowserLogin(login_id, self.state, screenshot)
+
+    async def frame(self, login_id: str) -> bytes:
+        assert login_id == "login-1"
+        return self.jpeg_frame
 
     async def cookies(self, login_id: str) -> list[dict[str, object]]:
         assert login_id == "login-1"
@@ -121,6 +131,25 @@ async def test_pointer_event_is_forwarded_without_waiting_for_a_screenshot(
     await service.pointer("login-1", "down", 0.5, 0.4)
 
     assert browser.pointer_events == [("login-1", "down", 0.5, 0.4)]
+
+
+async def test_status_poll_can_skip_expensive_screenshot_refresh(auth_components) -> None:
+    service, browser, _ = auth_components
+    started = await service.begin_login()
+
+    status = await service.get_status("login-1", refresh_screenshot=False)
+
+    assert browser.poll_modes == [False]
+    assert status.screenshot_png == started.screenshot_png
+
+
+async def test_live_frame_is_read_from_the_temporary_browser(auth_components) -> None:
+    service, browser, _ = auth_components
+    await service.begin_login()
+
+    frame = await service.frame("login-1")
+
+    assert frame == browser.jpeg_frame
 
 
 async def test_authenticated_login_notifies_runtime_for_initial_sync(

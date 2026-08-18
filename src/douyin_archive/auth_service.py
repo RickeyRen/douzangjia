@@ -48,7 +48,11 @@ class BrowserLogin:
 class AuthBrowserProtocol(Protocol):
     async def start(self, *, timeout_seconds: int) -> BrowserLogin: ...
 
-    async def poll(self, login_id: str) -> BrowserLogin: ...
+    async def poll(
+        self, login_id: str, *, capture_screenshot: bool = True
+    ) -> BrowserLogin: ...
+
+    async def frame(self, login_id: str) -> bytes: ...
 
     async def cookies(self, login_id: str) -> list[dict[str, object]]: ...
 
@@ -150,7 +154,9 @@ class AuthService:
         self.sessions[status.id] = status
         return status
 
-    async def get_status(self, login_id: str) -> LoginStatus:
+    async def get_status(
+        self, login_id: str, *, refresh_screenshot: bool = True
+    ) -> LoginStatus:
         status = self._get(login_id)
         if status.state not in {"starting", "awaiting_scan"}:
             return status
@@ -160,10 +166,17 @@ class AuthService:
             self.sessions[login_id] = expired
             return expired
 
-        browser_login = await self.browser.poll(login_id)
+        browser_login = await self.browser.poll(
+            login_id,
+            capture_screenshot=refresh_screenshot,
+        )
         status = status.with_state(
             browser_login.state,
-            screenshot_png=browser_login.screenshot_png,
+            screenshot_png=(
+                browser_login.screenshot_png
+                if refresh_screenshot
+                else status.screenshot_png
+            ),
             error_code=browser_login.error_code,
         )
         if browser_login.state == "authenticated":
@@ -192,6 +205,12 @@ class AuthService:
             )
         self.sessions[login_id] = status
         return status
+
+    async def frame(self, login_id: str) -> bytes:
+        status = self._get(login_id)
+        if status.state not in {"starting", "awaiting_scan"}:
+            raise ValueError("login session is not interactive")
+        return await self.browser.frame(login_id)
 
     async def cancel(self, login_id: str) -> LoginStatus:
         status = self._get(login_id)
