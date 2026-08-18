@@ -115,6 +115,7 @@ class HiddenLocator:
 class LoginPage:
     def __init__(self) -> None:
         self.visited: list[str] = []
+        self.context = LoginCdpContext()
 
     async def goto(self, url: str, **_options: object) -> None:
         self.visited.append(url)
@@ -124,6 +125,33 @@ class LoginPage:
 
     async def screenshot(self, **_options: object) -> bytes:
         return b"login-image"
+
+
+class LoginCdp:
+    def __init__(self) -> None:
+        self.commands: list[str] = []
+        self.handlers: dict[str, object] = {}
+
+    def on(self, event: str, handler: object) -> None:
+        self.handlers[event] = handler
+
+    def remove_listener(self, event: str, handler: object) -> None:
+        if self.handlers.get(event) == handler:
+            self.handlers.pop(event)
+
+    async def send(self, command: str, _params: object = None) -> None:
+        self.commands.append(command)
+
+    async def detach(self) -> None:
+        return None
+
+
+class LoginCdpContext:
+    def __init__(self) -> None:
+        self.cdp = LoginCdp()
+
+    async def new_cdp_session(self, _page: object) -> LoginCdp:
+        return self.cdp
 
 
 class LoginLease:
@@ -189,6 +217,23 @@ async def test_login_releases_its_page_without_closing_persistent_browser() -> N
     assert coordinator.requested_viewports == [(1280, 800)]
     assert coordinator.lease.released is True
     assert coordinator.closed is False
+
+
+async def test_login_screencast_stops_before_its_page_is_released() -> None:
+    coordinator = LoginCoordinator()
+    browser = AuthBrowser(coordinator)
+    login = await browser.start(timeout_seconds=60)
+
+    first = await browser.screencast(login.id)
+    second = await browser.screencast(login.id)
+    await browser.close(login.id)
+
+    assert first is second
+    assert coordinator.lease.page.context.cdp.commands == [
+        "Page.startScreencast",
+        "Page.stopScreencast",
+    ]
+    assert coordinator.lease.released is True
 
 
 async def test_poll_refreshes_an_expired_qr_inside_the_existing_browser() -> None:

@@ -9,6 +9,7 @@ from typing import Any
 
 from .auth_service import BrowserLogin
 from .browser_coordinator import BrowserCoordinator, CoordinatorPageLease
+from .browser_stream import CdpScreencast
 
 LOGIN_VIEWPORT_WIDTH = 1280
 LOGIN_VIEWPORT_HEIGHT = 800
@@ -196,6 +197,7 @@ class _BrowserSession:
     page: Any
     deadline: float
     pointer_gesture: PointerGesture = field(default_factory=PointerGesture)
+    stream: CdpScreencast | None = None
 
 
 class AuthBrowser:
@@ -292,6 +294,19 @@ class AuthBrowser:
             full_page=False,
         )
 
+    async def screencast(self, login_id: str) -> CdpScreencast:
+        session = self._sessions[login_id]
+        if session.stream is None:
+            stream = CdpScreencast(
+                session.page,
+                quality=LOGIN_FRAME_QUALITY,
+                width=LOGIN_VIEWPORT_WIDTH,
+                height=LOGIN_VIEWPORT_HEIGHT,
+            )
+            await stream.start()
+            session.stream = stream
+        return session.stream
+
     async def cookies(self, login_id: str) -> list[dict[str, object]]:
         return await self._sessions[login_id].context.cookies()
 
@@ -317,6 +332,8 @@ class AuthBrowser:
         session = self._sessions.pop(login_id, None)
         if session is None:
             return
+        if session.stream is not None:
+            await session.stream.close()
         await session.lease.release()
 
     async def cancel(self, login_id: str) -> None:
