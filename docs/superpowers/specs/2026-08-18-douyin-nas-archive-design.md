@@ -55,14 +55,14 @@
 
 ### 5.2 抖音扫码登录
 
-用户点击“登录抖音”后，后端启动一个临时 Chromium context 并进入抖音登录页。前端轮询显示浏览器截图中的二维码和登录状态；如果出现验证码或额外交互，用户可以打开仅局域网可达、带一次性令牌的远程浏览器视图。
+用户点击“登录抖音”后，后端启动一个临时 Chromium context 并进入抖音登录页。前端轮询显示浏览器截图中的二维码和登录状态。首版只支持扫码流程；如果平台要求验证码或其他交互，会明确结束本次登录并提示用户重新尝试，不会尝试绕过验证。
 
 登录成功后：
 
 - 只导出 `douyin.com` 必需 Cookie；
 - 使用 `ARCHIVE_MASTER_KEY` 通过 Fernet 加密后写入数据库；
 - 清理临时浏览器 profile；
-- 立即关闭远程浏览器入口；
+- 立即关闭临时浏览器；
 - 不保存抖音账号密码。
 
 Cookie 失效时暂停发现任务但保留下载队列，网页显示“需要扫码”，并通过可选 Webhook/Bark 通知。用户重新扫码后自动恢复。
@@ -79,9 +79,9 @@ Cookie 失效时暂停发现任务但保留下载队列，网页显示“需要�
 class DouyinProvider(Protocol):
     async def validate_session(self) -> SessionState: ...
     async def list_collections(self) -> list[RemoteCollection]: ...
-    async def iter_collection_items(
+    async def iter_collection_pages(
         self, remote_id: str, *, full_scan: bool
-    ) -> AsyncIterator[RemoteItem]: ...
+    ) -> AsyncIterator[RemotePage]: ...
 ```
 
 同步规则：
