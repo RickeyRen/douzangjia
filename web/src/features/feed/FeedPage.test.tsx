@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../app/api";
-import { FeedPage, feedIndexFromTarget } from "./FeedPage";
+import { FeedPage, feedIndexFromTarget, shouldAutoPaginate } from "./FeedPage";
 
 vi.mock("../../app/api", () => ({
   fetchCollections: vi.fn(),
@@ -114,6 +114,11 @@ describe("FeedPage", () => {
     const target = document.createElement("div");
     target.dataset.feedIndex = "2";
     expect(feedIndexFromTarget(target)).toBe(2);
+  });
+
+  it("only auto-paginates while the active card is near the loaded tail", () => {
+    expect(shouldAutoPaginate(18, 20)).toBe(true);
+    expect(shouldAutoPaginate(19, 40)).toBe(false);
   });
 
   it("opens real download, sync, and settings panels", async () => {

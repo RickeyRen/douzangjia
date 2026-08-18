@@ -16,6 +16,10 @@ export function feedIndexFromTarget(target: HTMLElement): number {
   return Number.isInteger(index) && index >= 0 ? index : 0;
 }
 
+export function shouldAutoPaginate(activeIndex: number, itemCount: number): boolean {
+  return itemCount > 0 && activeIndex >= Math.max(0, itemCount - 3);
+}
+
 export function FeedPage() {
   const { t } = useI18n();
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -129,11 +133,11 @@ export function FeedPage() {
     const root = viewport.current;
     if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+      if (shouldAutoPaginate(activeIndex, items.length) && entries.some((entry) => entry.isIntersecting)) void loadMore();
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [loadMore, loadMoreError, nextCursor]);
+  }, [activeIndex, items.length, loadMore, loadMoreError, nextCursor]);
 
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
