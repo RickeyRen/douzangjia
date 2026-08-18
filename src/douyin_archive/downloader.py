@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 import re
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 
 import anyio
@@ -14,16 +18,38 @@ from .storage import ObjectStore
 _CONTENT_RANGE_TOTAL = re.compile(r"bytes\s+\d+-\d+/(\d+|\*)", re.IGNORECASE)
 
 
+@dataclass(frozen=True, slots=True)
+class DownloadProgressSnapshot:
+    downloaded_bytes: int
+    total_bytes: int | None
+    speed_bps: float
+    eta_seconds: int | None
+
+
+ProgressCallback = Callable[[DownloadProgressSnapshot], Awaitable[None]]
+
+
 class IncompleteDownload(Exception):
     pass
 
 
 class MediaDownloader:
-    def __init__(self, store: ObjectStore, client: httpx.AsyncClient) -> None:
+    def __init__(
+        self,
+        store: ObjectStore,
+        client: httpx.AsyncClient,
+        *,
+        progress_interval_seconds: float = 0.5,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.store = store
         self.client = client
+        self.progress_interval_seconds = max(0.0, progress_interval_seconds)
+        self.clock = clock
 
-    async def download(self, asset: MediaAsset) -> Path:
+    async def download(
+        self, asset: MediaAsset, *, on_progress: ProgressCallback | None = None
+    ) -> Path:
         filename = asset_filename(asset.asset_index, asset.media_type, asset.mime_type)
         destination = self.store.object_path(asset.remote_id, filename)
         if (
@@ -34,6 +60,8 @@ class MediaDownloader:
                 or destination.stat().st_size == asset.expected_size
             )
         ):
+            size = destination.stat().st_size
+            await self._report(on_progress, size, asset.expected_size or size, 0)
             return destination
 
         part = self.store.part_path(asset.remote_id, filename)
@@ -61,15 +89,48 @@ class MediaDownloader:
                 if content_length and content_length.isdigit():
                     expected_total = int(content_length)
 
+            downloaded_bytes = resume_at
+            last_reported_bytes = downloaded_bytes
+            last_reported_at = self.clock()
+            current_speed = 0.0
+            await self._report(
+                on_progress, downloaded_bytes, expected_total, current_speed
+            )
             mode = "ab" if resume_at and response.status_code == 206 else "wb"
+            chunks = (
+                response.aiter_bytes(256 * 1024)
+                if response.is_stream_consumed
+                else response.aiter_raw()
+            )
             async with await anyio.open_file(part, mode) as output:
-                async for chunk in response.aiter_bytes(1024 * 1024):
+                async for chunk in chunks:
                     if chunk:
                         await output.write(chunk)
+                        downloaded_bytes += len(chunk)
+                        now = self.clock()
+                        elapsed = now - last_reported_at
+                        if (
+                            self.progress_interval_seconds == 0
+                            or elapsed >= self.progress_interval_seconds
+                        ):
+                            current_speed = (
+                                (downloaded_bytes - last_reported_bytes) / elapsed
+                                if elapsed > 0
+                                else 0.0
+                            )
+                            await self._report(
+                                on_progress,
+                                downloaded_bytes,
+                                expected_total,
+                                current_speed,
+                            )
+                            last_reported_bytes = downloaded_bytes
+                            last_reported_at = now
                 await output.flush()
                 os.fsync(output.fileno())
 
         actual_size = part.stat().st_size
+        await self._report(on_progress, actual_size, expected_total, current_speed)
         if expected_total is not None and actual_size != expected_total:
             raise IncompleteDownload(
                 f"media length mismatch: expected {expected_total}, received {actual_size}"
@@ -77,3 +138,26 @@ class MediaDownloader:
         if actual_size <= 0:
             raise IncompleteDownload("media response was empty")
         return await self.store.finalize(part, asset.remote_id, filename)
+
+    @staticmethod
+    async def _report(
+        callback: ProgressCallback | None,
+        downloaded_bytes: int,
+        total_bytes: int | None,
+        speed_bps: float,
+    ) -> None:
+        if callback is None:
+            return
+        eta_seconds = None
+        if total_bytes is not None and downloaded_bytes >= total_bytes:
+            eta_seconds = 0
+        elif total_bytes is not None and speed_bps > 0:
+            eta_seconds = ceil((total_bytes - downloaded_bytes) / speed_bps)
+        await callback(
+            DownloadProgressSnapshot(
+                downloaded_bytes=downloaded_bytes,
+                total_bytes=total_bytes,
+                speed_bps=max(0.0, speed_bps),
+                eta_seconds=eta_seconds,
+            )
+        )
