@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .auth_service import BrowserLogin
+from .browser_launch import chromium_launch_options
 
 
 @dataclass(slots=True)
@@ -32,10 +33,7 @@ class AuthBrowser:
 
         login_id = secrets.token_urlsafe(18)
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(
-            headless=True,
-            args=["--disable-dev-shm-usage", "--no-sandbox"],
-        )
+        browser = await playwright.chromium.launch(**chromium_launch_options())
         context = await browser.new_context(
             viewport={"width": 520, "height": 680},
             locale="zh-CN",

@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import Any
 
+from ..browser_launch import chromium_launch_options
 from .base import ProviderChanged, RawPageSource, RemoteCollection, RemotePage
 from .normalizers import normalize_collections, normalize_page
 
@@ -69,10 +70,7 @@ class PlaywrightDouyinSource:
         from playwright.async_api import async_playwright
 
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(
-            headless=True,
-            args=["--disable-dev-shm-usage", "--no-sandbox"],
-        )
+        self._browser = await self._playwright.chromium.launch(**chromium_launch_options())
         self._context = await self._browser.new_context(
             viewport={"width": 1440, "height": 1000}, locale="zh-CN"
         )

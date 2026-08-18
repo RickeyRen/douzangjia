@@ -1,0 +1,40 @@
+name: douyin-nas-archive
+
+services:
+  archive:
+    build:
+      context: .
+    image: douyin-nas-archive:local
+    container_name: douyin-nas-archive
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      ARCHIVE_ROOT: /archive
+      ARCHIVE_MASTER_KEY: "${ARCHIVE_MASTER_KEY:?required}"
+      APP_BIND_HOST: 0.0.0.0
+      APP_PORT: "8099"
+      SYNC_INTERVAL_SECONDS: "300"
+      TZ: "${TZ:-Asia/Shanghai}"
+    ports:
+      - "${APP_PORT:-8099}:8099"
+    volumes:
+      - "${ARCHIVE_PATH:-./archive-data}:/archive"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health/ready')"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    stop_grace_period: 30s
