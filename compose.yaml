@@ -1,11 +1,11 @@
-name: douyin-nas-archive
+name: yingcang
 
 services:
   archive:
     build:
       context: .
-    image: douyin-nas-archive:local
-    container_name: douyin-nas-archive
+    image: yingcang:local
+    container_name: yingcang
     restart: unless-stopped
     init: true
     user: "${PUID:-1000}:${PGID:-1000}"
