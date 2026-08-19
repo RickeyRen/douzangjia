@@ -260,12 +260,14 @@ class SyncService:
                     )
                     await self.library.upsert_source(source)
                     source_discovered = 0
+                    source_seen_ids: set[str] = set()
                     page_index = 0
                     last_cursor: str | None = None
                     async for page in self.provider.iter_account_pages(
                         source_kind, full_scan=scan_all
                     ):
                         for item in page.items:
+                            source_seen_ids.add(item.remote_id)
                             if item.creator_id:
                                 await self.library.upsert_creator(
                                     CreatorRecord(
@@ -321,6 +323,10 @@ class SyncService:
                                 ),
                                 run_id,
                             ),
+                        )
+                    if scan_all and source_seen_ids:
+                        await self.library.reconcile_source_items(
+                            source.id, source_seen_ids
                         )
                     await self.library.upsert_source(
                         LibrarySource(

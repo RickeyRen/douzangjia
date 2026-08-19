@@ -139,6 +139,19 @@ class LibraryRepository:
             (source_id, item_id, remote_order, metadata_json, now, now),
         )
 
+    async def reconcile_source_items(
+        self, source_id: str, current_item_ids: set[str]
+    ) -> int:
+        if not current_item_ids:
+            return 0
+        placeholders = ",".join("?" for _ in current_item_ids)
+        cursor = await self.db.execute(
+            f"DELETE FROM source_items WHERE source_id=? "
+            f"AND item_id NOT IN ({placeholders})",
+            (source_id, *sorted(current_item_ids)),
+        )
+        return cursor.rowcount
+
     async def source_integrity(self, source_id: str) -> SourceIntegrity | None:
         row = await self.db.fetchone(
             "SELECT s.id, s.declared_count, s.sync_status, "

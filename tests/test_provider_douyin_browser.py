@@ -322,7 +322,7 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
 
     pages = [page async for page in source.iter_account_raw_pages("post")]
 
-    assert page.goto_urls == [source.SELF_URL]
+    assert page.goto_urls == [f"{source.SELF_URL}&showTab=post"]
     assert page.detail_ids == [["734", "735"]]
     assert [item["aweme_id"] for item in pages[0]["aweme_list"]] == ["734", "735"]
     assert pages[0]["has_more"] is False

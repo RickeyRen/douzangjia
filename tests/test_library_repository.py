@@ -104,6 +104,32 @@ async def test_default_account_sources_are_created_idempotently(
     assert {row["sync_status"] for row in rows} == {"never"}
 
 
+async def test_account_source_membership_can_be_reconciled_without_deleting_items(
+    database: Database,
+) -> None:
+    library = LibraryRepository(database)
+    archive = ArchiveRepository(database)
+    await library.ensure_account_sources()
+    for remote_id in ("old", "current"):
+        await archive.upsert_item(
+            remote_id=remote_id,
+            author_name="作者",
+            description=remote_id,
+            item_type="video",
+        )
+        await library.link_source_item("account:posts", remote_id, remote_id)
+
+    removed = await library.reconcile_source_items("account:posts", {"current"})
+
+    assert removed == 1
+    links = await database.fetchall(
+        "SELECT item_id FROM source_items WHERE source_id='account:posts'"
+    )
+    assert [row["item_id"] for row in links] == ["current"]
+    items = await database.fetchone("SELECT COUNT(*) AS total FROM items")
+    assert items is not None and items["total"] == 2
+
+
 async def test_source_upsert_preserves_identity_and_updates_remote_state(
     database: Database,
 ) -> None:

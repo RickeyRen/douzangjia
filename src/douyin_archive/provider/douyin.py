@@ -189,6 +189,13 @@ class PlaywrightDouyinSource:
         "watch_history",
         "watch_later",
     )
+    ACCOUNT_SOURCE_TABS: ClassVar[dict[str, str]] = {
+        "post": "post",
+        "like": "like",
+        "favorite_video": "favorite_collection",
+        "watch_history": "record",
+        "watch_later": "watch_later",
+    }
     ACCOUNT_SOURCE_CLICKS: ClassVar[dict[str, tuple[tuple[str, ...], ...]]] = {
         "post": (("作品",),),
         "like": (("喜欢",),),
@@ -342,11 +349,15 @@ class PlaywrightDouyinSource:
         if kind not in self.SUPPORTED_ACCOUNT_SOURCES:
             raise ProviderChanged("unsupported Douyin account source")
         await self.open()
+        tab_key = self.ACCOUNT_SOURCE_TABS[kind]
         await self._page.goto(
-            self.SELF_URL, wait_until="domcontentloaded", timeout=45_000
+            f"{self.SELF_URL}&showTab={tab_key}",
+            wait_until="domcontentloaded",
+            timeout=45_000,
         )
-        for candidates in self.ACCOUNT_SOURCE_CLICKS[kind]:
-            await self._click_text_candidates(candidates)
+        await self._page.wait_for_timeout(1_000)
+        if kind == "favorite_video":
+            await self._click_text_candidates(("视频", "收藏视频"))
 
         discovered_ids = await self._collect_visible_item_ids(
             known_ids=known_ids, full_scan=full_scan
