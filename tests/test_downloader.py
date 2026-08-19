@@ -49,6 +49,56 @@ async def test_download_resumes_existing_part(tmp_path: Path) -> None:
     assert result.read_bytes() == b"abcdef"
 
 
+async def test_resume_uses_current_remote_total_when_signed_variant_changed(
+    tmp_path: Path,
+) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Range"] == "bytes=3-"
+        return httpx.Response(
+            206,
+            content=b"def",
+            headers={"Content-Length": "3", "Content-Range": "bytes 3-5/6"},
+        )
+
+    store = ObjectStore(tmp_path)
+    part = store.part_path("734", "000.mp4")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    part.write_bytes(b"abc")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await MediaDownloader(store, client).download(
+            MediaAsset("734", 0, "video", "https://media.test/signed", "video/mp4", 9)
+        )
+
+    assert result.read_bytes() == b"abcdef"
+
+
+async def test_resume_finalizes_part_when_range_starts_at_current_remote_end(
+    tmp_path: Path,
+) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Range"] == "bytes=3-"
+        return httpx.Response(416, headers={"Content-Range": "bytes */3"})
+
+    snapshots: list[DownloadProgressSnapshot] = []
+
+    async def collect(snapshot: DownloadProgressSnapshot) -> None:
+        snapshots.append(snapshot)
+
+    store = ObjectStore(tmp_path)
+    part = store.part_path("734", "000.mp4")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    part.write_bytes(b"abc")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await MediaDownloader(store, client).download(
+            MediaAsset("734", 0, "video", "https://media.test/signed", "video/mp4", 6),
+            on_progress=collect,
+        )
+
+    assert result.read_bytes() == b"abc"
+    assert snapshots[-1].downloaded_bytes == 3
+    assert snapshots[-1].total_bytes == 3
+
+
 async def test_truncated_response_keeps_part_and_never_finalizes(tmp_path: Path) -> None:
     async def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"abc", headers={"Content-Length": "3"})

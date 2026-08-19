@@ -16,6 +16,9 @@ from .paths import asset_filename
 from .storage import ObjectStore
 
 _CONTENT_RANGE_TOTAL = re.compile(r"bytes\s+\d+-\d+/(\d+|\*)", re.IGNORECASE)
+_CONTENT_RANGE_UNSATISFIED_TOTAL = re.compile(
+    r"bytes\s+\*/(\d+)", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,10 +82,21 @@ class MediaDownloader:
         async with self.client.stream("GET", asset.url, headers=headers) as response:
             if resume_at and response.status_code == 200:
                 resume_at = 0
-            response.raise_for_status()
             content_range = response.headers.get("Content-Range", "")
+            unsatisfied = _CONTENT_RANGE_UNSATISFIED_TOTAL.fullmatch(
+                content_range.strip()
+            )
+            if (
+                resume_at
+                and response.status_code == 416
+                and unsatisfied is not None
+                and int(unsatisfied.group(1)) == resume_at
+            ):
+                await self._report(on_progress, resume_at, resume_at, 0)
+                return await self.store.finalize(part, asset.remote_id, filename)
+            response.raise_for_status()
             match = _CONTENT_RANGE_TOTAL.fullmatch(content_range.strip())
-            if expected_total is None and match and match.group(1) != "*":
+            if response.status_code == 206 and match and match.group(1) != "*":
                 expected_total = int(match.group(1))
             if expected_total is None and not resume_at:
                 content_length = response.headers.get("Content-Length")
