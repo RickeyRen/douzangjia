@@ -15,6 +15,8 @@ from .library_repository import LibraryRepository
 from .provider.base import ProviderError, RemoteCollection
 from .repositories import ArchiveRepository, JobRepository
 
+FULL_REPAIR_COOLDOWN_SECONDS = 6 * 60 * 60
+
 
 class DiscoveryProvider(Protocol):
     async def list_collections(self) -> list[RemoteCollection]: ...
@@ -80,11 +82,34 @@ class SyncService:
                 local_count = await self.archive.count_collection_items(
                     collection.remote_id
                 )
-                scan_all = full_scan or (
+                previous_source = await self.db.fetchone(
+                    "SELECT last_full_scan_at, last_incremental_scan_at "
+                    "FROM library_sources WHERE id=?",
+                    (source_id,),
+                )
+                scan_started_at = int(time.time())
+                previous_full_scan = (
+                    int(previous_source["last_full_scan_at"])
+                    if previous_source is not None
+                    and previous_source["last_full_scan_at"] is not None
+                    else None
+                )
+                previous_incremental_scan = (
+                    int(previous_source["last_incremental_scan_at"])
+                    if previous_source is not None
+                    and previous_source["last_incremental_scan_at"] is not None
+                    else None
+                )
+                count_gap = (
                     collection.item_count is not None
                     and local_count < collection.item_count
                 )
-                scan_started_at = int(time.time())
+                recent_full_repair = bool(
+                    previous_full_scan is not None
+                    and scan_started_at - previous_full_scan
+                    < FULL_REPAIR_COOLDOWN_SECONDS
+                )
+                scan_all = full_scan or (count_gap and not recent_full_repair)
                 source = LibrarySource(
                     id=source_id,
                     kind=LibrarySourceKind.FAVORITE_COLLECTION,
@@ -92,9 +117,11 @@ class SyncService:
                     name=collection.name,
                     declared_count=collection.item_count,
                     sync_status=LibrarySyncStatus.RUNNING,
-                    last_full_scan_at=scan_started_at if scan_all else None,
+                    last_full_scan_at=(
+                        scan_started_at if scan_all else previous_full_scan
+                    ),
                     last_incremental_scan_at=(
-                        None if scan_all else scan_started_at
+                        previous_incremental_scan if scan_all else scan_started_at
                     ),
                 )
                 await self.library.upsert_source(source)

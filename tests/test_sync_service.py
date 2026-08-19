@@ -1,9 +1,16 @@
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 
 from douyin_archive.db import Database
+from douyin_archive.library_models import (
+    LibrarySource,
+    LibrarySourceKind,
+    LibrarySyncStatus,
+)
+from douyin_archive.library_repository import LibraryRepository
 from douyin_archive.models import MediaAsset, RemoteItem
 from douyin_archive.provider.base import RemoteCollection, RemotePage
 from douyin_archive.repositories import ArchiveRepository, JobRepository
@@ -182,6 +189,57 @@ async def test_repeated_sync_preserves_completed_download_jobs(
     assert completed is not None
     assert completed.status == "completed"
     assert await jobs.claim_next(worker_id="worker-b") is None
+
+
+async def test_recent_full_repair_is_not_repeated_every_incremental_cycle(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+    await archive.upsert_collection("1001", "想去的地方")
+    await archive.upsert_item(
+        remote_id="734",
+        author_name="作者",
+        description="已知作品",
+        item_type="video",
+    )
+    await archive.link_collection_item("1001", "734")
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="favorite_collection:1001",
+            kind=LibrarySourceKind.FAVORITE_COLLECTION,
+            remote_id="1001",
+            name="想去的地方",
+            declared_count=2,
+            sync_status=LibrarySyncStatus.INCOMPLETE,
+            last_full_scan_at=int(time.time()),
+            error_code="COUNT_MISMATCH",
+        )
+    )
+
+    class CooldownProvider:
+        requested_full_scan: bool | None = None
+
+        async def list_collections(self) -> list[RemoteCollection]:
+            return [RemoteCollection("1001", "想去的地方", 2)]
+
+        async def iter_collection_pages(
+            self, remote_id: str, *, full_scan: bool
+        ) -> AsyncIterator[RemotePage]:
+            self.requested_full_scan = full_scan
+            yield RemotePage((), None, False)
+
+    provider = CooldownProvider()
+    await SyncService(provider, archive, jobs).run(full_scan=False)
+
+    assert provider.requested_full_scan is False
+    source = await database.fetchone(
+        "SELECT last_full_scan_at, last_incremental_scan_at FROM library_sources "
+        "WHERE id='favorite_collection:1001'"
+    )
+    assert source is not None
+    assert source["last_full_scan_at"] is not None
+    assert source["last_incremental_scan_at"] is not None
 
 
 async def test_sync_failure_records_stable_error_code(sync_components) -> None:
