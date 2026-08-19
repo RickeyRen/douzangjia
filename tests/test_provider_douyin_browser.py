@@ -331,6 +331,7 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
     assert [item["aweme_id"] for item in pages[0]["aweme_list"]] == ["734", "735"]
     assert pages[0]["has_more"] is False
     assert page.id_reads >= 3
+    assert source._page is None
 
 
 async def test_account_source_streams_discovery_pages_while_scrolling() -> None:

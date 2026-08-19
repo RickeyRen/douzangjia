@@ -324,6 +324,11 @@ class PlaywrightDouyinSource:
         self._page.on("response", self._capture_response)
 
     async def close(self) -> None:
+        await self._recycle_page()
+        self._collection_names.clear()
+        self._direct_collections = False
+
+    async def _recycle_page(self) -> None:
         page = self._page
         lease = self._lease
         self._page = None
@@ -334,9 +339,7 @@ class PlaywrightDouyinSource:
             await lease.release()
         self._responses = asyncio.Queue()
         self._captured_item_payloads.clear()
-        self._collection_names.clear()
         self._observed_paths.clear()
-        self._direct_collections = False
 
     async def fetch_collections(self) -> dict:
         await self.open()
@@ -440,6 +443,21 @@ class PlaywrightDouyinSource:
         known_ids: set[str] | None = None,
         full_scan: bool = True,
     ) -> AsyncIterator[dict]:
+        try:
+            async for payload in self._iter_account_raw_pages(
+                kind, known_ids=known_ids, full_scan=full_scan
+            ):
+                yield payload
+        finally:
+            await self._recycle_page()
+
+    async def _iter_account_raw_pages(
+        self,
+        kind: str,
+        *,
+        known_ids: set[str] | None = None,
+        full_scan: bool = True,
+    ) -> AsyncIterator[dict]:
         if kind not in self.SUPPORTED_ACCOUNT_SOURCES:
             raise ProviderChanged("unsupported Douyin account source")
         await self.open()
@@ -491,6 +509,15 @@ class PlaywrightDouyinSource:
             yield {**previous_payload, "has_more": False}
 
     async def iter_account_raw_entity_pages(
+        self, kind: str
+    ) -> AsyncIterator[dict[str, object]]:
+        try:
+            async for payload in self._iter_account_raw_entity_pages(kind):
+                yield payload
+        finally:
+            await self._recycle_page()
+
+    async def _iter_account_raw_entity_pages(
         self, kind: str
     ) -> AsyncIterator[dict[str, object]]:
         if kind not in self.SUPPORTED_ACCOUNT_ENTITY_SOURCES:
