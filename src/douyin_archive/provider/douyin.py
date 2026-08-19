@@ -783,10 +783,13 @@ class PlaywrightDouyinSource:
                 url.searchParams.set('aid', '6383');
                 url.searchParams.set('device_platform', 'webapp');
                 for (let attempt = 0; attempt < 3; attempt += 1) {
+                  const controller = new AbortController();
+                  const timeout = window.setTimeout(() => controller.abort(), 5_000);
                   try {
                     const response = await fetch(url.toString(), {
                       credentials: 'include',
                       cache: 'no-store',
+                      signal: controller.signal,
                       headers: {Accept: 'application/json, text/plain, */*'},
                     });
                     if (!response.ok) return null;
@@ -796,6 +799,8 @@ class PlaywrightDouyinSource:
                     if (attempt < 2) {
                       await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
                     }
+                  } finally {
+                    window.clearTimeout(timeout);
                   }
                 }
                 return null;
