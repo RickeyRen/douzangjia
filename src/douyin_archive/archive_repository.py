@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+
+from .db import Database
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveBatch:
+    id: int
+    kind: str
+    target_id: str
+    status: str
+    discovered_count: int
+    completed_count: int
+    failed_count: int
+    downloaded_bytes: int
+    total_bytes: int | None
+    error_code: str | None
+    total_items: int
+    created_at: int
+    updated_at: int
+    finished_at: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class CreatorSubscription:
+    creator_id: str
+    enabled: bool
+    scan_interval_seconds: int
+    archive_new_items: bool
+    last_scan_at: int | None
+    next_scan_at: int | None
+    last_error_code: str | None
+
+
+class ArchiveBatchRepository:
+    ACTIVE_STATUSES = ("queued", "discovering", "running", "paused")
+
+    def __init__(self, database: Database) -> None:
+        self.db = database
+
+    async def create_batch(self, kind: str, target_id: str) -> ArchiveBatch:
+        now = int(time.time())
+        async with self.db.transaction(immediate=True):
+            existing = await self.db.fetchone(
+                "SELECT id FROM archive_batches WHERE kind=? AND target_id=? "
+                "AND status IN ('queued', 'discovering', 'running', 'paused') "
+                "ORDER BY id DESC LIMIT 1",
+                (kind, target_id),
+            )
+            if existing is not None:
+                batch_id = int(existing["id"])
+            else:
+                row = await self.db.fetchone(
+                    "INSERT INTO archive_batches "
+                    "(kind, target_id, status, created_at, updated_at) "
+                    "VALUES (?, ?, 'queued', ?, ?) RETURNING id",
+                    (kind, target_id, now, now),
+                )
+                if row is None:
+                    raise RuntimeError("archive batch creation failed")
+                batch_id = int(row["id"])
+        batch = await self.get_batch(batch_id)
+        if batch is None:
+            raise RuntimeError("archive batch disappeared after creation")
+        return batch
+
+    async def add_item(
+        self, batch_id: int, item_id: str, *, job_id: int | None = None
+    ) -> None:
+        now = int(time.time())
+        async with self.db.transaction(immediate=True):
+            await self.db.execute(
+                "INSERT INTO archive_batch_items (batch_id, item_id, job_id, created_at) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(batch_id, item_id) DO UPDATE SET "
+                "job_id=COALESCE(excluded.job_id, archive_batch_items.job_id)",
+                (batch_id, item_id, job_id, now),
+            )
+            await self.db.execute(
+                "UPDATE archive_batches SET discovered_count=("
+                "SELECT COUNT(*) FROM archive_batch_items WHERE batch_id=?"
+                "), updated_at=? WHERE id=?",
+                (batch_id, now, batch_id),
+            )
+
+    async def set_status(
+        self, batch_id: int, status: str, *, error_code: str | None = None
+    ) -> None:
+        now = int(time.time())
+        finished_at = now if status in {"completed", "failed", "cancelled"} else None
+        await self.db.execute(
+            "UPDATE archive_batches SET status=?, error_code=?, updated_at=?, "
+            "finished_at=? WHERE id=?",
+            (status, error_code, now, finished_at, batch_id),
+        )
+
+    async def get_batch(self, batch_id: int) -> ArchiveBatch | None:
+        row = await self.db.fetchone(
+            "SELECT b.*, COUNT(bi.item_id) AS total_items "
+            "FROM archive_batches b LEFT JOIN archive_batch_items bi ON bi.batch_id=b.id "
+            "WHERE b.id=? GROUP BY b.id",
+            (batch_id,),
+        )
+        return self._batch(row) if row is not None else None
+
+    async def count_batches(self) -> int:
+        row = await self.db.fetchone("SELECT COUNT(*) AS total FROM archive_batches")
+        return int(row["total"]) if row is not None else 0
+
+    async def upsert_subscription(
+        self,
+        creator_id: str,
+        *,
+        enabled: bool,
+        scan_interval_seconds: int,
+        archive_new_items: bool,
+    ) -> CreatorSubscription:
+        now = int(time.time())
+        next_scan_at = now if enabled else None
+        await self.db.execute(
+            "INSERT INTO creator_subscriptions "
+            "(creator_id, enabled, scan_interval_seconds, archive_new_items, "
+            "next_scan_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(creator_id) DO UPDATE SET "
+            "enabled=excluded.enabled, "
+            "scan_interval_seconds=excluded.scan_interval_seconds, "
+            "archive_new_items=excluded.archive_new_items, "
+            "next_scan_at=CASE WHEN excluded.enabled=1 THEN "
+            "COALESCE(creator_subscriptions.next_scan_at, excluded.next_scan_at) "
+            "ELSE NULL END, updated_at=excluded.updated_at",
+            (
+                creator_id,
+                int(enabled),
+                scan_interval_seconds,
+                int(archive_new_items),
+                next_scan_at,
+                now,
+                now,
+            ),
+        )
+        subscription = await self.get_subscription(creator_id)
+        if subscription is None:
+            raise RuntimeError("creator subscription upsert failed")
+        return subscription
+
+    async def get_subscription(self, creator_id: str) -> CreatorSubscription | None:
+        row = await self.db.fetchone(
+            "SELECT * FROM creator_subscriptions WHERE creator_id=?", (creator_id,)
+        )
+        if row is None:
+            return None
+        return CreatorSubscription(
+            creator_id=str(row["creator_id"]),
+            enabled=bool(row["enabled"]),
+            scan_interval_seconds=int(row["scan_interval_seconds"]),
+            archive_new_items=bool(row["archive_new_items"]),
+            last_scan_at=(
+                int(row["last_scan_at"]) if row["last_scan_at"] is not None else None
+            ),
+            next_scan_at=(
+                int(row["next_scan_at"]) if row["next_scan_at"] is not None else None
+            ),
+            last_error_code=(
+                str(row["last_error_code"])
+                if row["last_error_code"] is not None
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _batch(row) -> ArchiveBatch:
+        return ArchiveBatch(
+            id=int(row["id"]),
+            kind=str(row["kind"]),
+            target_id=str(row["target_id"]),
+            status=str(row["status"]),
+            discovered_count=int(row["discovered_count"]),
+            completed_count=int(row["completed_count"]),
+            failed_count=int(row["failed_count"]),
+            downloaded_bytes=int(row["downloaded_bytes"]),
+            total_bytes=(int(row["total_bytes"]) if row["total_bytes"] is not None else None),
+            error_code=str(row["error_code"]) if row["error_code"] is not None else None,
+            total_items=int(row["total_items"]),
+            created_at=int(row["created_at"]),
+            updated_at=int(row["updated_at"]),
+            finished_at=(int(row["finished_at"]) if row["finished_at"] is not None else None),
+        )

@@ -68,6 +68,26 @@ async def test_schema_extends_items_with_creator_and_remote_metadata(
     } <= names
 
 
+async def test_schema_creates_archive_batch_and_subscription_tables(
+    database: Database,
+) -> None:
+    rows = await database.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    )
+    names = {row["name"] for row in rows}
+    assert {
+        "archive_batches",
+        "archive_batch_items",
+        "creator_subscriptions",
+        "job_events",
+    } <= names
+
+    job_columns = {
+        row["name"] for row in await database.fetchall("PRAGMA table_info(download_jobs)")
+    }
+    assert {"batch_id", "priority", "paused_at", "cancel_requested_at"} <= job_columns
+
+
 async def test_collection_rename_preserves_name_history(database: Database) -> None:
     repository = ArchiveRepository(database)
     await repository.upsert_collection("folder-1", "想去的地方")
