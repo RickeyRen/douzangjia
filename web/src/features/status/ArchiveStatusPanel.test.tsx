@@ -91,6 +91,8 @@ it("switches between download and sync activity", async () => {
   const user = userEvent.setup();
   render(<ArchiveStatusPanel kind="activity" onClose={vi.fn()} />);
 
+  expect(screen.getByRole("dialog", { name: "活动" })).toHaveClass("cinematic-drawer");
+
   const downloads = await screen.findByRole("tab", { name: "下载" });
   const sync = screen.getByRole("tab", { name: "同步" });
   expect(downloads).toHaveAttribute("aria-selected", "true");

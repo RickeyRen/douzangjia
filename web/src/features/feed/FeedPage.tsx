@@ -224,29 +224,29 @@ export function FeedPage() {
 function CollectionDrawer({ collections, selected, onSelect, onClose }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
   const { t } = useI18n();
   return (
-    <div className="fixed inset-0 z-[7] bg-[#08090c]/50 backdrop-blur-sm" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label={t("switchCollection")} className="absolute inset-x-0 bottom-0 rounded-t-[28px] border-t border-white/10 bg-[#181b20] px-5 pb-[calc(22px+env(safe-area-inset-bottom))] pt-3 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto h-1 w-11 rounded-full bg-white/25" />
-        <div className="mt-5 flex items-center justify-between"><h2 className="text-lg font-semibold">{t("switchCollection")}</h2><button aria-label={t("closeDrawer")} className="grid h-11 w-11 place-items-center" onClick={onClose}><X size={20} /></button></div>
-        <div className="mt-3 grid gap-1">
+    <div className="collection-drawer-overlay" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-label={t("switchCollection")} className="collection-drawer" onClick={(event) => event.stopPropagation()}>
+        <div className="drawer-handle" />
+        <div className="collection-drawer-header"><h2>{t("switchCollection")}</h2><button aria-label={t("closeDrawer")} className="utility-close-button" onClick={onClose}><X size={20} /></button></div>
+        <div className="collection-drawer-list">
           {[{ id: undefined, name: t("allArchives") }, ...collections].map((item) => (
-            <button key={item.id ?? "all"} onClick={() => onSelect(item.id)} className={`flex min-h-14 items-center gap-3 rounded-xl px-4 text-left text-sm ${item.id === selected ? "border-l-2 border-[#f16761] bg-white/[.08] font-semibold" : "text-[#c1c5cc]"}`}><Folders size={20} className={item.id === selected ? "text-[#f16761]" : "text-[#747a84]"} />{item.name}</button>
+            <button key={item.id ?? "all"} onClick={() => onSelect(item.id)} className={`collection-drawer-item${item.id === selected ? " is-active" : ""}`}><Folders size={19} />{item.name}</button>
           ))}
         </div>
-        <p className="mt-5 text-center text-xs text-[#747a84]">{t("autoSync")}</p>
+        <p className="collection-drawer-footer">{t("autoSync")}</p>
       </section>
     </div>
   );
 }
 
 function FeedSkeleton({ label }: { label: string }) {
-  return <div className="grid h-full place-items-center"><div className="w-[min(46dvh,420px)]"><div className="aspect-[9/16] animate-pulse rounded-xl bg-white/[.05]" /><p className="mt-4 text-center text-sm text-[#747a84]">{label}</p></div></div>;
+  return <div className="feed-state"><div><div className="feed-skeleton-frame animate-pulse" /><p>{label}</p></div></div>;
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
-  return <div className="grid h-full place-items-center px-6 text-center"><div><Folders className="mx-auto text-[#656b75]" size={42} weight="regular" /><h2 className="mt-5 text-xl font-semibold">{title}</h2><p className="mt-2 max-w-[38ch] text-sm leading-6 text-[#747a84]">{body}</p></div></div>;
+  return <div className="feed-state"><div><Folders size={38} weight="regular" /><h2>{title}</h2><p>{body}</p></div></div>;
 }
 
 function ErrorState({ label, retry }: { label: string; retry: string }) {
-  return <div className="grid h-full place-items-center px-6 text-center"><div><p className="text-sm text-[#a8adb6]">{label}</p><button className="mt-5 min-h-11 rounded-lg border border-white/10 px-5 text-sm" onClick={() => window.location.reload()}>{retry}</button></div></div>;
+  return <div className="feed-state"><div><p>{label}</p><button className="friendly-button friendly-button-secondary" onClick={() => window.location.reload()}>{retry}</button></div></div>;
 }
