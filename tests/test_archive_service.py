@@ -83,6 +83,24 @@ async def test_single_item_archive_reuses_a_completed_job_without_requeueing(
     assert batch.completed_count == 1
 
 
+async def test_listing_batches_repairs_stale_active_progress(
+    archive_components,
+) -> None:
+    _database, archive, jobs, batches, service = archive_components
+    await seed_item(archive, jobs, "734")
+    batch = await service.archive_item("734")
+    claimed = await jobs.claim_next(worker_id="worker-a")
+    assert claimed is not None
+    await jobs.complete(claimed.id)
+
+    listed = await batches.list_batches()
+
+    assert len(listed) == 1
+    assert listed[0].id == batch.id
+    assert listed[0].status == "completed"
+    assert listed[0].completed_count == 1
+
+
 async def test_source_archive_expands_every_known_item_without_duplicate_jobs(
     archive_components,
 ) -> None:

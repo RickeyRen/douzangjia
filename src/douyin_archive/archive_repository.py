@@ -110,6 +110,14 @@ class ArchiveBatchRepository:
         return int(row["total"]) if row is not None else 0
 
     async def list_batches(self, *, limit: int = 50) -> list[ArchiveBatch]:
+        active_rows = await self.db.fetchall(
+            "SELECT id FROM archive_batches "
+            "WHERE status IN ('queued', 'discovering', 'running') "
+            "ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
+        for row in active_rows:
+            await self.refresh_batch(int(row["id"]))
         rows = await self.db.fetchall(
             "SELECT b.*, COUNT(bi.item_id) AS total_items "
             "FROM archive_batches b LEFT JOIN archive_batch_items bi ON bi.batch_id=b.id "

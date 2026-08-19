@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from douyin_archive.archive_repository import ArchiveBatchRepository
 from douyin_archive.config import Settings
 from douyin_archive.db import Database
 from douyin_archive.provider.base import RateLimited
@@ -74,6 +75,39 @@ async def test_rate_limit_sets_provider_cooldown(jobs: JobRepository) -> None:
     assert updated.status == "retry"
     assert updated.last_error_code == "RATE_LIMITED"
     assert updated.next_attempt_at >= before + 900
+
+
+async def test_worker_refreshes_linked_archive_batch_after_completion(
+    jobs: JobRepository,
+) -> None:
+    now = int(time.time())
+    await jobs.db.execute(
+        "INSERT INTO items (remote_id, author_name, description, item_type, "
+        "first_seen_at, last_seen_at) VALUES ('734', '作者', '作品', 'video', ?, ?)",
+        (now, now),
+    )
+    queued = await jobs.enqueue_unique("download", "734", {"asset": 1})
+    batches = ArchiveBatchRepository(jobs.db)
+    batch = await batches.create_batch("item", "734")
+    await jobs.db.execute(
+        "UPDATE download_jobs SET batch_id=? WHERE id=?",
+        (batch.id, queued.id),
+    )
+    await batches.add_item(batch.id, "734", job_id=queued.id)
+
+    async def successful_handler(_):
+        pass
+
+    handled = await Worker(
+        jobs, successful_handler, worker_id="worker-a"
+    ).run_once()
+    updated = await batches.get_batch(batch.id)
+
+    assert handled is True
+    assert updated is not None
+    assert updated.status == "completed"
+    assert updated.completed_count == 1
+    assert updated.finished_at is not None
 
 
 async def test_restart_recovers_stale_running_job(jobs: JobRepository) -> None:

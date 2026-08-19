@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 
 import httpx
 
+from .archive_repository import ArchiveBatchRepository
 from .models import DownloadJob
 from .provider.base import RateLimited
 from .repositories import JobRepository
@@ -55,7 +56,17 @@ class Worker:
             )
         else:
             await self.jobs.complete(job.id)
+        finally:
+            await self._refresh_linked_batch(job.id)
         return True
+
+    async def _refresh_linked_batch(self, job_id: int) -> None:
+        row = await self.jobs.db.fetchone(
+            "SELECT batch_id FROM download_jobs WHERE id=?", (job_id,)
+        )
+        if row is None or row["batch_id"] is None:
+            return
+        await ArchiveBatchRepository(self.jobs.db).refresh_batch(int(row["batch_id"]))
 
     async def run_forever(self, *, idle_seconds: float = 2.0) -> None:
         await self.jobs.recover_stale_running(older_than_seconds=300)
