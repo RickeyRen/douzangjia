@@ -1,4 +1,6 @@
-# “留影”友好式全站 UI 重构实施计划
+# “留影”友好式全站 UI 重构实施计划（已废弃）
+
+> 2026-08-19 用户否决了这一糖果式方向。仅作 Git 历史和取舍记录；有效计划为 `2026-08-19-cinematic-theme-redesign.md`。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
