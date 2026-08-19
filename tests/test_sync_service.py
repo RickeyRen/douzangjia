@@ -76,7 +76,8 @@ async def test_full_sync_persists_pages_and_deduplicates_downloads(
     assert run is not None
     assert run["status"] == "completed"
     sources = await database.fetchall(
-        "SELECT id, declared_count, sync_status FROM library_sources ORDER BY id"
+        "SELECT id, declared_count, sync_status FROM library_sources "
+        "WHERE kind='favorite_collection' ORDER BY id"
     )
     assert [(row["id"], row["declared_count"], row["sync_status"]) for row in sources] == [
         ("favorite_collection:1001", 2, "complete"),
@@ -255,3 +256,45 @@ async def test_sync_failure_records_stable_error_code(sync_components) -> None:
     row = await database.fetchone("SELECT error_code FROM sync_runs WHERE id=?", (result.run_id,))
     assert row is not None
     assert row["error_code"] == "DOUYIN_SESSION_EXPIRED"
+
+
+async def test_account_sources_persist_browsable_items_without_auto_download(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+
+    class AccountProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return []
+
+        async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
+            if False:
+                yield remote_id, full_scan
+
+        def supported_account_sources(self) -> tuple[str, ...]:
+            return ("post", "like", "favorite_video", "watch_history", "watch_later")
+
+        async def iter_account_pages(self, kind: str, *, full_scan: bool):
+            assert full_scan is True
+            if kind == "post":
+                yield RemotePage((item("self-post-1"),), None, False)
+
+    result = await SyncService(AccountProvider(), archive, jobs).run(full_scan=True)
+
+    assert result.status == "completed"
+    assert result.discovered == 1
+    source = await database.fetchone(
+        "SELECT sync_status, error_code FROM library_sources WHERE id='account:posts'"
+    )
+    assert source is not None
+    assert (source["sync_status"], source["error_code"]) == (
+        "incomplete",
+        "COUNT_UNKNOWN",
+    )
+    link = await database.fetchone(
+        "SELECT metadata_json FROM source_items "
+        "WHERE source_id='account:posts' AND item_id='self-post-1'"
+    )
+    assert link is not None
+    assert "media.test/self-post-1" in link["metadata_json"]
+    assert await jobs.count() == 0

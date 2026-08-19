@@ -253,6 +253,123 @@ async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:
     assert source._page.paths == ["/aweme/v1/web/aweme/listcollection/"]
 
 
+async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() -> None:
+    class Candidate:
+        async def count(self) -> int:
+            return 1
+
+        def nth(self, index: int):
+            assert index == 0
+            return self
+
+        async def is_visible(self, *, timeout: int) -> bool:
+            return True
+
+        async def click(self, *, timeout: int) -> None:
+            return None
+
+    class AccountPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.goto_urls: list[str] = []
+            self.id_reads = 0
+            self.detail_ids: list[list[str]] = []
+
+        async def goto(self, url: str, **kwargs) -> None:
+            self.goto_urls.append(url)
+
+        def get_by_text(self, label: str, *, exact: bool) -> Candidate:
+            assert label == "作品"
+            assert exact is True
+            return Candidate()
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangVisibleAccountIds" in script:
+                self.id_reads += 1
+                return ["734", "735"]
+            if "__yingcangScrollAccountPanel" in script:
+                return True
+            if "__yingcangFetchDetails" in script:
+                ids = list(arguments["ids"])
+                self.detail_ids.append(ids)
+                return {
+                    "status_code": 0,
+                    "aweme_list": [
+                        {
+                            "aweme_id": remote_id,
+                            "desc": f"作品 {remote_id}",
+                            "author": {"uid": "creator-1", "nickname": "作者"},
+                            "video": {
+                                "play_addr": {
+                                    "url_list": [f"https://media.test/{remote_id}.mp4"]
+                                }
+                            },
+                        }
+                        for remote_id in ids
+                    ],
+                    "has_more": 0,
+                }
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = AccountPage()
+    source._page = page
+
+    pages = [page async for page in source.iter_account_raw_pages("post")]
+
+    assert page.goto_urls == [source.SELF_URL]
+    assert page.detail_ids == [["734", "735"]]
+    assert [item["aweme_id"] for item in pages[0]["aweme_list"]] == ["734", "735"]
+    assert pages[0]["has_more"] is False
+    assert page.id_reads >= 3
+
+
+async def test_provider_incremental_account_source_stops_at_known_streak() -> None:
+    class RawAccountSource:
+        async def fetch_collections(self) -> dict:
+            return {"status_code": 0, "collects_list": []}
+
+        async def iter_raw_pages(self, remote_id: str):
+            if False:
+                yield remote_id
+
+        async def iter_account_raw_pages(
+            self, kind: str, *, known_ids: set[str], full_scan: bool
+        ):
+            assert kind == "like"
+            assert full_scan is False
+            yield {
+                "status_code": 0,
+                "aweme_list": [
+                    {
+                        "aweme_id": str(index),
+                        "author": {"nickname": "作者"},
+                        "video": {
+                            "play_addr": {
+                                "url_list": [f"https://media.test/{index}.mp4"]
+                            }
+                        },
+                    }
+                    for index in range(35)
+                ],
+                "has_more": 1,
+                "cursor": 35,
+            }
+
+    provider = douyin_module.DouyinProvider(
+        RawAccountSource(), known_ids={str(index) for index in range(30)}
+    )
+
+    pages = [
+        page async for page in provider.iter_account_pages("like", full_scan=False)
+    ]
+
+    assert pages == []
+
+
 async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
     class TimedOutPage(FakePage):
         async def evaluate(self, script: str, arguments: dict) -> dict:

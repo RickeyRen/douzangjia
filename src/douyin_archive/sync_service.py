@@ -73,6 +73,7 @@ class SyncService:
         discovered = 0
         enqueued = 0
         try:
+            await self.library.ensure_account_sources()
             collections = await self.provider.list_collections()
             for collection in collections:
                 await self.archive.upsert_collection(collection.remote_id, collection.name)
@@ -220,6 +221,120 @@ class SyncService:
                         error_code=source_error_code,
                     )
                 )
+            supported_account_sources = getattr(
+                self.provider, "supported_account_sources", None
+            )
+            if callable(supported_account_sources):
+                for source_kind in supported_account_sources():
+                    source_row = await self.db.fetchone(
+                        "SELECT id, name, last_full_scan_at, last_incremental_scan_at "
+                        "FROM library_sources WHERE kind=? AND remote_id='self'",
+                        (source_kind,),
+                    )
+                    if source_row is None:
+                        continue
+                    scan_started_at = int(time.time())
+                    previous_full_scan = (
+                        int(source_row["last_full_scan_at"])
+                        if source_row["last_full_scan_at"] is not None
+                        else None
+                    )
+                    previous_incremental_scan = (
+                        int(source_row["last_incremental_scan_at"])
+                        if source_row["last_incremental_scan_at"] is not None
+                        else None
+                    )
+                    scan_all = full_scan or previous_full_scan is None
+                    source = LibrarySource(
+                        id=str(source_row["id"]),
+                        kind=LibrarySourceKind(source_kind),
+                        remote_id="self",
+                        name=str(source_row["name"]),
+                        sync_status=LibrarySyncStatus.RUNNING,
+                        last_full_scan_at=(
+                            scan_started_at if scan_all else previous_full_scan
+                        ),
+                        last_incremental_scan_at=(
+                            previous_incremental_scan if scan_all else scan_started_at
+                        ),
+                    )
+                    await self.library.upsert_source(source)
+                    source_discovered = 0
+                    page_index = 0
+                    last_cursor: str | None = None
+                    async for page in self.provider.iter_account_pages(
+                        source_kind, full_scan=scan_all
+                    ):
+                        for item in page.items:
+                            if item.creator_id:
+                                await self.library.upsert_creator(
+                                    CreatorRecord(
+                                        remote_id=item.creator_id,
+                                        nickname=item.author_name,
+                                        unique_id=item.creator_unique_id,
+                                        avatar_url=item.creator_avatar_url,
+                                        follower_count=item.creator_follower_count,
+                                        post_count=item.creator_post_count,
+                                    )
+                                )
+                            await self.archive.upsert_item(
+                                remote_id=item.remote_id,
+                                author_name=item.author_name,
+                                description=item.description,
+                                item_type=item.item_type,
+                                published_at=item.published_at,
+                                creator_id=item.creator_id,
+                            )
+                            await self.library.link_source_item(
+                                source.id,
+                                item.remote_id,
+                                (
+                                    f"{item.published_at:020d}"
+                                    if item.published_at is not None
+                                    else f"{int(time.time()):020d}"
+                                ),
+                                asdict(item),
+                            )
+                        source_discovered += len(page.items)
+                        discovered += len(page.items)
+                        last_cursor = page.next_cursor
+                        await self.library.save_checkpoint(
+                            source.id,
+                            cursor=page.next_cursor,
+                            page_index=page_index,
+                            discovered_count=source_discovered,
+                            stop_reason=None if page.has_more else "remote_end",
+                        )
+                        page_index += 1
+                        await self.db.execute(
+                            "UPDATE sync_runs SET discovered_count=?, enqueued_count=?, "
+                            "cursor_json=? WHERE id=?",
+                            (
+                                discovered,
+                                enqueued,
+                                json.dumps(
+                                    {
+                                        "sourceId": source.id,
+                                        "cursor": page.next_cursor,
+                                    },
+                                    separators=(",", ":"),
+                                ),
+                                run_id,
+                            ),
+                        )
+                    await self.library.upsert_source(
+                        LibrarySource(
+                            id=source.id,
+                            kind=source.kind,
+                            remote_id=source.remote_id,
+                            name=source.name,
+                            sync_cursor=last_cursor,
+                            sync_status=LibrarySyncStatus.INCOMPLETE,
+                            last_full_scan_at=source.last_full_scan_at,
+                            last_incremental_scan_at=source.last_incremental_scan_at,
+                            error_code="COUNT_UNKNOWN",
+                        )
+                    )
         except ProviderError as error:
             return await self._finish_failed(run_id, discovered, enqueued, error.code)
         except Exception:  # noqa: BLE001 - persistent task boundary records a stable code

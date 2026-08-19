@@ -6,7 +6,7 @@ import re
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import suppress
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
 from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
@@ -115,9 +115,33 @@ class DouyinProvider:
     async def iter_collection_pages(
         self, remote_id: str, *, full_scan: bool
     ) -> AsyncIterator[RemotePage]:
+        async for page in self._normalized_pages(
+            self.source.iter_raw_pages(remote_id), full_scan=full_scan
+        ):
+            yield page
+
+    def supported_account_sources(self) -> tuple[str, ...]:
+        if not hasattr(self.source, "iter_account_raw_pages"):
+            return ()
+        return PlaywrightDouyinSource.SUPPORTED_ACCOUNT_SOURCES
+
+    async def iter_account_pages(
+        self, kind: str, *, full_scan: bool
+    ) -> AsyncIterator[RemotePage]:
+        iterator = self.source.iter_account_raw_pages(
+            kind,
+            known_ids=self.known_ids,
+            full_scan=full_scan,
+        )
+        async for page in self._normalized_pages(iterator, full_scan=full_scan):
+            yield page
+
+    async def _normalized_pages(
+        self, raw_pages: AsyncIterator[dict], *, full_scan: bool
+    ) -> AsyncIterator[RemotePage]:
         consecutive_known = 0
         seen_cursors: set[str] = set()
-        async for raw_page in self.source.iter_raw_pages(remote_id):
+        async for raw_page in raw_pages:
             page = normalize_page(raw_page)
             selected = []
             stop = False
@@ -146,6 +170,21 @@ class PlaywrightDouyinSource:
     FAVORITES_URL = (
         "https://www.douyin.com/user/self?from_tab_name=main&showTab=favorite_collection"
     )
+    SELF_URL = "https://www.douyin.com/user/self?from_tab_name=main"
+    SUPPORTED_ACCOUNT_SOURCES = (
+        "post",
+        "like",
+        "favorite_video",
+        "watch_history",
+        "watch_later",
+    )
+    ACCOUNT_SOURCE_CLICKS: ClassVar[dict[str, tuple[tuple[str, ...], ...]]] = {
+        "post": (("作品",),),
+        "like": (("喜欢",),),
+        "favorite_video": (("收藏",), ("视频", "收藏视频")),
+        "watch_history": (("观看历史",),),
+        "watch_later": (("稍后再看",),),
+    }
     COLLECTION_PATH_MARKERS = (
         "mix/listcollection",
         "aweme/listcollection",
@@ -155,6 +194,7 @@ class PlaywrightDouyinSource:
     COLLECTS_LIST_PATH = "/aweme/v1/web/collects/list/"
     COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
     ALL_FAVORITES_PATH = "/aweme/v1/web/aweme/listcollection/"
+    DETAIL_PATH = "/aweme/v1/web/aweme/detail/"
 
     def __init__(self, coordinator: BrowserCoordinator) -> None:
         self.coordinator = coordinator
@@ -280,6 +320,157 @@ class PlaywrightDouyinSource:
                 return
             await self._page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await self._page.wait_for_timeout(900)
+
+    async def iter_account_raw_pages(
+        self,
+        kind: str,
+        *,
+        known_ids: set[str] | None = None,
+        full_scan: bool = True,
+    ) -> AsyncIterator[dict]:
+        if kind not in self.SUPPORTED_ACCOUNT_SOURCES:
+            raise ProviderChanged("unsupported Douyin account source")
+        await self.open()
+        await self._page.goto(
+            self.SELF_URL, wait_until="domcontentloaded", timeout=45_000
+        )
+        for candidates in self.ACCOUNT_SOURCE_CLICKS[kind]:
+            await self._click_text_candidates(candidates)
+
+        discovered_ids: list[str] = []
+        discovered_set: set[str] = set()
+        stable_rounds = 0
+        for _ in range(1_000):
+            visible_ids = await self._visible_account_item_ids()
+            if not full_scan and known_ids:
+                visible_ids = self._trim_after_known_streak(visible_ids, known_ids)
+            new_ids = [item_id for item_id in visible_ids if item_id not in discovered_set]
+            if new_ids:
+                discovered_ids.extend(new_ids)
+                discovered_set.update(new_ids)
+                stable_rounds = 0
+            else:
+                stable_rounds += 1
+            if stable_rounds >= 3:
+                break
+            await self._scroll_account_panel()
+            await self._page.wait_for_timeout(750)
+
+        for offset in range(0, len(discovered_ids), 20):
+            chunk = discovered_ids[offset : offset + 20]
+            payload = await self._fetch_aweme_details(chunk)
+            yield {
+                **payload,
+                "cursor": str(offset + len(chunk)),
+                "has_more": offset + len(chunk) < len(discovered_ids),
+            }
+
+    @staticmethod
+    def _trim_after_known_streak(
+        item_ids: list[str], known_ids: set[str]
+    ) -> list[str]:
+        consecutive_known = 0
+        for index, item_id in enumerate(item_ids):
+            if item_id in known_ids:
+                consecutive_known += 1
+                if consecutive_known >= 30:
+                    return item_ids[: index - 29]
+            else:
+                consecutive_known = 0
+        return item_ids
+
+    async def _visible_account_item_ids(self) -> list[str]:
+        result = await self._page.evaluate(
+            r"""
+            () => { // __yingcangVisibleAccountIds
+              const visible = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const selectedTab = document.querySelector(
+                '[role="tab"][aria-selected="true"]'
+              );
+              const controlledId = selectedTab?.getAttribute('aria-controls');
+              const controlled = controlledId ? document.getElementById(controlledId) : null;
+              const panels = [...document.querySelectorAll('[role="tabpanel"]')]
+                .filter(visible);
+              const root = (controlled && visible(controlled) && controlled) ||
+                panels.find((panel) => panel.querySelector('a[href*="/video/"], a[href*="/note/"]')) ||
+                document.querySelector('main');
+              if (!root) return [];
+              const ids = [];
+              const seen = new Set();
+              for (const anchor of root.querySelectorAll(
+                'a[href*="/video/"], a[href*="/note/"]'
+              )) {
+                if (!visible(anchor)) continue;
+                const match = anchor.href.match(/\/(?:video|note)\/(\d+)/);
+                if (match && !seen.has(match[1])) {
+                  seen.add(match[1]);
+                  ids.push(match[1]);
+                }
+              }
+              return ids;
+            }
+            """
+        )
+        if not isinstance(result, list):
+            raise ProviderChanged("Douyin account tab returned invalid item ids")
+        return [str(value) for value in result if str(value).isdigit()]
+
+    async def _scroll_account_panel(self) -> None:
+        await self._page.evaluate(
+            """
+            () => { // __yingcangScrollAccountPanel
+              const panels = [...document.querySelectorAll('[role="tabpanel"]')];
+              const panel = panels.find((element) => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  element.getBoundingClientRect().height > 0;
+              });
+              const root = panel || document.querySelector('main') || document.body;
+              const anchors = root.querySelectorAll(
+                'a[href*="/video/"], a[href*="/note/"]'
+              );
+              anchors[anchors.length - 1]?.scrollIntoView({block: 'end'});
+              window.scrollTo(0, document.documentElement.scrollHeight);
+              return true;
+            }
+            """
+        )
+
+    async def _fetch_aweme_details(self, item_ids: list[str]) -> dict:
+        payload = await self._page.evaluate(
+            """
+            async ({ids, path}) => { // __yingcangFetchDetails
+              const fetchOne = async (id) => {
+                const url = new URL(path, window.location.origin);
+                url.searchParams.set('aweme_id', id);
+                url.searchParams.set('aid', '6383');
+                url.searchParams.set('device_platform', 'webapp');
+                const response = await fetch(url.toString(), {
+                  credentials: 'include',
+                  headers: {Accept: 'application/json, text/plain, */*'},
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data?.aweme_detail || data?.aweme_list?.[0] || null;
+              };
+              const records = [];
+              for (let offset = 0; offset < ids.length; offset += 5) {
+                const group = await Promise.all(ids.slice(offset, offset + 5).map(fetchOne));
+                records.push(...group.filter(Boolean));
+              }
+              return {status_code: 0, aweme_list: records};
+            }
+            """,
+            {"ids": item_ids, "path": self.DETAIL_PATH},
+        )
+        if not isinstance(payload, dict):
+            raise ProviderChanged("Douyin item detail response changed")
+        return payload
 
     async def _fetch_collections_api(self) -> dict:
         last_payload: dict = {}
