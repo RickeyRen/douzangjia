@@ -77,7 +77,7 @@ async def test_resume_finalizes_part_when_range_starts_at_current_remote_end(
 ) -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Range"] == "bytes=3-"
-        return httpx.Response(416, headers={"Content-Range": "bytes */3"})
+        return httpx.Response(416, headers={"Content-Range": "*/3"})
 
     snapshots: list[DownloadProgressSnapshot] = []
 

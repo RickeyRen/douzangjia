@@ -17,7 +17,7 @@ from .storage import ObjectStore
 
 _CONTENT_RANGE_TOTAL = re.compile(r"bytes\s+\d+-\d+/(\d+|\*)", re.IGNORECASE)
 _CONTENT_RANGE_UNSATISFIED_TOTAL = re.compile(
-    r"bytes\s+\*/(\d+)", re.IGNORECASE
+    r"(?:bytes\s+)?\*/(\d+)", re.IGNORECASE
 )
 
 
