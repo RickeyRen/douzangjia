@@ -109,6 +109,56 @@ class ArchiveBatchRepository:
         row = await self.db.fetchone("SELECT COUNT(*) AS total FROM archive_batches")
         return int(row["total"]) if row is not None else 0
 
+    async def refresh_batch(self, batch_id: int) -> ArchiveBatch | None:
+        batch = await self.get_batch(batch_id)
+        if batch is None:
+            return None
+        rows = await self.db.fetchall(
+            "SELECT bi.item_id, j.status AS job_status, "
+            "COALESCE((SELECT SUM(CASE WHEN mf.status='ready' "
+            "THEN COALESCE(mf.byte_size, mf.downloaded_bytes) "
+            "ELSE mf.downloaded_bytes END) FROM media_files mf "
+            "WHERE mf.item_id=bi.item_id), 0) AS downloaded_bytes, "
+            "EXISTS(SELECT 1 FROM media_files ready WHERE ready.item_id=bi.item_id "
+            "AND ready.status='ready') AS has_ready_media "
+            "FROM archive_batch_items bi LEFT JOIN download_jobs j ON j.id=bi.job_id "
+            "WHERE bi.batch_id=?",
+            (batch_id,),
+        )
+        completed = sum(
+            1
+            for row in rows
+            if row["job_status"] == "completed" or bool(row["has_ready_media"])
+        )
+        failed = sum(1 for row in rows if row["job_status"] == "failed")
+        downloaded_bytes = sum(int(row["downloaded_bytes"]) for row in rows)
+        if batch.status in {"paused", "cancelled"}:
+            status = batch.status
+        elif not rows or completed == len(rows):
+            status = "completed"
+        elif failed == len(rows):
+            status = "failed"
+        else:
+            status = "running"
+        now = int(time.time())
+        finished_at = now if status in {"completed", "failed", "cancelled"} else None
+        await self.db.execute(
+            "UPDATE archive_batches SET status=?, discovered_count=?, "
+            "completed_count=?, failed_count=?, downloaded_bytes=?, "
+            "updated_at=?, finished_at=? WHERE id=?",
+            (
+                status,
+                len(rows),
+                completed,
+                failed,
+                downloaded_bytes,
+                now,
+                finished_at,
+                batch_id,
+            ),
+        )
+        return await self.get_batch(batch_id)
+
     async def upsert_subscription(
         self,
         creator_id: str,
