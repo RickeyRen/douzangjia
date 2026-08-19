@@ -800,12 +800,19 @@ class PlaywrightDouyinSource:
                 }
                 return null;
               };
-              const records = [];
-              for (const id of ids) {
-                const record = await fetchOne(id);
-                if (record) records.push(record);
-              }
-              return {status_code: 0, aweme_list: records};
+              const records = new Array(ids.length).fill(null);
+              let nextIndex = 0;
+              const worker = async () => {
+                while (nextIndex < ids.length) {
+                  const index = nextIndex;
+                  nextIndex += 1;
+                  records[index] = await fetchOne(ids[index]);
+                }
+              };
+              const workerCount = Math.min(4, ids.length);
+              const workers = Array.from({length: workerCount}, () => worker());
+              await Promise.all(workers);
+              return {status_code: 0, aweme_list: records.filter(Boolean)};
             }
             """,
                     {"ids": item_ids, "path": self.DETAIL_PATH},

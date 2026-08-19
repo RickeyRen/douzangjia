@@ -553,6 +553,8 @@ async def test_item_detail_fetch_retries_a_truncated_json_response() -> None:
             assert "__yingcangFetchDetails" in script
             assert "JSON.parse(await response.text())" in script
             assert "for (let attempt = 0; attempt < 3; attempt += 1)" in script
+            assert "const workerCount = Math.min(4, ids.length)" in script
+            assert "await Promise.all(workers)" in script
             self.calls += 1
             if self.calls < 3:
                 raise RuntimeError("Unexpected end of JSON input")
