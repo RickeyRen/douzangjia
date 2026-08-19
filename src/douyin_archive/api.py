@@ -17,6 +17,7 @@ from .browser_profile import BrowserProfileStore
 from .browser_socket import handle_browser_socket
 from .config import Settings
 from .db import Database
+from .library_repository import LibraryRepository
 from .repositories import ArchiveRepository, JobRepository
 from .security import CookieCipher, PasswordHasher
 from .session_auth import SessionCodec
@@ -123,6 +124,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         await owned_database.open()
         application.state.database = owned_database
         application.state.archive_repository = ArchiveRepository(owned_database)
+        application.state.library_repository = LibraryRepository(owned_database)
         application.state.job_repository = JobRepository(owned_database)
         browser_coordinator = BrowserCoordinator(BrowserProfileStore(settings.archive_root))
         application.state.browser_coordinator = browser_coordinator
@@ -466,10 +468,12 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     from .routes.feed import router as feed_router
     from .routes.jobs import router as jobs_router
+    from .routes.library import router as library_router
     from .routes.media import router as media_router
 
     app.include_router(feed_router)
     app.include_router(jobs_router)
+    app.include_router(library_router)
     app.include_router(media_router)
 
     if settings.web_dist is not None and (settings.web_dist / "index.html").is_file():
