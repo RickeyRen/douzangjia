@@ -239,17 +239,20 @@ class PlaywrightDouyinSource:
     ) -> dict[str, int]:
         if not expected_names:
             return {}
+        counts: dict[str, int] = {}
         try:
-            await self._click_text_candidates(("收藏", "收藏夹"))
-            await self._page.wait_for_timeout(800)
-            page_text = await self._page.locator("body").inner_text(timeout=5_000)
+            for _ in range(8):
+                await self._click_text_candidates(("收藏", "收藏夹"))
+                await self._page.wait_for_timeout(800)
+                page_text = await self._page.locator("body").inner_text(timeout=5_000)
+                counts.update(_parse_collection_counts(page_text, expected_names))
+                if len(counts) == len(expected_names):
+                    break
         except Exception as error:  # noqa: BLE001 - best-effort UI fallback
             logger.warning(
                 "Douyin collection count fallback unavailable error_type=%s",
                 type(error).__name__,
             )
-            return {}
-        counts = _parse_collection_counts(page_text, expected_names)
         logger.warning(
             "Douyin collection count fallback matched=%s expected=%s",
             len(counts),

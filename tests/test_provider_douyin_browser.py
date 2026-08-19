@@ -185,6 +185,50 @@ def test_dom_counts_fill_missing_api_counts_without_overwriting_api_values() -> 
     assert enriched["collects_list"][1]["aweme_count"] == 2
 
 
+async def test_collection_count_fallback_waits_for_the_folder_view_to_render() -> None:
+    class BodyLocator:
+        def __init__(self) -> None:
+            self.reads = 0
+
+        async def inner_text(self, *, timeout: int) -> str:
+            assert timeout == 5_000
+            self.reads += 1
+            if self.reads == 1:
+                return "收藏夹加载中"
+            return "想去的地方\n共19作品"
+
+    class DelayedFolderPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.body = BodyLocator()
+            self.waits: list[int] = []
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            self.waits.append(milliseconds)
+
+        def locator(self, selector: str) -> BodyLocator:
+            assert selector == "body"
+            return self.body
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = DelayedFolderPage()
+    source._page = page
+    click_attempts = 0
+
+    async def record_clicks(labels: tuple[str, ...]) -> None:
+        nonlocal click_attempts
+        assert labels == ("收藏", "收藏夹")
+        click_attempts += 1
+
+    source._click_text_candidates = record_clicks  # type: ignore[method-assign]
+
+    counts = await source._read_collection_counts_from_page(("想去的地方",))
+
+    assert counts == {"想去的地方": 19}
+    assert click_attempts == 2
+    assert page.waits == [800, 800]
+
+
 async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:
     class FlatFavoritesPage(FakePage):
         def __init__(self) -> None:
