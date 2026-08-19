@@ -109,6 +109,56 @@ class ArchiveBatchRepository:
         row = await self.db.fetchone("SELECT COUNT(*) AS total FROM archive_batches")
         return int(row["total"]) if row is not None else 0
 
+    async def list_batches(self, *, limit: int = 50) -> list[ArchiveBatch]:
+        rows = await self.db.fetchall(
+            "SELECT b.*, COUNT(bi.item_id) AS total_items "
+            "FROM archive_batches b LEFT JOIN archive_batch_items bi ON bi.batch_id=b.id "
+            "GROUP BY b.id ORDER BY b.id DESC LIMIT ?",
+            (limit,),
+        )
+        return [self._batch(row) for row in rows]
+
+    async def control_batch(self, batch_id: int, action: str) -> ArchiveBatch | None:
+        batch = await self.get_batch(batch_id)
+        if batch is None:
+            return None
+        now = int(time.time())
+        if action == "pause":
+            if batch.status not in {"queued", "discovering", "running"}:
+                raise ValueError("batch cannot be paused")
+            await self.db.execute(
+                "UPDATE download_jobs SET status='paused', paused_at=?, updated_at=? "
+                "WHERE id IN (SELECT job_id FROM archive_batch_items WHERE batch_id=?) "
+                "AND status IN ('pending', 'retry')",
+                (now, now, batch_id),
+            )
+            await self.set_status(batch_id, "paused")
+        elif action == "resume":
+            if batch.status != "paused":
+                raise ValueError("batch is not paused")
+            await self.db.execute(
+                "UPDATE download_jobs SET status='pending', paused_at=NULL, "
+                "next_attempt_at=?, updated_at=? WHERE id IN "
+                "(SELECT job_id FROM archive_batch_items WHERE batch_id=?) "
+                "AND status='paused'",
+                (now, now, batch_id),
+            )
+            await self.set_status(batch_id, "running")
+        elif action == "cancel":
+            if batch.status in {"completed", "failed", "cancelled"}:
+                raise ValueError("batch cannot be cancelled")
+            await self.db.execute(
+                "UPDATE download_jobs SET status='cancelled', cancel_requested_at=?, "
+                "updated_at=? WHERE id IN "
+                "(SELECT job_id FROM archive_batch_items WHERE batch_id=?) "
+                "AND status IN ('pending', 'retry', 'paused')",
+                (now, now, batch_id),
+            )
+            await self.set_status(batch_id, "cancelled")
+        else:
+            raise ValueError("unknown batch action")
+        return await self.refresh_batch(batch_id)
+
     async def refresh_batch(self, batch_id: int) -> ArchiveBatch | None:
         batch = await self.get_batch(batch_id)
         if batch is None:
