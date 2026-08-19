@@ -84,6 +84,7 @@ export const zhCN = {
   searchHint: "输入作者、作品描述或抖音作品编号。关闭后会保留当前筛选结果。",
   playVideo: "播放视频",
   pauseVideo: "暂停视频",
+  mediaControls: "作品操作",
   soundOn: "打开声音",
   muteVideo: "静音",
   showCollections: "查看收藏夹",

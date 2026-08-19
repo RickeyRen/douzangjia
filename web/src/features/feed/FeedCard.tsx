@@ -1,4 +1,4 @@
-import { FolderSimple, Info, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
+import { FolderSimple, Info, Pause, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 import type { FeedItem } from "../../app/api";
@@ -49,8 +49,8 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
         ) : (
           <>
             <video ref={video} className="archive-media-element" src={item.media[0].url} muted={muted} loop playsInline preload={active ? "metadata" : "none"} onTimeUpdate={updateProgress} onLoadedMetadata={updateProgress} />
-            <button type="button" onClick={togglePlayback} aria-label={playing ? t("pauseVideo") : t("playVideo")} className="archive-playback-hitarea">
-              {!playing ? <span className="archive-playback-icon"><Play size={27} weight="fill" /></span> : null}
+            <button type="button" onClick={togglePlayback} aria-label={playing ? t("pauseVideo") : t("playVideo")} className={`archive-playback-hitarea${playing ? " is-playing" : ""}`}>
+              <span className="archive-playback-icon">{playing ? <Pause size={24} weight="fill" /> : <Play size={27} weight="fill" />}</span>
             </button>
           </>
         )}
@@ -61,7 +61,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
           <p className="mobile-media-source">{t("from")} {collection} · {t("localOriginal")}</p>
         </div>
 
-        <div className="mobile-media-actions">
+        <div role="toolbar" aria-label={t("mediaControls")} className="mobile-media-actions media-control-toolbar">
           {item.type === "video" && item.media.length > 0 ? <MediaAction label={muted ? t("soundOn") : t("muteVideo")} onClick={() => setMuted((current) => !current)} icon={muted ? <SpeakerSlash size={22} /> : <SpeakerHigh size={22} />} /> : null}
           <MediaAction label={t("showCollections")} onClick={onOpenCollections} icon={<FolderSimple size={22} />} />
           <MediaAction label={t("itemInformation")} onClick={() => onOpenDetails?.(item)} icon={<Info size={22} />} />

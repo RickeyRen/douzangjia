@@ -54,3 +54,14 @@ it("does not expose a dead sound control for image galleries", () => {
 
   expect(screen.queryByRole("button", { name: "打开声音" })).not.toBeInTheDocument();
 });
+
+it("exposes post controls as a labelled toolbar", () => {
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  render(<FeedCard item={item} active />);
+
+  const controls = screen.getByRole("toolbar", { name: "作品操作" });
+  expect(controls).toBeVisible();
+  expect(controls).toContainElement(screen.getByRole("button", { name: "打开声音" }));
+  expect(controls).toContainElement(screen.getByRole("button", { name: "查看收藏夹" }));
+  expect(controls).toContainElement(screen.getByRole("button", { name: "作品信息" }));
+});

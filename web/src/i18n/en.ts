@@ -84,6 +84,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   searchHint: "Search by creator, description, or Douyin post ID. Closing keeps the current filter.",
   playVideo: "Play video",
   pauseVideo: "Pause video",
+  mediaControls: "Post controls",
   soundOn: "Turn sound on",
   muteVideo: "Mute",
   showCollections: "View collections",
