@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useRef, useState } from "reac
 import { fetchCollections, fetchFeed, type Collection, type FeedItem } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
+import { ThemeToggle } from "../../theme/ThemeToggle";
 import { CollectionRail } from "../navigation/CollectionRail";
 import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
@@ -175,6 +176,7 @@ export function FeedPage() {
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
             </label>
+            <ThemeToggle />
             <FriendlyIconButton label={t("searchArchive")} onClick={() => setSearchOpen(true)} className="archive-mobile-search">
               <MagnifyingGlass size={21} weight="bold" />
             </FriendlyIconButton>

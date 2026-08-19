@@ -26,7 +26,12 @@ it("pauses, resumes, unmutes, and opens details with touch controls", async () =
   const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
   const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
   const onOpenDetails = vi.fn();
-  render(<FeedCard item={item} active onOpenDetails={onOpenDetails} />);
+  const view = render(<FeedCard item={item} active onOpenDetails={onOpenDetails} />);
+
+  expect(view.container.querySelector("[data-testid='feed-card-active']")).toHaveClass(
+    "archive-media-stage",
+  );
+  expect(view.container.querySelector(".archive-media-frame")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "暂停视频" }));
   expect(pause).toHaveBeenCalled();

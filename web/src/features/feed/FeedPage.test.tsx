@@ -1,8 +1,10 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render as renderView, screen, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../app/api";
+import { ThemeProvider } from "../../theme/ThemeProvider";
 import { FeedPage, feedIndexFromTarget, shouldAutoPaginate } from "./FeedPage";
 
 vi.mock("../../app/api", () => ({
@@ -38,6 +40,10 @@ const itemFor = (collection: (typeof collections)[number]) => ({
     },
   ],
 });
+
+function render(ui: ReactElement) {
+  return renderView(<ThemeProvider>{ui}</ThemeProvider>);
+}
 
 describe("FeedPage", () => {
   beforeEach(() => {
@@ -158,6 +164,7 @@ describe("FeedPage", () => {
     expect(details).not.toHaveClass("absolute");
     expect(details).toHaveTextContent("旅行家");
     expect(details).toHaveTextContent("来自 想去的地方");
+    expect(screen.getByRole("button", { name: "切换到亮色主题" })).toBeVisible();
   });
 
   it("opens real download, sync, and settings panels", async () => {
@@ -234,7 +241,7 @@ describe("FeedPage", () => {
     const feed = await screen.findByTestId("archive-feed-root");
     expect(feed).toHaveClass("iphone-feed-shell");
     const navigation = screen.getByRole("navigation", { name: "移动导航" });
-    expect(navigation).toHaveClass("iphone-bottom-nav");
+    expect(navigation).toHaveClass("iphone-bottom-nav", "friendly-mobile-nav");
     expect(within(navigation).getAllByRole("button").every((button) => button.classList.contains("touch-target"))).toBe(true);
   });
 

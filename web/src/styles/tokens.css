@@ -2,28 +2,52 @@
 
 @theme {
   --font-sans: "Geist", "SF Pro Display", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
-  --color-archive-bg: #f7f7f7;
-  --color-archive-surface: #ffffff;
-  --color-archive-accent: #58a84a;
+  --color-archive-bg: #0b0d10;
+  --color-archive-surface: #12161b;
+  --color-archive-accent: #59b98a;
 }
 
-:root {
-  --friendly-bg: #f7f7f7;
-  --friendly-surface: #ffffff;
-  --friendly-ink: #3c3c3c;
-  --friendly-muted: #777777;
-  --friendly-border: #e5e5e5;
-  --friendly-border-strong: #d2d2d2;
-  --friendly-green: #58a84a;
-  --friendly-green-dark: #3e8535;
-  --friendly-green-soft: #edf7ea;
-  --friendly-blue: #2f9ed5;
-  --friendly-blue-dark: #247da9;
-  --friendly-blue-soft: #edf7fc;
-  --friendly-amber: #d88920;
-  --friendly-amber-soft: #fff6e7;
-  --friendly-red: #d95454;
-  --friendly-red-dark: #ab3e3e;
-  --friendly-red-soft: #fff0f0;
-  --friendly-stage: #202326;
+:root,
+:root[data-theme="dark"] {
+  --app-bg: #0b0d10;
+  --app-surface: #12161b;
+  --app-surface-raised: #171b21;
+  --app-stage: #0e1216;
+  --app-text: #f2f3f5;
+  --app-muted: #8d949e;
+  --app-faint: #626a74;
+  --app-line: #252a31;
+  --app-line-strong: #343a43;
+  --app-accent: #59b98a;
+  --app-accent-contrast: #07130d;
+  --app-accent-soft: rgb(89 185 138 / 11%);
+  --app-warning: #d9a354;
+  --app-warning-soft: rgb(217 163 84 / 12%);
+  --app-danger: #d76b6b;
+  --app-danger-soft: rgb(215 107 107 / 12%);
+  --app-overlay: rgb(4 6 8 / 72%);
+  --app-media-overlay: rgb(8 10 12 / 78%);
+  --app-control-hover: rgb(255 255 255 / 5%);
+}
+
+:root[data-theme="light"] {
+  --app-bg: #f4f5f6;
+  --app-surface: #ffffff;
+  --app-surface-raised: #ffffff;
+  --app-stage: #171b20;
+  --app-text: #272a2e;
+  --app-muted: #717780;
+  --app-faint: #9ba0a7;
+  --app-line: #dee1e5;
+  --app-line-strong: #c9cdd2;
+  --app-accent: #4e9e78;
+  --app-accent-contrast: #ffffff;
+  --app-accent-soft: rgb(78 158 120 / 10%);
+  --app-warning: #b97d2e;
+  --app-warning-soft: rgb(185 125 46 / 10%);
+  --app-danger: #c45656;
+  --app-danger-soft: rgb(196 86 86 / 10%);
+  --app-overlay: rgb(25 29 34 / 48%);
+  --app-media-overlay: rgb(8 10 12 / 78%);
+  --app-control-hover: rgb(39 42 46 / 5%);
 }

@@ -15,9 +15,9 @@ export function MobileNavigation({ onOpen }: { onOpen: (destination: MobileDesti
   ];
 
   return (
-    <nav aria-label={t("mobileNavigation")} className="iphone-bottom-nav fixed inset-x-0 bottom-0 z-[4] hidden grid-cols-5 border-t border-white/10 bg-[#111419]/94 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] backdrop-blur-xl max-lg:grid">
+    <nav aria-label={t("mobileNavigation")} className="iphone-bottom-nav friendly-mobile-nav">
       {destinations.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" aria-label={label} onClick={() => onOpen(id)} className="touch-target grid min-h-12 place-items-center gap-0.5 rounded-xl px-1 text-[10px] text-[#b1b6bf] transition-[transform,color,background-color] active:scale-[.96] active:bg-white/[.06]">
+        <button key={id} type="button" aria-label={label} onClick={() => onOpen(id)} className="touch-target mobile-navigation-item">
           <Icon size={21} weight="regular" />
           <span>{label}</span>
         </button>
