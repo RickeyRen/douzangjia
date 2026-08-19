@@ -311,6 +311,7 @@ class PlaywrightDouyinSource:
         self._lease: CoordinatorPageLease | None = None
         self._page: Any = None
         self._responses: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
+        self._captured_item_payloads: dict[str, dict[str, Any]] = {}
         self._collection_names: dict[str, str] = {}
         self._observed_paths: deque[str] = deque(maxlen=32)
         self._direct_collections = False
@@ -332,6 +333,7 @@ class PlaywrightDouyinSource:
         if lease is not None:
             await lease.release()
         self._responses = asyncio.Queue()
+        self._captured_item_payloads.clear()
         self._collection_names.clear()
         self._observed_paths.clear()
         self._direct_collections = False
@@ -801,6 +803,14 @@ class PlaywrightDouyinSource:
         )
 
     async def _fetch_aweme_details(self, item_ids: list[str]) -> dict:
+        missing_ids = [
+            item_id for item_id in item_ids if item_id not in self._captured_item_payloads
+        ]
+        if not missing_ids:
+            return {
+                "status_code": 0,
+                "aweme_list": [self._captured_item_payloads[item_id] for item_id in item_ids],
+            }
         last_error: Exception | None = None
         for attempt in range(3):
             try:
@@ -850,10 +860,19 @@ class PlaywrightDouyinSource:
               return {status_code: 0, aweme_list: records.filter(Boolean)};
             }
             """,
-                    {"ids": item_ids, "path": self.DETAIL_PATH},
+                    {"ids": missing_ids, "path": self.DETAIL_PATH},
                 )
                 if isinstance(payload, dict):
-                    return payload
+                    self._remember_item_records(payload)
+                    return {
+                        **payload,
+                        "status_code": 0,
+                        "aweme_list": [
+                            self._captured_item_payloads[item_id]
+                            for item_id in item_ids
+                            if item_id in self._captured_item_payloads
+                        ],
+                    }
                 last_error = TypeError("Douyin item detail response was not an object")
             except Exception as error:  # noqa: BLE001 - browser failures are retryable
                 last_error = error
@@ -1026,9 +1045,11 @@ class PlaywrightDouyinSource:
         parsed = urlsplit(url)
         if parsed.hostname and parsed.hostname.lower().endswith("douyin.com"):
             self._observed_paths.append(parsed.path or "/")
-        if not any(
+        tracked_response = any(
             marker in url for marker in (*self.COLLECTION_PATH_MARKERS, *self.ITEM_PATH_MARKERS)
-        ):
+        )
+        item_response = "/aweme/" in (parsed.path or "")
+        if not tracked_response and not item_response:
             return
         content_type = response.headers.get("content-type", "")
         if "json" not in content_type.lower():
@@ -1039,11 +1060,29 @@ class PlaywrightDouyinSource:
         with suppress(Exception):
             payload = await response.json()
             if isinstance(payload, dict):
+                self._remember_item_records(payload)
                 if any(marker in url for marker in self.COLLECTION_PATH_MARKERS):
                     logger.warning(
                         "Douyin collection response shape=%s", _payload_shape(payload)
                     )
-                await self._responses.put((url, payload))
+                if tracked_response:
+                    await self._responses.put((url, payload))
+
+    def _remember_item_records(self, payload: dict[str, Any]) -> None:
+        containers = [payload]
+        data = payload.get("data")
+        if isinstance(data, dict):
+            containers.append(data)
+        for container in containers:
+            records = container.get("aweme_list", [])
+            if not isinstance(records, list):
+                continue
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                remote_id = record.get("aweme_id", record.get("aweme_id_str"))
+                if remote_id is not None:
+                    self._captured_item_payloads[str(remote_id)] = record
 
     async def _wait_for(self, markers: tuple[str, ...]) -> dict:
         for _ in range(12):

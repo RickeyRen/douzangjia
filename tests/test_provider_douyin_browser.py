@@ -657,6 +657,23 @@ async def test_item_detail_fetch_retries_a_truncated_json_response() -> None:
     assert page.waits == [500, 1_000]
 
 
+async def test_item_detail_fetch_reuses_records_captured_from_the_official_ui() -> None:
+    class NoDetailRequestPage(FakePage):
+        async def evaluate(self, script: str, arguments=None):
+            raise AssertionError("captured UI records must avoid duplicate detail requests")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = NoDetailRequestPage()
+    source._captured_item_payloads["734"] = {
+        "aweme_id": "734",
+        "author": {"nickname": "作者"},
+    }
+
+    payload = await source._fetch_aweme_details(["734"])
+
+    assert payload["aweme_list"] == [source._captured_item_payloads["734"]]
+
+
 async def test_provider_incremental_account_source_stops_at_known_streak() -> None:
     class RawAccountSource:
         async def fetch_collections(self) -> dict:
