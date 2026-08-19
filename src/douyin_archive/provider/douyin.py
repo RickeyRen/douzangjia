@@ -481,6 +481,8 @@ class PlaywrightDouyinSource:
             timeout=45_000,
         )
         await self._page.wait_for_timeout(1_000)
+        await self._click_text_candidates(("音乐",))
+        await self._page.wait_for_timeout(500)
         seen: set[str] = set()
         stable_rounds = 0
         order = 0

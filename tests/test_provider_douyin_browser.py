@@ -460,17 +460,38 @@ async def test_additional_account_sources_use_stable_official_urls(
 
 
 async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
+    class MusicCandidate:
+        async def count(self) -> int:
+            return 1
+
+        def nth(self, index: int):
+            assert index == 0
+            return self
+
+        async def is_visible(self, *, timeout: int) -> bool:
+            return True
+
+        async def click(self, *, timeout: int) -> None:
+            return None
+
     class MusicPage(FakePage):
         def __init__(self) -> None:
             super().__init__()
             self.goto_urls: list[str] = []
             self.reads = 0
+            self.music_click_queries = 0
 
         async def goto(self, url: str, **kwargs) -> None:
             self.goto_urls.append(url)
 
         async def wait_for_timeout(self, milliseconds: int) -> None:
             return None
+
+        def get_by_text(self, label: str, *, exact: bool) -> MusicCandidate:
+            assert label == "音乐"
+            assert exact is True
+            self.music_click_queries += 1
+            return MusicCandidate()
 
         async def evaluate(self, script: str, arguments=None):
             if "__yingcangVisibleMusicEntities" in script:
@@ -501,6 +522,7 @@ async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
 
     assert provider.supported_account_entity_sources() == ("favorite_music",)
     assert page.goto_urls == [source.FAVORITE_MUSIC_URL]
+    assert page.music_click_queries == 1
     assert len(pages) == 1
     assert len(pages[0].entities) == 1
     entity = pages[0].entities[0]
