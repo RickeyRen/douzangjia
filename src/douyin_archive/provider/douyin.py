@@ -1093,7 +1093,8 @@ class PlaywrightDouyinSource:
                 )
 
     async def _activate_profile_tab(self, labels: tuple[str, ...]) -> None:
-        for _ in range(12):
+        state: object = "missing"
+        for _ in range(40):
             state = await self._page.evaluate(
                 """
                 ({labels}) => { // __yingcangActivateProfileTab
@@ -1126,6 +1127,9 @@ class PlaywrightDouyinSource:
             if state == "active":
                 return
             await self._page.wait_for_timeout(500 if state == "clicked" else 250)
+        logger.warning(
+            "Douyin profile tab activation failed labels=%s state=%s", labels, state
+        )
         raise ProviderChanged("Douyin account source tab did not become active")
 
     async def _open_collection(self, remote_id: str) -> None:

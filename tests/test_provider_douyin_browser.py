@@ -529,6 +529,38 @@ async def test_account_source_refuses_to_scan_when_the_expected_tab_is_missing()
         _ = [page async for page in source.iter_account_raw_pages("like")]
 
 
+async def test_account_source_waits_for_a_slow_official_tab_render() -> None:
+    class DelayedTabPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.activation_reads = 0
+
+        async def goto(self, url: str, **kwargs) -> None:
+            return None
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                self.activation_reads += 1
+                return "active" if self.activation_reads >= 20 else "missing"
+            if "__yingcangVisibleAccountIds" in script:
+                return []
+            if "__yingcangScrollAccountPanel" in script:
+                return True
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = DelayedTabPage()
+    source._page = page
+
+    pages = [page async for page in source.iter_account_raw_pages("watch_history")]
+
+    assert pages == []
+    assert page.activation_reads == 20
+
+
 async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
     class MusicPage(FakePage):
         def __init__(self) -> None:
