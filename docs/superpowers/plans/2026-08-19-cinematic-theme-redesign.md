@@ -1,6 +1,6 @@
 # “留影”电影资料库式暗亮主题实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将已修复布局的“留影”改为暗色默认、可持久切换亮色的电影资料库式界面。
 
@@ -29,11 +29,11 @@
 - Modify: `web/src/i18n/zh-CN.ts`
 - Modify: `web/src/i18n/en.ts`
 
-- [ ] Write tests that expect default `data-theme="dark"`, toggle to light, `liuying.theme.v1=light`, remount recovery, and an accessible toggle label.
-- [ ] Run `npm test -- --run src/theme/ThemeProvider.test.tsx` and confirm RED because the theme modules do not exist.
-- [ ] Implement `ThemeProvider`, `useTheme`, `ThemeToggle`, and a pre-render inline initializer in `index.html`.
-- [ ] Add matching Chinese/English labels for switching to light/dark theme.
-- [ ] Run the targeted test and ESLint; commit `feat: add persistent archive themes`.
+- [x] Write tests that expect default `data-theme="dark"`, toggle to light, `liuying.theme.v1=light`, remount recovery, and an accessible toggle label.
+- [x] Run `npm test -- --run src/theme/ThemeProvider.test.tsx` and confirm RED because the theme modules do not exist.
+- [x] Implement `ThemeProvider`, `useTheme`, `ThemeToggle`, and a pre-render inline initializer in `index.html`.
+- [x] Add matching Chinese/English labels for switching to light/dark theme.
+- [x] Run the targeted test and ESLint; commit `feat: add persistent archive themes`.
 
 ### Task 2: 暗色优先 token 与桌面外壳
 
@@ -47,11 +47,11 @@
 - Modify: `web/src/features/feed/DesktopItemDetails.tsx`
 - Test: existing component and feed tests
 
-- [ ] Extend the desktop test to require a theme toggle in the toolbar while retaining flow-grid landmarks.
-- [ ] Confirm RED on the missing toggle.
-- [ ] Replace candy/physical CSS variables with spec `--app-*` variables and subtle 1px control borders.
-- [ ] Add `ThemeToggle` to the normal-flow top toolbar and make rail/details use open dividers rather than raised toy cards.
-- [ ] Run component/feed tests and ESLint; commit `feat: apply cinematic desktop theme`.
+- [x] Extend the desktop test to require a theme toggle in the toolbar while retaining flow-grid landmarks.
+- [x] Confirm RED on the missing toggle.
+- [x] Replace candy/physical CSS variables with spec `--app-*` variables and subtle 1px control borders.
+- [x] Add `ThemeToggle` to the normal-flow top toolbar and make rail/details use open dividers rather than raised toy cards.
+- [x] Run component/feed tests and ESLint; commit `feat: apply cinematic desktop theme`.
 
 ### Task 3: 媒体舞台和移动端
 
@@ -62,9 +62,9 @@
 - Modify: `web/src/styles/app.css`
 - Test: `FeedCard.test.tsx`, `FeedPage.test.tsx`
 
-- [ ] Keep the existing RED assertions for `archive-media-stage`, `archive-media-frame`, and `friendly-mobile-nav`.
-- [ ] Implement desktop contained media, mobile snap-height geometry, semantic overlays and theme-aware bottom navigation.
-- [ ] Preserve and run video play/pause, mute, gallery and mobile reachability tests; commit `feat: theme cinematic media browsing`.
+- [x] Keep the existing RED assertions for `archive-media-stage`, `archive-media-frame`, and `friendly-mobile-nav`.
+- [x] Implement desktop contained media, mobile snap-height geometry, semantic overlays and theme-aware bottom navigation.
+- [x] Preserve and run video play/pause, mute, gallery and mobile reachability tests; commit `feat: theme cinematic media browsing`.
 
 ### Task 4: 工具面板和下载详情
 
@@ -72,10 +72,10 @@
 - Modify: `ArchiveStatusPanel.tsx`, `DownloadMonitor.tsx`, `ItemDetailsSheet.tsx`, `MobileSearchSheet.tsx`, collection drawer markup
 - Test: status and feed tests
 
-- [ ] Add a RED class contract for the theme-aware utility drawer while keeping real byte/speed/ETA assertions.
-- [ ] Convert overlays, tabs, status rows, progress bars, sync/settings and search/detail drawers to semantic theme tokens.
-- [ ] Remove gradients and glass blur; preserve polling and all interactions.
-- [ ] Run targeted tests and commit `feat: theme archive utility surfaces`.
+- [x] Add a RED class contract for the theme-aware utility drawer while keeping real byte/speed/ETA assertions.
+- [x] Convert overlays, tabs, status rows, progress bars, sync/settings and search/detail drawers to semantic theme tokens.
+- [x] Remove gradients and glass blur; preserve polling and all interactions.
+- [x] Run targeted tests and commit `feat: theme archive utility surfaces`.
 
 ### Task 5: 登录、初始设置和全局状态
 
@@ -83,16 +83,16 @@
 - Modify: `App.tsx`, `SetupPage.tsx`, `LocalLoginPage.tsx`, `DouyinLoginPage.tsx`
 - Test: existing auth/setup suites plus shell class contracts
 
-- [ ] Add RED theme-shell expectations without changing remote-browser behavior assertions.
-- [ ] Apply semantic surfaces, labeled fields, inline errors and theme toggle placement where authentication permits.
-- [ ] Re-run canvas, pointer, key and setup/session tests; commit `feat: theme archive onboarding`.
+- [x] Add RED theme-shell expectations without changing remote-browser behavior assertions.
+- [x] Apply semantic surfaces, labeled fields, inline errors and theme toggle placement where authentication permits.
+- [x] Re-run canvas, pointer, key and setup/session tests; commit `feat: theme archive onboarding`.
 
 ### Task 6: 全量验证、视觉对比和 NAS 部署
 
-- [ ] Run full Vitest, ESLint and Vite build.
-- [ ] Serve an isolated local QA archive and use Playwright fallback because Browser bootstrap returned `agent is not defined`.
-- [ ] Capture both themes at 1440x1000 plus dark mobile 430x932, and verify 1280x800, 1024x768, 393x852, 932x430 without overflow.
-- [ ] Exercise theme persistence, collection switch, video play/pause, mobile navigation, download expansion and panel close.
-- [ ] Use `view_image` on both concept images and final dark/light/mobile screenshots; fix all material mismatch-ledger findings.
-- [ ] Run fresh full verification, create checkpoint commit and annotated `checkpoint/cinematic-theme-ui-20260819` tag.
+- [x] Run full Vitest, ESLint and Vite build.
+- [x] Serve an isolated local QA archive and use Playwright fallback because Browser bootstrap returned `agent is not defined`.
+- [x] Capture both themes at 1440x1000 plus dark mobile 430x932, and verify 1280x800, 1024x768, 393x852, 932x430 without overflow.
+- [x] Exercise theme persistence, collection switch, video play/pause, mobile navigation, download expansion and panel close.
+- [x] Use `view_image` on both concept images and final dark/light/mobile screenshots; fix all material mismatch-ledger findings.
+- [x] Run fresh full verification, create checkpoint commit and annotated `checkpoint/cinematic-theme-ui-20260819` tag.
 - [ ] Sync source with protected exclusions, rebuild only NAS archive service, then verify health, login preservation, asset hashes, real jobs API and clean recent logs.
