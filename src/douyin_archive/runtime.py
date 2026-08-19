@@ -18,7 +18,7 @@ from .db import Database
 from .downloader import MediaDownloader
 from .provider.base import SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
-from .repositories import ArchiveRepository, JobRepository
+from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
 from .scheduler import configure_scheduler
 from .storage import CollectionProjector, ObjectStore
 from .sync_service import SyncResult, SyncService
@@ -164,10 +164,10 @@ class ArchiveRuntime:
                 "Referer": "https://www.douyin.com/",
             },
         )
-        store = ObjectStore(settings.archive_root)
+        self.store = ObjectStore(settings.archive_root)
         handler = ArchiveJobHandler(
             database,
-            MediaDownloader(store, self.http),
+            MediaDownloader(self.store, self.http),
             CollectionProjector(settings.archive_root),
             archive_root=settings.archive_root,
         )
@@ -184,6 +184,7 @@ class ArchiveRuntime:
 
         await recover_interrupted_sync_runs(self.database)
         await self.jobs.recover_stale_running(older_than_seconds=0)
+        await DownloadProgressRepository(self.database).backfill_parts(self.store)
         await self.browser_coordinator.start()
         self.auth_service.on_authenticated = self._initial_sync
         self._worker_tasks = [

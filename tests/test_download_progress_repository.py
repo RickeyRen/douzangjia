@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 from douyin_archive.db import Database
 from douyin_archive.models import MediaAsset
 from douyin_archive.repositories import DownloadProgressRepository
+from douyin_archive.storage import ObjectStore
 
 
 async def _insert_item(database: Database) -> None:
@@ -68,4 +70,44 @@ async def test_prepare_preserves_a_ready_media_file(tmp_path: Path) -> None:
     assert row.relative_path == "objects/734/000.mp4"
     assert row.downloaded_bytes == 10
     assert row.total_bytes == 10
+    await database.close()
+
+
+async def test_backfill_restores_existing_part_before_job_retries(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "data" / "archive.sqlite3")
+    await database.open()
+    await _insert_item(database)
+    payload = {
+        "assets": [
+            {
+                "remote_id": "734",
+                "asset_index": 0,
+                "media_type": "video",
+                "url": "https://media.test/734",
+                "mime_type": "video/mp4",
+                "expected_size": 10,
+            }
+        ]
+    }
+    await database.execute(
+        "INSERT INTO download_jobs "
+        "(kind, remote_id, payload_json, status, attempts, next_attempt_at, "
+        "created_at, updated_at) VALUES ('download', '734', ?, 'retry', 1, 99, 1, 1)",
+        (json.dumps(payload),),
+    )
+    store = ObjectStore(tmp_path)
+    part = store.part_path("734", "000.mp4")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    part.write_bytes(b"abc")
+
+    restored = await DownloadProgressRepository(database).backfill_parts(store)
+    progress = (await DownloadProgressRepository(database).get_for_item("734"))[0]
+
+    assert restored == 1
+    assert progress.status == "pending"
+    assert progress.downloaded_bytes == 3
+    assert progress.total_bytes == 10
+    assert progress.speed_bps == 0
     await database.close()

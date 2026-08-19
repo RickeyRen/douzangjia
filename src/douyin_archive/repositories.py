@@ -6,6 +6,8 @@ from typing import Any
 
 from .db import Database
 from .models import Collection, DownloadJob, MediaAsset, MediaProgress, RemoteItem
+from .paths import asset_filename
+from .storage import ObjectStore
 
 
 class ArchiveRepository:
@@ -310,3 +312,51 @@ class DownloadProgressRepository:
             "SELECT * FROM media_files WHERE item_id=? ORDER BY asset_index", (item_id,)
         )
         return [MediaProgress.from_row(row) for row in rows]
+
+    async def backfill_parts(self, store: ObjectStore) -> int:
+        """Restore visible progress from durable files before workers resume."""
+        rows = await self.db.fetchall(
+            "SELECT payload_json FROM download_jobs "
+            "WHERE kind='download' AND status != 'completed'"
+        )
+        restored = 0
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"])
+                assets = payload.get("assets", ())
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                continue
+            for value in assets:
+                try:
+                    expected_size = value.get("expected_size")
+                    asset = MediaAsset(
+                        remote_id=str(value["remote_id"]),
+                        asset_index=int(value["asset_index"]),
+                        media_type=str(value["media_type"]),
+                        url=str(value["url"]),
+                        mime_type=(
+                            str(value["mime_type"])
+                            if value.get("mime_type")
+                            else None
+                        ),
+                        expected_size=(
+                            int(expected_size) if expected_size is not None else None
+                        ),
+                    )
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    continue
+                filename = asset_filename(
+                    asset.asset_index, asset.media_type, asset.mime_type
+                )
+                object_file = store.object_path(asset.remote_id, filename)
+                part_file = store.part_path(asset.remote_id, filename)
+                downloaded_bytes = (
+                    object_file.stat().st_size
+                    if object_file.is_file()
+                    else part_file.stat().st_size
+                    if part_file.is_file()
+                    else 0
+                )
+                await self.prepare_asset(asset, downloaded_bytes=downloaded_bytes)
+                restored += 1
+        return restored
