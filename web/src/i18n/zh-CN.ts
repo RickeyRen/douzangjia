@@ -47,6 +47,8 @@ export const zhCN = {
   login: "登录",
   invalidCredentials: "密码不正确",
   language: "语言",
+  switchToLightTheme: "切换到亮色主题",
+  switchToDarkTheme: "切换到暗色主题",
   chinese: "中文",
   english: "English",
   openCollections: "打开收藏夹",

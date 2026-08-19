@@ -47,6 +47,8 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   login: "Sign in",
   invalidCredentials: "Incorrect password",
   language: "Language",
+  switchToLightTheme: "Switch to light theme",
+  switchToDarkTheme: "Switch to dark theme",
   chinese: "中文",
   english: "English",
   openCollections: "Open collections",
