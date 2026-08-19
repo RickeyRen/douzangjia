@@ -454,27 +454,30 @@ class PlaywrightDouyinSource:
         for labels in self.ACCOUNT_SOURCE_CLICKS.get(kind, ()):
             await self._activate_profile_tab(labels)
 
-        discovered_ids: list[str] = []
+        nested_links: list[str | None]
         if kind in {"favorite_series", "favorite_drama"}:
             nested_links = await self._visible_nested_links(kind)
-            for nested_link in nested_links:
+        else:
+            nested_links = [None]
+
+        previous_payload: dict[str, object] | None = None
+        total = 0
+        seen_ids: set[str] = set()
+        for nested_link in nested_links:
+            if nested_link is not None:
                 await self._page.goto(
                     nested_link, wait_until="domcontentloaded", timeout=45_000
                 )
                 await self._page.wait_for_timeout(800)
-                discovered_ids.extend(
-                    await self._collect_visible_item_ids(
-                        known_ids=known_ids, full_scan=full_scan
-                    )
-                )
-        else:
-            previous_payload: dict[str, object] | None = None
-            total = 0
             async for batch in self._iter_visible_item_id_batches(
                 known_ids=known_ids, full_scan=full_scan
             ):
-                payload = await self._fetch_aweme_details(batch)
-                total += len(batch)
+                unique_batch = [item_id for item_id in batch if item_id not in seen_ids]
+                if not unique_batch:
+                    continue
+                seen_ids.update(unique_batch)
+                payload = await self._fetch_aweme_details(unique_batch)
+                total += len(unique_batch)
                 current_payload: dict[str, object] = {
                     **payload,
                     "cursor": str(total),
@@ -482,12 +485,8 @@ class PlaywrightDouyinSource:
                 if previous_payload is not None:
                     yield {**previous_payload, "has_more": True}
                 previous_payload = current_payload
-            if previous_payload is not None:
-                yield {**previous_payload, "has_more": False}
-            return
-        discovered_ids = list(dict.fromkeys(discovered_ids))
-        async for payload in self._detail_pages(discovered_ids):
-            yield payload
+        if previous_payload is not None:
+            yield {**previous_payload, "has_more": False}
 
     async def iter_account_raw_entity_pages(
         self, kind: str
