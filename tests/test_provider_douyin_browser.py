@@ -403,6 +403,13 @@ async def test_following_source_uses_official_follow_feed() -> None:
     ("kind", "expected_url"),
     [
         (
+            "recommend",
+            (
+                "https://www.douyin.com/user/self?from_tab_name=main"
+                "&showTab=recommend"
+            ),
+        ),
+        (
             "favorite_series",
             (
                 "https://www.douyin.com/user/self?from_tab_name=main"

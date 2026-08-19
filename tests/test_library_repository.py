@@ -98,6 +98,7 @@ async def test_default_account_sources_are_created_idempotently(
         ("account:following", "following", "关注"),
         ("account:likes", "like", "喜欢"),
         ("account:posts", "post", "作品"),
+        ("account:recommendations", "recommend", "推荐"),
         ("account:reservations", "reservation", "我的预约"),
         ("account:watch_history", "watch_history", "观看历史"),
         ("account:watch_later", "watch_later", "稍后再看"),

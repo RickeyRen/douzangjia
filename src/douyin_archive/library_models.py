@@ -6,6 +6,7 @@ from enum import Enum
 
 class LibrarySourceKind(str, Enum):
     POST = "post"
+    RECOMMEND = "recommend"
     LIKE = "like"
     FAVORITE_COLLECTION = "favorite_collection"
     FAVORITE_VIDEO = "favorite_video"

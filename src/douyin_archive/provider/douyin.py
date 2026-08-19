@@ -256,6 +256,7 @@ class PlaywrightDouyinSource:
     SUPPORTED_ACCOUNT_ENTITY_SOURCES = ("favorite_music",)
     SUPPORTED_ACCOUNT_SOURCES = (
         "post",
+        "recommend",
         "like",
         "favorite_video",
         "favorite_series",
@@ -267,6 +268,7 @@ class PlaywrightDouyinSource:
     )
     ACCOUNT_SOURCE_TABS: ClassVar[dict[str, str]] = {
         "post": "post",
+        "recommend": "recommend",
         "like": "like",
         "favorite_video": "favorite_collection",
         "watch_history": "record",
@@ -284,6 +286,7 @@ class PlaywrightDouyinSource:
     }
     ACCOUNT_SOURCE_CLICKS: ClassVar[dict[str, tuple[tuple[str, ...], ...]]] = {
         "post": (("作品",),),
+        "recommend": (("推荐",),),
         "like": (("喜欢",),),
         "favorite_video": (("收藏",), ("视频", "收藏视频")),
         "watch_history": (("观看历史",),),

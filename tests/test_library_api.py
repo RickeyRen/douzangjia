@@ -88,6 +88,36 @@ def test_library_sources_expose_remote_sync_gap(
     assert source["complete"] is False
 
 
+def test_account_sources_follow_the_official_profile_tab_order(
+    tmp_path: Path, master_key: str
+) -> None:
+    client = build_client(tmp_path, master_key)
+    try:
+        response = client.get("/api/library/sources")
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 200
+    account_kinds = [
+        item["kind"]
+        for item in response.json()["items"]
+        if item["remoteId"] == "self"
+    ]
+    assert account_kinds == [
+        "post",
+        "recommend",
+        "like",
+        "favorite_video",
+        "favorite_music",
+        "favorite_series",
+        "favorite_drama",
+        "watch_history",
+        "watch_later",
+        "reservation",
+        "following",
+    ]
+
+
 def test_library_feed_uses_a_stable_source_cursor(
     tmp_path: Path, master_key: str
 ) -> None:

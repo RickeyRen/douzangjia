@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,61 @@ async def test_schema_creates_archive_batch_and_subscription_tables(
         row["name"] for row in await database.fetchall("PRAGMA table_info(download_jobs)")
     }
     assert {"batch_id", "priority", "paused_at", "cancel_requested_at"} <= job_columns
+
+
+async def test_recommend_source_migration_preserves_existing_memberships(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "upgrade.sqlite3"
+    migration_dir = Path(__file__).parents[1] / "src/douyin_archive/migrations"
+    connection = sqlite3.connect(database_path)
+    connection.execute(
+        "CREATE TABLE schema_migrations "
+        "(version TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)"
+    )
+    for migration in sorted(migration_dir.glob("*.sql")):
+        if migration.name >= "006_recommend_source.sql":
+            break
+        connection.executescript(migration.read_text(encoding="utf-8"))
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?, 1)",
+            (migration.name,),
+        )
+    connection.execute(
+        "INSERT INTO items "
+        "(remote_id, author_name, description, item_type, first_seen_at, last_seen_at) "
+        "VALUES ('existing-item', '作者', '作品', 'video', 1, 1)"
+    )
+    connection.execute(
+        "INSERT INTO library_sources "
+        "(id, kind, remote_id, name, first_seen_at, last_seen_at) "
+        "VALUES ('account:posts', 'post', 'self', '作品', 1, 1)"
+    )
+    connection.execute(
+        "INSERT INTO source_items "
+        "(source_id, item_id, metadata_json, first_seen_at, last_seen_at) "
+        "VALUES ('account:posts', 'existing-item', '{}', 1, 1)"
+    )
+    connection.commit()
+    connection.close()
+
+    database = await Database(database_path).open()
+    try:
+        membership = await database.fetchone(
+            "SELECT item_id FROM source_items WHERE source_id='account:posts'"
+        )
+        foreign_key_errors = await database.fetchall("PRAGMA foreign_key_check")
+        await database.execute(
+            "INSERT INTO library_sources "
+            "(id, kind, remote_id, name, first_seen_at, last_seen_at) "
+            "VALUES ('account:recommendations', 'recommend', 'self', '推荐', 2, 2)"
+        )
+    finally:
+        await database.close()
+
+    assert membership is not None
+    assert membership["item_id"] == "existing-item"
+    assert foreign_key_errors == []
 
 
 async def test_collection_rename_preserves_name_history(database: Database) -> None:

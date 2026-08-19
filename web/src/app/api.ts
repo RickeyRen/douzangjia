@@ -7,7 +7,7 @@ export type Collection = {
 
 export type LibrarySource = {
   id: string;
-  kind: "post" | "like" | "favorite_collection" | "favorite_video" | "favorite_music" | "favorite_series" | "favorite_drama" | "watch_history" | "watch_later" | "reservation" | "following";
+  kind: "post" | "recommend" | "like" | "favorite_collection" | "favorite_video" | "favorite_music" | "favorite_series" | "favorite_drama" | "watch_history" | "watch_later" | "reservation" | "following";
   remoteId: string;
   name: string;
   declaredCount: number | null;

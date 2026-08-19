@@ -28,10 +28,10 @@ def test_dashboard_exposes_professional_nas_and_library_metrics(
         "items": 0,
         "archivedItems": 0,
         "creators": 0,
-        "sources": 10,
+        "sources": 11,
         "completeSources": 0,
         "incompleteSources": 0,
-        "neverSyncedSources": 10,
+        "neverSyncedSources": 11,
         "discoveredLinks": 0,
         "archivedBytes": 0,
     }

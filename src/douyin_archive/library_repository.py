@@ -16,6 +16,7 @@ from .library_models import (
 class LibraryRepository:
     ACCOUNT_SOURCES = (
         ("account:posts", "post", "作品"),
+        ("account:recommendations", "recommend", "推荐"),
         ("account:likes", "like", "喜欢"),
         ("account:favorite_videos", "favorite_video", "收藏视频"),
         ("account:favorite_music", "favorite_music", "收藏音乐"),

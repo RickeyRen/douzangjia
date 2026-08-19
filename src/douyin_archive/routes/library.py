@@ -35,7 +35,13 @@ def _decode_library_cursor(value: str) -> tuple[str | int, str]:
 @router.get("/sources")
 async def sources(request: Request) -> dict[str, object]:
     rows = await request.app.state.database.fetchall(
-        "SELECT * FROM library_sources ORDER BY kind, name, id"
+        "SELECT * FROM library_sources ORDER BY CASE kind "
+        "WHEN 'post' THEN 0 WHEN 'recommend' THEN 1 WHEN 'like' THEN 2 "
+        "WHEN 'favorite_video' THEN 3 WHEN 'favorite_music' THEN 4 "
+        "WHEN 'favorite_series' THEN 5 WHEN 'favorite_drama' THEN 6 "
+        "WHEN 'watch_history' THEN 7 WHEN 'watch_later' THEN 8 "
+        "WHEN 'reservation' THEN 9 WHEN 'following' THEN 10 "
+        "WHEN 'favorite_collection' THEN 20 ELSE 19 END, name, id"
     )
     repository = LibraryRepository(request.app.state.database)
     items: list[dict[str, Any]] = []

@@ -1,4 +1,4 @@
-import { Archive, BookmarkSimple, ChartDonut, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, UserList } from "@phosphor-icons/react";
+import { Archive, BookmarkSimple, ChartDonut, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, Star, UserList } from "@phosphor-icons/react";
 
 import type { Icon } from "@phosphor-icons/react";
 import type { LibrarySource } from "../../app/api";
@@ -8,6 +8,7 @@ export type UtilityPanel = "dashboard" | "downloads" | "sync" | "activity" | "se
 
 const sourceIcons: Partial<Record<LibrarySource["kind"], Icon>> = {
   post: FilmSlate,
+  recommend: Star,
   like: Heart,
   favorite_video: BookmarkSimple,
   watch_history: ClockCounterClockwise,
