@@ -333,6 +333,64 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
     assert page.id_reads >= 3
 
 
+async def test_account_source_streams_discovery_pages_while_scrolling() -> None:
+    class StreamingPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.id_reads = 0
+            self.detail_ids: list[list[str]] = []
+            self.first_ids = [str(700 + index) for index in range(20)]
+            self.second_ids = [str(800 + index) for index in range(20)]
+
+        async def goto(self, url: str, **kwargs) -> None:
+            return None
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                return "active"
+            if "__yingcangVisibleAccountIds" in script:
+                self.id_reads += 1
+                return self.first_ids if self.id_reads == 1 else [
+                    *self.first_ids,
+                    *self.second_ids,
+                ]
+            if "__yingcangScrollAccountPanel" in script:
+                if self.id_reads == 1:
+                    assert self.detail_ids == [self.first_ids]
+                return True
+            if "__yingcangFetchDetails" in script:
+                ids = list(arguments["ids"])
+                self.detail_ids.append(ids)
+                return {
+                    "status_code": 0,
+                    "aweme_list": [
+                        {
+                            "aweme_id": remote_id,
+                            "author": {"nickname": "作者"},
+                            "video": {
+                                "play_addr": {
+                                    "url_list": [f"https://media.test/{remote_id}.mp4"]
+                                }
+                            },
+                        }
+                        for remote_id in ids
+                    ],
+                }
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = StreamingPage()
+    source._page = page
+
+    pages = [page async for page in source.iter_account_raw_pages("like")]
+
+    assert page.detail_ids == [page.first_ids, page.second_ids]
+    assert [len(result["aweme_list"]) for result in pages] == [20, 20]
+
+
 async def test_following_source_uses_official_follow_feed() -> None:
     class FollowingPage(FakePage):
         def __init__(self) -> None:

@@ -468,9 +468,23 @@ class PlaywrightDouyinSource:
                     )
                 )
         else:
-            discovered_ids = await self._collect_visible_item_ids(
+            previous_payload: dict[str, object] | None = None
+            total = 0
+            async for batch in self._iter_visible_item_id_batches(
                 known_ids=known_ids, full_scan=full_scan
-            )
+            ):
+                payload = await self._fetch_aweme_details(batch)
+                total += len(batch)
+                current_payload: dict[str, object] = {
+                    **payload,
+                    "cursor": str(total),
+                }
+                if previous_payload is not None:
+                    yield {**previous_payload, "has_more": True}
+                previous_payload = current_payload
+            if previous_payload is not None:
+                yield {**previous_payload, "has_more": False}
+            return
         discovered_ids = list(dict.fromkeys(discovered_ids))
         async for payload in self._detail_pages(discovered_ids):
             yield payload
@@ -650,7 +664,17 @@ class PlaywrightDouyinSource:
         self, *, known_ids: set[str] | None, full_scan: bool
     ) -> list[str]:
         discovered_ids: list[str] = []
+        async for batch in self._iter_visible_item_id_batches(
+            known_ids=known_ids, full_scan=full_scan
+        ):
+            discovered_ids.extend(batch)
+        return discovered_ids
+
+    async def _iter_visible_item_id_batches(
+        self, *, known_ids: set[str] | None, full_scan: bool
+    ) -> AsyncIterator[list[str]]:
         discovered_set: set[str] = set()
+        pending: list[str] = []
         stable_rounds = 0
         for _ in range(1_000):
             visible_ids = await self._visible_account_item_ids()
@@ -658,16 +682,20 @@ class PlaywrightDouyinSource:
                 visible_ids = self._trim_after_known_streak(visible_ids, known_ids)
             new_ids = [item_id for item_id in visible_ids if item_id not in discovered_set]
             if new_ids:
-                discovered_ids.extend(new_ids)
                 discovered_set.update(new_ids)
+                pending.extend(new_ids)
                 stable_rounds = 0
             else:
                 stable_rounds += 1
+            while len(pending) >= 20:
+                yield pending[:20]
+                del pending[:20]
             if stable_rounds >= 3:
                 break
             await self._scroll_account_panel()
             await self._page.wait_for_timeout(750)
-        return discovered_ids
+        if pending:
+            yield pending
 
     async def _detail_pages(self, discovered_ids: list[str]) -> AsyncIterator[dict]:
         for offset in range(0, len(discovered_ids), 20):
