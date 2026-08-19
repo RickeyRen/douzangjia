@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
@@ -71,13 +72,16 @@ class ArchiveService:
                     "SELECT 1 FROM media_files WHERE item_id=? AND status='ready' LIMIT 1",
                     (item_id,),
                 )
-                if ready is None:
+                if ready is not None:
+                    await self.batches.add_item(batch.id, item_id)
+                    continue
+                payload = await self._synced_payload(item_id)
+                if payload is None:
                     await self.batches.set_status(
                         batch.id, "failed", error_code="ITEM_PAYLOAD_UNAVAILABLE"
                     )
                     raise ArchivePayloadUnavailable(item_id)
-                await self.batches.add_item(batch.id, item_id)
-                continue
+                job = await self.jobs.enqueue_unique("download", item_id, payload)
             if job.status == "failed":
                 job = await self.jobs.enqueue_unique("download", item_id, job.payload)
             await self.db.execute(
@@ -90,3 +94,29 @@ class ArchiveService:
         if refreshed is None:
             raise RuntimeError("archive batch disappeared during expansion")
         return refreshed
+
+    async def _synced_payload(self, item_id: str) -> dict[str, object] | None:
+        rows = await self.db.fetchall(
+            "SELECT metadata_json FROM source_items WHERE item_id=? "
+            "ORDER BY last_seen_at DESC, source_id",
+            (item_id,),
+        )
+        for row in rows:
+            try:
+                payload = json.loads(str(row["metadata_json"]))
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(payload, dict) or str(payload.get("remote_id")) != item_id:
+                continue
+            assets = payload.get("assets")
+            if not isinstance(assets, list) or not assets:
+                continue
+            if not all(
+                isinstance(asset, dict)
+                and str(asset.get("remote_id")) == item_id
+                and bool(asset.get("url"))
+                for asset in assets
+            ):
+                continue
+            return payload
+        return None

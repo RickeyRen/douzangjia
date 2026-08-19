@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 
 from douyin_archive.archive_repository import ArchiveBatchRepository
-from douyin_archive.archive_service import ArchiveService, ArchiveTargetNotFound
+from douyin_archive.archive_service import (
+    ArchivePayloadUnavailable,
+    ArchiveService,
+    ArchiveTargetNotFound,
+)
 from douyin_archive.db import Database
 from douyin_archive.library_models import (
     CreatorRecord,
@@ -120,6 +124,69 @@ async def test_creator_archive_uses_stable_creator_identity(archive_components) 
     assert batch.kind == "creator"
     assert batch.target_id == "creator-1"
     assert batch.discovered_count == 2
+
+
+async def test_selective_archive_creates_job_from_synced_source_payload(
+    archive_components,
+) -> None:
+    database, archive, jobs, _batches, service = archive_components
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="account:likes",
+            kind=LibrarySourceKind.LIKE,
+            remote_id="self",
+            name="喜欢",
+        )
+    )
+    synced = remote_item("liked-734")
+    await library.upsert_creator(CreatorRecord("creator-1", "旅行作者"))
+    await archive.upsert_item(
+        remote_id=synced.remote_id,
+        author_name=synced.author_name,
+        description=synced.description,
+        item_type=synced.item_type,
+        creator_id=synced.creator_id,
+    )
+    await library.link_source_item(
+        "account:likes", synced.remote_id, "2", asdict(synced)
+    )
+
+    batch = await service.archive_item(synced.remote_id)
+
+    job = await jobs.get_by_key("download", synced.remote_id)
+    assert job is not None
+    assert job.status == "pending"
+    assert job.payload["assets"][0]["url"].endswith("liked-734.mp4")
+    assert batch.status == "running"
+    assert batch.discovered_count == 1
+
+
+async def test_invalid_synced_source_payload_is_not_queued(archive_components) -> None:
+    database, archive, jobs, _batches, service = archive_components
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="account:likes",
+            kind=LibrarySourceKind.LIKE,
+            remote_id="self",
+            name="喜欢",
+        )
+    )
+    await archive.upsert_item(
+        remote_id="broken-liked-item",
+        author_name="作者",
+        description="无媒体详情",
+        item_type="video",
+    )
+    await library.link_source_item(
+        "account:likes", "broken-liked-item", "1", {"remote_id": "wrong"}
+    )
+
+    with pytest.raises(ArchivePayloadUnavailable):
+        await service.archive_item("broken-liked-item")
+
+    assert await jobs.count() == 0
 
 
 @pytest.mark.parametrize(
