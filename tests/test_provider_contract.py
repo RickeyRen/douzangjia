@@ -73,6 +73,36 @@ def test_nested_data_envelope_and_missing_author_are_tolerated() -> None:
     assert page.items[0].remote_id == "900"
 
 
+def test_creator_identity_and_profile_metadata_are_normalized() -> None:
+    """Catches creator pages falling back to mutable display names."""
+    page = normalize_page(
+        {
+            "aweme_list": [
+                {
+                    "aweme_id": "901",
+                    "author": {
+                        "sec_uid": "stable-creator-1",
+                        "nickname": "旅行作者",
+                        "unique_id": "travel-account",
+                        "avatar_thumb": {"url_list": ["https://media.test/avatar.jpg"]},
+                        "follower_count": 321,
+                        "aweme_count": 17,
+                    },
+                    "video": {"play_addr": {"url_list": ["https://media.test/v.mp4"]}},
+                }
+            ],
+            "has_more": 0,
+        }
+    )
+
+    item = page.items[0]
+    assert item.creator_id == "stable-creator-1"
+    assert item.creator_unique_id == "travel-account"
+    assert item.creator_avatar_url == "https://media.test/avatar.jpg"
+    assert item.creator_follower_count == 321
+    assert item.creator_post_count == 17
+
+
 @pytest.mark.parametrize("payload", [{"status_code": 8}, {"status_code": 1009}])
 def test_session_expiry_is_a_stable_error(payload: dict) -> None:
     with pytest.raises(SessionExpired):

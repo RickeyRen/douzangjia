@@ -17,6 +17,11 @@ def item(remote_id: str) -> RemoteItem:
         description=f"作品 {remote_id}",
         item_type="video",
         assets=(MediaAsset(remote_id, 0, "video", f"https://media.test/{remote_id}"),),
+        creator_id="creator-1",
+        creator_unique_id="author-account",
+        creator_avatar_url="https://media.test/avatar.jpg",
+        creator_follower_count=25,
+        creator_post_count=2,
     )
 
 
@@ -63,6 +68,63 @@ async def test_full_sync_persists_pages_and_deduplicates_downloads(
     run = await database.fetchone("SELECT * FROM sync_runs WHERE id=?", (result.run_id,))
     assert run is not None
     assert run["status"] == "completed"
+    sources = await database.fetchall(
+        "SELECT id, declared_count, sync_status FROM library_sources ORDER BY id"
+    )
+    assert [(row["id"], row["declared_count"], row["sync_status"]) for row in sources] == [
+        ("favorite_collection:1001", 2, "complete"),
+        ("favorite_collection:1002", 1, "complete"),
+    ]
+    creator = await database.fetchone(
+        "SELECT * FROM creators WHERE remote_id='creator-1'"
+    )
+    assert creator is not None
+    assert creator["unique_id"] == "author-account"
+    assert creator["post_count"] == 2
+
+
+async def test_incremental_sync_repairs_a_collection_with_a_remote_count_gap(
+    sync_components,
+) -> None:
+    """Catches the old 30-known-item shortcut preserving an incomplete collection."""
+    database, archive, jobs = sync_components
+    await archive.upsert_collection("1001", "想去的地方")
+    await archive.upsert_item(
+        remote_id="734",
+        author_name="作者",
+        description="已知作品",
+        item_type="video",
+    )
+    await archive.link_collection_item("1001", "734")
+
+    class RepairProvider:
+        requested_full_scan: bool | None = None
+
+        async def list_collections(self) -> list[RemoteCollection]:
+            return [RemoteCollection("1001", "想去的地方", 2)]
+
+        async def iter_collection_pages(
+            self, remote_id: str, *, full_scan: bool
+        ) -> AsyncIterator[RemotePage]:
+            self.requested_full_scan = full_scan
+            yield RemotePage((item("734"), item("735")), None, False)
+
+    provider = RepairProvider()
+    result = await SyncService(provider, archive, jobs).run(full_scan=False)
+
+    assert result.status == "completed"
+    assert provider.requested_full_scan is True
+    source = await database.fetchone(
+        "SELECT declared_count, sync_status FROM library_sources "
+        "WHERE id='favorite_collection:1001'"
+    )
+    assert source is not None
+    assert (source["declared_count"], source["sync_status"]) == (2, "complete")
+    links = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM source_items "
+        "WHERE source_id='favorite_collection:1001'"
+    )
+    assert links is not None and links["total"] == 2
 
 
 async def test_sync_failure_records_stable_error_code(sync_components) -> None:

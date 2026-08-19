@@ -122,9 +122,11 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         _prepare_directories(settings.archive_root)
         owned_database = Database(settings.archive_root / "data" / "archive.sqlite3")
         await owned_database.open()
+        library_repository = LibraryRepository(owned_database)
+        await library_repository.backfill_legacy_collections()
         application.state.database = owned_database
         application.state.archive_repository = ArchiveRepository(owned_database)
-        application.state.library_repository = LibraryRepository(owned_database)
+        application.state.library_repository = library_repository
         application.state.job_repository = JobRepository(owned_database)
         browser_coordinator = BrowserCoordinator(BrowserProfileStore(settings.archive_root))
         application.state.browser_coordinator = browser_coordinator

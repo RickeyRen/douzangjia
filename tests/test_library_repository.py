@@ -166,3 +166,30 @@ async def test_checkpoint_save_is_idempotent_for_same_page(database: Database) -
     assert rows[0]["discovered_count"] == 21
     assert rows[0]["response_digest"] == "digest-2"
     assert rows[0]["stop_reason"] == "interrupted"
+
+
+async def test_legacy_collection_backfill_is_idempotent(database: Database) -> None:
+    """Catches upgrades that leave existing archives absent from the new library API."""
+    archive = ArchiveRepository(database)
+    library = LibraryRepository(database)
+    await archive.upsert_collection("travel", "想去的地方")
+    await archive.upsert_item(
+        remote_id="legacy-item",
+        author_name="旅行作者",
+        description="旧归档",
+        item_type="video",
+    )
+    await archive.link_collection_item("travel", "legacy-item")
+
+    await library.backfill_legacy_collections()
+    await library.backfill_legacy_collections()
+
+    source = await database.fetchone(
+        "SELECT * FROM library_sources WHERE id='favorite_collection:travel'"
+    )
+    integrity = await library.source_integrity("favorite_collection:travel")
+    assert source is not None
+    assert source["kind"] == "favorite_collection"
+    assert source["name"] == "想去的地方"
+    assert source["sync_status"] == "incomplete"
+    assert integrity is not None and integrity.discovered_count == 1

@@ -108,12 +108,13 @@ class ArchiveRepository:
                 await self.db.execute(
                     "INSERT INTO items "
                     "(remote_id, author_name, description, item_type, published_at, "
-                    "first_seen_at, last_seen_at, metadata_digest) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, NULL) "
+                    "first_seen_at, last_seen_at, metadata_digest, creator_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?) "
                     "ON CONFLICT(remote_id) DO UPDATE SET "
                     "author_name=excluded.author_name, description=excluded.description, "
                     "item_type=excluded.item_type, published_at=excluded.published_at, "
-                    "last_seen_at=excluded.last_seen_at",
+                    "last_seen_at=excluded.last_seen_at, "
+                    "creator_id=COALESCE(excluded.creator_id, items.creator_id)",
                     (
                         item.remote_id,
                         item.author_name,
@@ -122,6 +123,7 @@ class ArchiveRepository:
                         item.published_at,
                         now,
                         now,
+                        item.creator_id,
                     ),
                 )
                 await self.db.execute(

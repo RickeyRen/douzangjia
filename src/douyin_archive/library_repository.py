@@ -16,6 +16,31 @@ class LibraryRepository:
     def __init__(self, database: Database) -> None:
         self.db = database
 
+    @staticmethod
+    def favorite_collection_source_id(remote_id: str) -> str:
+        return f"favorite_collection:{remote_id}"
+
+    async def backfill_legacy_collections(self) -> None:
+        await self.db.execute(
+            "INSERT INTO library_sources "
+            "(id, kind, remote_id, name, declared_count, sync_status, "
+            "first_seen_at, last_seen_at) "
+            "SELECT 'favorite_collection:' || remote_id, 'favorite_collection', "
+            "remote_id, name, NULL, 'incomplete', first_seen_at, last_seen_at "
+            "FROM collections WHERE true "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "name=excluded.name, last_seen_at=MAX(library_sources.last_seen_at, excluded.last_seen_at)"
+        )
+        await self.db.execute(
+            "INSERT INTO source_items "
+            "(source_id, item_id, remote_order, metadata_json, first_seen_at, last_seen_at) "
+            "SELECT 'favorite_collection:' || collection_id, item_id, "
+            "printf('%020d', first_seen_at), '{}', first_seen_at, last_seen_at "
+            "FROM collection_items WHERE true "
+            "ON CONFLICT(source_id, item_id) DO UPDATE SET "
+            "last_seen_at=MAX(source_items.last_seen_at, excluded.last_seen_at)"
+        )
+
     async def upsert_source(self, source: LibrarySource) -> None:
         now = int(time.time())
         await self.db.execute(

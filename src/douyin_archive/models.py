@@ -103,3 +103,8 @@ class RemoteItem:
     item_type: str
     published_at: int | None = None
     assets: tuple[MediaAsset, ...] = ()
+    creator_id: str | None = None
+    creator_unique_id: str | None = None
+    creator_avatar_url: str | None = None
+    creator_follower_count: int | None = None
+    creator_post_count: int | None = None

@@ -100,6 +100,17 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
     remote_id = str(remote_id)
     author = record.get("author") if isinstance(record.get("author"), dict) else {}
     author_name = str(author.get("nickname", author.get("name", "未知作者"))).strip()
+    creator_id = author.get("sec_uid", author.get("secUid", author.get("uid")))
+    creator_unique_id = author.get("unique_id", author.get("uniqueId"))
+    avatar = author.get("avatar_thumb", author.get("avatarThumb"))
+    creator_avatar_url, _ = _asset_url(avatar)
+
+    def optional_int(value: object) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
     description = str(record.get("desc", record.get("description", ""))).strip()
     raw_published = record.get("create_time", record.get("published_at"))
     try:
@@ -139,6 +150,15 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
         item_type=item_type,
         published_at=published_at,
         assets=tuple(assets),
+        creator_id=str(creator_id) if creator_id else None,
+        creator_unique_id=str(creator_unique_id) if creator_unique_id else None,
+        creator_avatar_url=creator_avatar_url,
+        creator_follower_count=optional_int(
+            author.get("follower_count", author.get("followerCount"))
+        ),
+        creator_post_count=optional_int(
+            author.get("aweme_count", author.get("awemeCount"))
+        ),
     )
 
 
