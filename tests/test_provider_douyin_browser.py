@@ -512,6 +512,37 @@ async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
     assert page.reads >= 3
 
 
+async def test_item_detail_fetch_retries_a_truncated_json_response() -> None:
+    class FlakyDetailPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+            self.waits: list[int] = []
+
+        async def evaluate(self, script: str, arguments=None):
+            assert "__yingcangFetchDetails" in script
+            self.calls += 1
+            if self.calls < 3:
+                raise RuntimeError("Unexpected end of JSON input")
+            return {
+                "status_code": 0,
+                "aweme_list": [{"aweme_id": arguments["ids"][0]}],
+            }
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            self.waits.append(milliseconds)
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = FlakyDetailPage()
+    source._page = page
+
+    payload = await source._fetch_aweme_details(["734"])
+
+    assert payload["aweme_list"][0]["aweme_id"] == "734"
+    assert page.calls == 3
+    assert page.waits == [500, 1_000]
+
+
 async def test_provider_incremental_account_source_stops_at_known_streak() -> None:
     class RawAccountSource:
         async def fetch_collections(self) -> dict:

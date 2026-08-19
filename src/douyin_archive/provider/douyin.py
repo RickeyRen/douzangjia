@@ -766,8 +766,11 @@ class PlaywrightDouyinSource:
         )
 
     async def _fetch_aweme_details(self, item_ids: list[str]) -> dict:
-        payload = await self._page.evaluate(
-            """
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                payload = await self._page.evaluate(
+                    """
             async ({ids, path}) => { // __yingcangFetchDetails
               const fetchOne = async (id) => {
                 const url = new URL(path, window.location.origin);
@@ -790,11 +793,21 @@ class PlaywrightDouyinSource:
               return {status_code: 0, aweme_list: records};
             }
             """,
-            {"ids": item_ids, "path": self.DETAIL_PATH},
-        )
-        if not isinstance(payload, dict):
-            raise ProviderChanged("Douyin item detail response changed")
-        return payload
+                    {"ids": item_ids, "path": self.DETAIL_PATH},
+                )
+                if isinstance(payload, dict):
+                    return payload
+                last_error = TypeError("Douyin item detail response was not an object")
+            except Exception as error:  # noqa: BLE001 - browser failures are retryable
+                last_error = error
+            logger.warning(
+                "Douyin item detail retry attempt=%s error_type=%s",
+                attempt + 1,
+                type(last_error).__name__,
+            )
+            if attempt < 2:
+                await self._page.wait_for_timeout(500 * (attempt + 1))
+        raise ProviderChanged("Douyin item detail response changed") from last_error
 
     async def _fetch_collections_api(self) -> dict:
         last_payload: dict = {}
