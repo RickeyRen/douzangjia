@@ -77,6 +77,33 @@ async def test_source_integrity_requires_a_declared_remote_count(
     assert integrity.complete is False
 
 
+async def test_default_account_sources_are_created_idempotently(
+    database: Database,
+) -> None:
+    library = LibraryRepository(database)
+
+    await library.ensure_account_sources()
+    await library.ensure_account_sources()
+
+    rows = await database.fetchall(
+        "SELECT id, kind, name, sync_status FROM library_sources "
+        "WHERE id LIKE 'account:%' ORDER BY id"
+    )
+    assert [(row["id"], row["kind"], row["name"]) for row in rows] == [
+        ("account:favorite_drama", "favorite_drama", "收藏短剧"),
+        ("account:favorite_music", "favorite_music", "收藏音乐"),
+        ("account:favorite_series", "favorite_series", "收藏合集"),
+        ("account:favorite_videos", "favorite_video", "收藏视频"),
+        ("account:following", "following", "关注"),
+        ("account:likes", "like", "喜欢"),
+        ("account:posts", "post", "作品"),
+        ("account:reservations", "reservation", "我的预约"),
+        ("account:watch_history", "watch_history", "观看历史"),
+        ("account:watch_later", "watch_later", "稍后再看"),
+    ]
+    assert {row["sync_status"] for row in rows} == {"never"}
+
+
 async def test_source_upsert_preserves_identity_and_updates_remote_state(
     database: Database,
 ) -> None:

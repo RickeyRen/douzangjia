@@ -124,6 +124,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         await owned_database.open()
         library_repository = LibraryRepository(owned_database)
         await library_repository.backfill_legacy_collections()
+        await library_repository.ensure_account_sources()
         application.state.database = owned_database
         application.state.archive_repository = ArchiveRepository(owned_database)
         application.state.library_repository = library_repository

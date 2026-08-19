@@ -13,6 +13,19 @@ from .library_models import (
 
 
 class LibraryRepository:
+    ACCOUNT_SOURCES = (
+        ("account:posts", "post", "作品"),
+        ("account:likes", "like", "喜欢"),
+        ("account:favorite_videos", "favorite_video", "收藏视频"),
+        ("account:favorite_music", "favorite_music", "收藏音乐"),
+        ("account:favorite_series", "favorite_series", "收藏合集"),
+        ("account:favorite_drama", "favorite_drama", "收藏短剧"),
+        ("account:watch_history", "watch_history", "观看历史"),
+        ("account:watch_later", "watch_later", "稍后再看"),
+        ("account:reservations", "reservation", "我的预约"),
+        ("account:following", "following", "关注"),
+    )
+
     def __init__(self, database: Database) -> None:
         self.db = database
 
@@ -40,6 +53,18 @@ class LibraryRepository:
             "ON CONFLICT(source_id, item_id) DO UPDATE SET "
             "last_seen_at=MAX(source_items.last_seen_at, excluded.last_seen_at)"
         )
+
+    async def ensure_account_sources(self) -> None:
+        now = int(time.time())
+        for source_id, kind, name in self.ACCOUNT_SOURCES:
+            await self.db.execute(
+                "INSERT INTO library_sources "
+                "(id, kind, remote_id, name, sync_status, first_seen_at, last_seen_at) "
+                "VALUES (?, ?, 'self', ?, 'never', ?, ?) "
+                "ON CONFLICT(kind, remote_id) DO UPDATE SET name=excluded.name, "
+                "last_seen_at=excluded.last_seen_at",
+                (source_id, kind, name, now, now),
+            )
 
     async def upsert_source(self, source: LibrarySource) -> None:
         now = int(time.time())

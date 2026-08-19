@@ -61,7 +61,7 @@ def test_library_sources_expose_remote_sync_gap(
         client.__exit__(None, None, None)
 
     assert response.status_code == 200
-    source = response.json()["items"][0]
+    source = next(item for item in response.json()["items"] if item["id"] == "likes")
     assert source["id"] == "likes"
     assert source["declaredCount"] == 4
     assert source["discoveredCount"] == 3
