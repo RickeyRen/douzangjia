@@ -5,6 +5,22 @@ export type Collection = {
   lastSeenAt: number;
 };
 
+export type LibrarySource = {
+  id: string;
+  kind: "post" | "like" | "favorite_collection" | "favorite_video" | "favorite_music" | "favorite_series" | "favorite_drama" | "watch_history" | "watch_later" | "reservation" | "following";
+  remoteId: string;
+  name: string;
+  declaredCount: number | null;
+  discoveredCount: number;
+  archivedCount: number;
+  missingCount: number;
+  syncStatus: "never" | "running" | "complete" | "incomplete" | "failed";
+  complete: boolean;
+  lastFullScanAt: number | null;
+  lastIncrementalScanAt: number | null;
+  errorCode: string | null;
+};
+
 export type MediaFile = {
   id: number;
   index: number;
@@ -198,15 +214,18 @@ export const loginAdmin = (password: string) =>
     body: JSON.stringify({ password }),
   });
 export const fetchCollections = () => request<{ items: Collection[] }>("/api/collections");
+export const fetchLibrarySources = () => request<{ items: LibrarySource[] }>("/api/library/sources");
 export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchFeed = ({
+  sourceId,
   collectionId,
   author,
   creatorId,
   search,
   cursor,
 }: {
+  sourceId?: string;
   collectionId?: string;
   author?: string;
   creatorId?: string;
@@ -215,11 +234,12 @@ export const fetchFeed = ({
 }) => {
   const query = new URLSearchParams({ limit: "20" });
   if (creatorId) query.set("creatorId", creatorId);
+  if (sourceId) query.set("sourceId", sourceId);
   if (collectionId) query.set("collectionId", collectionId);
   if (author) query.set("author", author);
   if (search && !creatorId) query.set("search", search);
   if (cursor) query.set("cursor", cursor);
-  const path = creatorId ? "/api/library/feed" : "/api/feed";
+  const path = creatorId || sourceId ? "/api/library/feed" : "/api/feed";
   return request<{ items: FeedItem[]; nextCursor: string | null }>(`${path}?${query}`);
 };
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);

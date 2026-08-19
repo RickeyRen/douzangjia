@@ -99,7 +99,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .collection-brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; color: var(--app-accent); background: var(--app-accent-soft); }
 .collection-brand strong { display: block; color: var(--app-text); font-size: 21px; font-weight: 700; letter-spacing: -.045em; }
 .collection-brand p { margin: 2px 0 0; color: var(--app-faint); font-size: 10px; font-weight: 450; letter-spacing: .02em; }
-.collection-navigation { display: grid; gap: 3px; margin-top: 32px; }
+.collection-navigation { display: grid; min-height: 0; flex: 1; align-content: start; gap: 3px; margin-top: 24px; overflow-y: auto; padding-right: 3px; }
+.collection-nav-heading { margin: 16px 11px 5px; color: var(--app-faint); font-size: 9px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
 .collection-nav-item { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; min-height: 44px; align-items: center; gap: 10px; border: 0; border-radius: 8px; padding: 0 11px; color: var(--app-muted); background: transparent; text-align: left; font-size: 13px; font-weight: 520; transition: transform 160ms ease, color 160ms ease, background-color 160ms ease; }
 .collection-nav-item::before { content: ""; position: absolute; inset: 8px auto 8px 0; width: 2px; border-radius: 2px; background: transparent; }
 .collection-nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

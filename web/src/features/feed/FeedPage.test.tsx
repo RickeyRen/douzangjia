@@ -8,7 +8,7 @@ import { ThemeProvider } from "../../theme/ThemeProvider";
 import { FeedPage, feedIndexFromTarget, shouldAutoPaginate } from "./FeedPage";
 
 vi.mock("../../app/api", () => ({
-  fetchCollections: vi.fn(),
+  fetchLibrarySources: vi.fn(),
   fetchFeed: vi.fn(),
   fetchJobs: vi.fn(),
   fetchStatus: vi.fn(),
@@ -24,6 +24,22 @@ vi.mock("../../app/api", () => ({
 const collections = [
   { id: "1001", name: "想去的地方", itemCount: 1, lastSeenAt: 1 },
   { id: "1002", name: "好看的美女", itemCount: 1, lastSeenAt: 1 },
+];
+
+const sources: api.LibrarySource[] = [
+  {
+    id: "account:posts", kind: "post", remoteId: "self", name: "作品",
+    declaredCount: null, discoveredCount: 3, archivedCount: 1, missingCount: 0,
+    syncStatus: "incomplete", complete: false, lastFullScanAt: 1,
+    lastIncrementalScanAt: null, errorCode: "COUNT_UNKNOWN",
+  },
+  ...collections.map((collection) => ({
+    id: `favorite_collection:${collection.id}`, kind: "favorite_collection" as const,
+    remoteId: collection.id, name: collection.name, declaredCount: collection.itemCount,
+    discoveredCount: collection.itemCount, archivedCount: collection.itemCount,
+    missingCount: 0, syncStatus: "complete" as const, complete: true,
+    lastFullScanAt: 1, lastIncrementalScanAt: null, errorCode: null,
+  })),
 ];
 
 const itemFor = (collection: (typeof collections)[number]) => ({
@@ -57,9 +73,9 @@ describe("FeedPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
-    vi.mocked(api.fetchCollections).mockResolvedValue({ items: collections });
-    vi.mocked(api.fetchFeed).mockImplementation(async ({ collectionId }) => ({
-      items: [itemFor(collections.find((item) => item.id === collectionId) ?? collections[0])],
+    vi.mocked(api.fetchLibrarySources).mockResolvedValue({ items: sources });
+    vi.mocked(api.fetchFeed).mockImplementation(async ({ sourceId }) => ({
+      items: [itemFor(collections.find((item) => `favorite_collection:${item.id}` === sourceId) ?? collections[0])],
       nextCursor: null,
     }));
     vi.mocked(api.fetchJobs).mockResolvedValue({
@@ -167,9 +183,21 @@ describe("FeedPage", () => {
     render(<FeedPage />);
 
     await user.click(await screen.findByRole("button", { name: /好看的美女/ }));
-    await user.click(screen.getByRole("button", { name: "保存当前收藏夹全部作品" }));
+    await user.click(screen.getByRole("button", { name: "保存当前来源全部作品" }));
 
     expect(api.archiveSource).toHaveBeenCalledWith("favorite_collection:1002");
+  });
+
+  it("opens logged-in account sources through the unified library feed", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    const rail = within((await screen.findByRole("navigation", { name: "打开收藏夹" })).closest("aside")!);
+    await user.click(rail.getByRole("button", { name: "作品3" }));
+
+    await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sourceId: "account:posts" }),
+    ));
   });
 
   it("renders a useful empty state instead of a blank viewport", async () => {
@@ -307,7 +335,7 @@ describe("FeedPage", () => {
 
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({
       creatorId: "creator-1",
-      collectionId: undefined,
+      sourceId: undefined,
     })));
     expect(screen.getByRole("heading", { name: "@旅行家" })).toBeVisible();
     expect(await screen.findByText("本地已归档 1 / 已发现 1")).toBeVisible();

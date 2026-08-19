@@ -1,7 +1,7 @@
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { archiveCreator, archiveItem, archiveSource, fetchCollections, fetchCreator, fetchFeed, updateCreatorSubscription, type Collection, type Creator, type FeedItem } from "../../app/api";
+import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -38,7 +38,7 @@ function savedFeedView(): FeedViewMode {
 
 export function FeedPage() {
   const { t } = useI18n();
-  const [collections, setCollections] = useState<Collection[]>([]);
+  const [sources, setSources] = useState<LibrarySource[]>([]);
   const [selected, setSelected] = useState<string | undefined>();
   const [selectedCreator, setSelectedCreator] = useState<{ id: string | null; name: string } | null>(null);
   const [creator, setCreator] = useState<Creator | null>(null);
@@ -65,9 +65,9 @@ export function FeedPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchCollections()
+    void fetchLibrarySources()
       .then((result) => {
-        if (!cancelled) setCollections(result.items);
+        if (!cancelled) setSources(result.items);
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -98,7 +98,7 @@ export function FeedPage() {
     setNextCursor(null);
     loadingMoreRef.current = false;
     autoPaginatedCursor.current = null;
-    void fetchFeed({ collectionId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined })
+    void fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined })
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
           setItems(result.items);
@@ -139,7 +139,7 @@ export function FeedPage() {
   }, [items, viewMode]);
 
   const active = items[activeIndex];
-  const selectedName = collections.find((item) => item.id === selected)?.name ?? t("allArchives");
+  const selectedName = sources.find((item) => item.id === selected)?.name ?? t("allArchives");
 
   function move(direction: -1 | 1) {
     const next = Math.max(0, Math.min(items.length - 1, activeIndex + direction));
@@ -155,7 +155,7 @@ export function FeedPage() {
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const result = await fetchFeed({ collectionId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined, cursor: requestedCursor });
+      const result = await fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined, cursor: requestedCursor });
       if (requestId !== feedRequestId.current) return;
       setItems((current) => {
         const known = new Set(current.map((item) => item.awemeId));
@@ -240,7 +240,7 @@ export function FeedPage() {
 
   async function archiveSelectedSource() {
     if (!selected) return;
-    await archiveSource(`favorite_collection:${selected}`);
+    await archiveSource(selected);
     setUtilityPanel("downloads");
   }
 
@@ -253,7 +253,7 @@ export function FeedPage() {
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
       <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" ? " is-grid-view" : ""}`}>
-        <CollectionRail collections={collections} selected={selectedCreator ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
+        <CollectionRail sources={sources} selected={selectedCreator ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
             {selectedCreator ? (
@@ -321,7 +321,7 @@ export function FeedPage() {
         {viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
       </div>
 
-      {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
+      {drawerOpen ? <CollectionDrawer sources={sources} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
       {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
       {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} onOpenAuthor={openAuthor} /> : null}
@@ -330,7 +330,7 @@ export function FeedPage() {
   );
 }
 
-function CollectionDrawer({ collections, selected, onSelect, onClose }: { collections: Collection[]; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
+function CollectionDrawer({ sources, selected, onSelect, onClose }: { sources: LibrarySource[]; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
   const { t } = useI18n();
   return (
     <div className="collection-drawer-overlay" onClick={onClose}>
@@ -338,7 +338,7 @@ function CollectionDrawer({ collections, selected, onSelect, onClose }: { collec
         <div className="drawer-handle" />
         <div className="collection-drawer-header"><h2>{t("switchCollection")}</h2><button aria-label={t("closeDrawer")} className="utility-close-button" onClick={onClose}><X size={20} /></button></div>
         <div className="collection-drawer-list">
-          {[{ id: undefined, name: t("allArchives") }, ...collections].map((item) => (
+          {[{ id: undefined, name: t("allArchives") }, ...sources].map((item) => (
             <button key={item.id ?? "all"} onClick={() => onSelect(item.id)} className={`collection-drawer-item${item.id === selected ? " is-active" : ""}`}><Folders size={19} />{item.name}</button>
           ))}
         </div>
