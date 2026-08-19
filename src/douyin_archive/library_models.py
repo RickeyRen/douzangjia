@@ -60,3 +60,15 @@ class SourceIntegrity:
     sync_status: LibrarySyncStatus
     complete: bool
 
+
+@dataclass(frozen=True, slots=True)
+class SourceEntityRecord:
+    source_id: str
+    remote_id: str
+    entity_type: str
+    title: str
+    subtitle: str | None
+    cover_url: str | None
+    source_url: str | None
+    remote_order: str | None
+    metadata: dict[str, object] | None = None

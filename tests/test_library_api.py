@@ -22,6 +22,11 @@ async def seed_library(root: Path) -> None:
         "first_seen_at, last_seen_at) "
         "VALUES ('likes', 'like', 'self', '喜欢', 4, 'complete', 1, 1)"
     )
+    await database.execute(
+        "INSERT INTO library_sources "
+        "(id, kind, remote_id, name, sync_status, first_seen_at, last_seen_at) "
+        "VALUES ('music', 'favorite_music', 'self', '收藏音乐', 'incomplete', 1, 1)"
+    )
     for remote_id, remote_order, stamp in (
         ("item-3", "0003", 300),
         ("item-2", "0002", 200),
@@ -38,6 +43,19 @@ async def seed_library(root: Path) -> None:
             "(source_id, item_id, remote_order, first_seen_at, last_seen_at) "
             "VALUES ('likes', ?, ?, ?, ?)",
             (remote_id, remote_order, stamp, stamp),
+        )
+    for remote_id, remote_order in (
+        ("music-3", "0003"),
+        ("music-2", "0002"),
+        ("music-1", "0001"),
+    ):
+        await database.execute(
+            "INSERT INTO source_entities "
+            "(source_id, remote_id, entity_type, title, subtitle, cover_url, "
+            "source_url, remote_order, metadata_json, first_seen_at, last_seen_at) "
+            "VALUES ('music', ?, 'music', ?, '创作者', 'https://media.test/music.jpg', "
+            "'https://www.douyin.com/user/self?showSubTab=music', ?, '{}', 1, 1)",
+            (remote_id, f"音乐 {remote_id}", remote_order),
         )
     await database.close()
 
@@ -116,3 +134,32 @@ def test_library_feed_can_filter_by_stable_creator_id(
     ]
     assert response.json()["items"][0]["creatorId"] == "creator-1"
     assert response.json()["nextCursor"] is not None
+
+
+def test_library_entities_use_a_stable_source_cursor(
+    tmp_path: Path, master_key: str
+) -> None:
+    client = build_client(tmp_path, master_key)
+    try:
+        first = client.get("/api/library/entities?sourceId=music&limit=2")
+        second = client.get(
+            "/api/library/entities",
+            params={
+                "sourceId": "music",
+                "limit": 2,
+                "cursor": first.json()["nextCursor"],
+            },
+        )
+    finally:
+        client.__exit__(None, None, None)
+
+    assert first.status_code == 200
+    assert [item["id"] for item in first.json()["items"]] == [
+        "music-3",
+        "music-2",
+    ]
+    assert first.json()["items"][0]["type"] == "music"
+    assert first.json()["nextCursor"] is not None
+    assert second.status_code == 200
+    assert [item["id"] for item in second.json()["items"]] == ["music-1"]
+    assert second.json()["nextCursor"] is None

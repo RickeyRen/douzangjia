@@ -8,6 +8,7 @@ from douyin_archive.library_models import (
     LibrarySource,
     LibrarySourceKind,
     LibrarySyncStatus,
+    SourceEntityRecord,
 )
 from douyin_archive.library_repository import LibraryRepository
 from douyin_archive.repositories import ArchiveRepository
@@ -203,6 +204,51 @@ async def test_creator_upsert_preserves_first_seen_and_refreshes_counts(
     assert after["nickname"] == "新昵称"
     assert after["follower_count"] == 120
     assert after["post_count"] == 11
+
+
+async def test_non_video_source_entities_are_persisted_and_reconciled(
+    database: Database,
+) -> None:
+    library = LibraryRepository(database)
+    await library.ensure_account_sources()
+    await library.upsert_source_entity(
+        SourceEntityRecord(
+            source_id="account:favorite_music",
+            remote_id="music-1",
+            entity_type="music",
+            title="收藏音乐",
+            subtitle="创作者",
+            cover_url="https://media.test/music.jpg",
+            source_url="https://www.douyin.com/user/self?showSubTab=music",
+            remote_order="0002",
+        )
+    )
+    await library.upsert_source_entity(
+        SourceEntityRecord(
+            source_id="account:favorite_music",
+            remote_id="music-2",
+            entity_type="music",
+            title="另一首音乐",
+            subtitle=None,
+            cover_url=None,
+            source_url=None,
+            remote_order="0001",
+        )
+    )
+
+    integrity = await library.source_integrity("account:favorite_music")
+    removed = await library.reconcile_source_entities(
+        "account:favorite_music", {"music-1"}
+    )
+    rows = await database.fetchall(
+        "SELECT remote_id, title FROM source_entities ORDER BY remote_id"
+    )
+
+    assert integrity is not None and integrity.discovered_count == 2
+    assert removed == 1
+    assert [(row["remote_id"], row["title"]) for row in rows] == [
+        ("music-1", "收藏音乐")
+    ]
 
 
 async def test_checkpoint_save_is_idempotent_for_same_page(database: Database) -> None:

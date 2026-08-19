@@ -12,7 +12,12 @@ from douyin_archive.library_models import (
 )
 from douyin_archive.library_repository import LibraryRepository
 from douyin_archive.models import MediaAsset, RemoteItem
-from douyin_archive.provider.base import RemoteCollection, RemotePage
+from douyin_archive.provider.base import (
+    RemoteCollection,
+    RemotePage,
+    RemoteSourceEntity,
+    RemoteSourceEntityPage,
+)
 from douyin_archive.repositories import ArchiveRepository, JobRepository
 from douyin_archive.sync_service import SyncService
 
@@ -258,6 +263,44 @@ async def test_sync_failure_records_stable_error_code(sync_components) -> None:
     assert row["error_code"] == "DOUYIN_SESSION_EXPIRED"
 
 
+async def test_account_source_failure_does_not_leave_running_status(
+    sync_components, caplog
+) -> None:
+    database, archive, jobs = sync_components
+
+    class BrokenAccountProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return []
+
+        async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
+            if False:
+                yield remote_id, full_scan
+
+        def supported_account_sources(self) -> tuple[str, ...]:
+            return ("post",)
+
+        async def iter_account_pages(self, kind: str, *, full_scan: bool):
+            raise RuntimeError("temporary detail failure")
+            if False:
+                yield kind, full_scan
+
+    with caplog.at_level("ERROR"):
+        result = await SyncService(
+            BrokenAccountProvider(), archive, jobs
+        ).run(full_scan=True)
+
+    assert result.status == "failed"
+    source = await database.fetchone(
+        "SELECT sync_status, error_code FROM library_sources WHERE id='account:posts'"
+    )
+    assert source is not None
+    assert (source["sync_status"], source["error_code"]) == (
+        "failed",
+        "SYNC_FAILED",
+    )
+    assert "Unexpected sync failure" in caplog.text
+
+
 async def test_account_sources_persist_browsable_items_without_auto_download(
     sync_components,
 ) -> None:
@@ -297,4 +340,112 @@ async def test_account_sources_persist_browsable_items_without_auto_download(
     )
     assert link is not None
     assert "media.test/self-post-1" in link["metadata_json"]
+    assert await jobs.count() == 0
+
+
+async def test_full_account_scan_reconciles_an_empty_remote_source(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+    library = LibraryRepository(database)
+    await library.ensure_account_sources()
+    await archive.upsert_item(
+        remote_id="stale-later-item",
+        author_name="作者",
+        description="已经移除的稍后再看作品",
+        item_type="video",
+        published_at=None,
+        creator_id=None,
+    )
+    await library.link_source_item(
+        "account:watch_later", "stale-later-item", "1"
+    )
+
+    class EmptyAccountProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return []
+
+        async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
+            if False:
+                yield remote_id, full_scan
+
+        def supported_account_sources(self) -> tuple[str, ...]:
+            return ("watch_later",)
+
+        async def iter_account_pages(self, kind: str, *, full_scan: bool):
+            assert kind == "watch_later"
+            assert full_scan is True
+            if False:
+                yield RemotePage((), None, False)
+
+    result = await SyncService(
+        EmptyAccountProvider(), archive, jobs
+    ).run(full_scan=True)
+
+    assert result.status == "completed"
+    count = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM source_items "
+        "WHERE source_id='account:watch_later'"
+    )
+    assert count is not None
+    assert count["total"] == 0
+
+
+async def test_non_video_account_entities_are_synced_without_download_jobs(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+
+    class EntityProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return []
+
+        async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
+            if False:
+                yield remote_id, full_scan
+
+        def supported_account_sources(self) -> tuple[str, ...]:
+            return ()
+
+        def supported_account_entity_sources(self) -> tuple[str, ...]:
+            return ("favorite_music",)
+
+        async def iter_account_entity_pages(self, kind: str, *, full_scan: bool):
+            assert kind == "favorite_music"
+            assert full_scan is True
+            yield RemoteSourceEntityPage(
+                (
+                    RemoteSourceEntity(
+                        remote_id="music:one",
+                        entity_type="music",
+                        title="收藏音乐",
+                        subtitle="创作者",
+                        cover_url="https://media.test/music.jpg",
+                        source_url="https://www.douyin.com/user/self?showSubTab=music",
+                        remote_order="0001",
+                        metadata={"duration": "00:15"},
+                    ),
+                ),
+                None,
+                False,
+            )
+
+    result = await SyncService(EntityProvider(), archive, jobs).run(full_scan=True)
+
+    assert result.status == "completed"
+    assert result.discovered == 1
+    entity = await database.fetchone(
+        "SELECT title, subtitle, metadata_json FROM source_entities "
+        "WHERE source_id='account:favorite_music' AND remote_id='music:one'"
+    )
+    source = await database.fetchone(
+        "SELECT sync_status, error_code FROM library_sources "
+        "WHERE id='account:favorite_music'"
+    )
+    assert entity is not None and (entity["title"], entity["subtitle"]) == (
+        "收藏音乐",
+        "创作者",
+    )
+    assert '"duration":"00:15"' in entity["metadata_json"]
+    assert source is not None and source["sync_status"] == "incomplete"
     assert await jobs.count() == 0

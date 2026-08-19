@@ -91,6 +91,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .archive-grid-caption strong { display: -webkit-box; overflow: hidden; font-size: 12px; font-weight: 620; line-height: 1.4; letter-spacing: -.01em; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .archive-grid-caption small { overflow: hidden; color: rgb(242 243 245 / 62%); font-size: 9px; font-weight: 540; text-overflow: ellipsis; white-space: nowrap; }
 .archive-grid-card.is-current > button { box-shadow: inset 0 0 0 2px var(--app-accent); }
+.source-entity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+.source-entity-card { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--app-line); border-radius: 12px; color: var(--app-text); background: var(--app-surface-raised); text-decoration: none; transition: border-color 160ms ease, transform 160ms ease; }
+.source-entity-cover { position: relative; display: grid; aspect-ratio: 1; place-items: center; overflow: hidden; color: var(--app-accent); background: var(--app-accent-soft); }
+.source-entity-cover > img { width: 100%; height: 100%; object-fit: cover; }
+.source-entity-cover::after { content: ""; pointer-events: none; position: absolute; inset: 48% 0 0; background: linear-gradient(to bottom, transparent, rgb(8 10 12 / 72%)); }
+.source-entity-type { position: absolute; right: 8px; bottom: 8px; z-index: 1; display: flex; align-items: center; gap: 4px; border-radius: 99px; padding: 5px 8px; color: #f2f3f5; background: rgb(8 10 12 / 76%); font-size: 10px; font-weight: 620; }
+.source-entity-copy { display: grid; gap: 5px; padding: 11px 12px 13px; }
+.source-entity-copy strong, .source-entity-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-entity-copy strong { font-size: 13px; font-weight: 650; }
+.source-entity-copy small { color: var(--app-muted); font-size: 10px; }
 .archive-desktop-pager { display: none; }
 .collection-rail, .desktop-item-details { display: none; }
 
@@ -159,6 +169,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
   .archive-mobile-brand, .archive-mobile-only, .archive-mobile-search { display: none; }
   .archive-search-field { display: flex; max-width: 360px; margin-left: auto; }
   .archive-feed-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+  .source-entity-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .creator-profile { grid-template-columns: minmax(190px, 1fr) auto auto; align-items: center; padding: 14px 18px; }
   .creator-profile-stats { display: flex; }
   .creator-profile-local-copy { display: none; }
@@ -175,11 +186,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
   .archive-desktop-grid { grid-template-columns: 248px minmax(520px, 1fr) 330px; }
   .archive-desktop-grid.is-grid-view { grid-template-columns: 248px minmax(0, 1fr); }
   .archive-feed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .source-entity-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .desktop-item-details { display: flex; height: 100dvh; border-left: 1px solid var(--app-line); }
 }
 
 @media (min-width: 1660px) {
   .archive-feed-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .source-entity-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 .feed-viewport { scrollbar-width: none; overscroll-behavior-y: contain; touch-action: pan-y pinch-zoom; }
@@ -227,6 +240,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
   .media-action:hover { border-color: color-mix(in srgb, var(--app-accent) 55%, transparent); color: #fff; background: color-mix(in srgb, var(--app-accent) 22%, rgb(8 10 12 / 88%)); }
   .archive-grid-card > button:hover img,
   .archive-grid-card > button:hover video { transform: scale(1.025); opacity: .92; }
+  .source-entity-card:hover { transform: translateY(-2px); border-color: var(--app-line-strong); }
 }
 
 .download-progress { appearance: none; border: 0; border-radius: 999px; overflow: hidden; background: var(--app-line); }

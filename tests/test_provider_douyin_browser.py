@@ -83,6 +83,24 @@ async def test_source_captures_current_listcollection_endpoint() -> None:
     await source.close()
 
 
+async def test_response_capture_ignores_bodies_lost_during_navigation() -> None:
+    class NavigatedResponse:
+        def __init__(self) -> None:
+            self.url = "https://www.douyin.com/aweme/v1/web/aweme/listcollection/"
+            self.headers = {"content-type": "application/json"}
+
+        async def json(self) -> dict:
+            raise RuntimeError("response body disappeared after navigation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    await source.open()
+
+    await source._capture_response(NavigatedResponse())
+
+    assert source._responses.empty()
+    await source.close()
+
+
 async def test_collection_wait_skips_flat_favorite_video_response() -> None:
     source = PlaywrightDouyinSource(FakeCoordinator())
     await source.open()
@@ -290,9 +308,12 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
             if "__yingcangVisibleAccountIds" in script:
                 assert "closest('footer')" in script
                 assert "img, picture, video" in script
+                assert "data-e2e-aweme-id" in script
                 self.id_reads += 1
                 return ["734", "735"]
             if "__yingcangScrollAccountPanel" in script:
+                assert "scrollHeight > element.clientHeight" in script
+                assert "overflowY" in script
                 return True
             if "__yingcangFetchDetails" in script:
                 ids = list(arguments["ids"])
@@ -327,6 +348,168 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
     assert [item["aweme_id"] for item in pages[0]["aweme_list"]] == ["734", "735"]
     assert pages[0]["has_more"] is False
     assert page.id_reads >= 3
+
+
+async def test_following_source_uses_official_follow_feed() -> None:
+    class FollowingPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.goto_urls: list[str] = []
+            self.id_reads = 0
+
+        async def goto(self, url: str, **kwargs) -> None:
+            self.goto_urls.append(url)
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangVisibleAccountIds" in script:
+                self.id_reads += 1
+                return ["767"]
+            if "__yingcangScrollAccountPanel" in script:
+                return True
+            if "__yingcangFetchDetails" in script:
+                return {
+                    "status_code": 0,
+                    "aweme_list": [
+                        {
+                            "aweme_id": item_id,
+                            "author": {"uid": "creator-1", "nickname": "作者"},
+                            "video": {
+                                "play_addr": {
+                                    "url_list": [f"https://media.test/{item_id}.mp4"]
+                                }
+                            },
+                        }
+                        for item_id in arguments["ids"]
+                    ],
+                }
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = FollowingPage()
+    source._page = page
+
+    pages = [page async for page in source.iter_account_raw_pages("following")]
+
+    assert "following" in source.SUPPORTED_ACCOUNT_SOURCES
+    assert page.goto_urls == [source.FOLLOWING_URL]
+    assert [item["aweme_id"] for item in pages[0]["aweme_list"]] == ["767"]
+    assert page.id_reads >= 3
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_url"),
+    [
+        (
+            "favorite_series",
+            (
+                "https://www.douyin.com/user/self?from_tab_name=main"
+                "&showTab=favorite_collection&showSubTab=compilation"
+            ),
+        ),
+        (
+            "favorite_drama",
+            (
+                "https://www.douyin.com/user/self?from_tab_name=main"
+                "&showTab=favorite_collection&showSubTab=playlet"
+            ),
+        ),
+        (
+            "reservation",
+            (
+                "https://www.douyin.com/user/self?from_tab_name=main"
+                "&showTab=my_appointment"
+            ),
+        ),
+    ],
+)
+async def test_additional_account_sources_use_stable_official_urls(
+    kind: str, expected_url: str
+) -> None:
+    class EmptySourcePage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.goto_urls: list[str] = []
+
+        async def goto(self, url: str, **kwargs) -> None:
+            self.goto_urls.append(url)
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangVisibleNestedLinks" in script:
+                return []
+            if "__yingcangVisibleAccountIds" in script:
+                return []
+            if "__yingcangScrollAccountPanel" in script:
+                return True
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = EmptySourcePage()
+    source._page = page
+
+    pages = [page async for page in source.iter_account_raw_pages(kind)]
+
+    assert kind in source.SUPPORTED_ACCOUNT_SOURCES
+    assert page.goto_urls == [expected_url]
+    assert pages == []
+
+
+async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
+    class MusicPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.goto_urls: list[str] = []
+            self.reads = 0
+
+        async def goto(self, url: str, **kwargs) -> None:
+            self.goto_urls.append(url)
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangVisibleMusicEntities" in script:
+                self.reads += 1
+                return [
+                    {
+                        "title": "收藏音乐",
+                        "subtitle": "创作者",
+                        "duration": "00:15",
+                        "coverUrl": "https://media.test/music.jpg?size=100",
+                    }
+                ]
+            if "__yingcangScrollSourceEntities" in script:
+                return True
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = MusicPage()
+    source._page = page
+    provider = douyin_module.DouyinProvider(source, known_ids=set())
+
+    pages = [
+        page async for page in provider.iter_account_entity_pages(
+            "favorite_music", full_scan=True
+        )
+    ]
+
+    assert provider.supported_account_entity_sources() == ("favorite_music",)
+    assert page.goto_urls == [source.FAVORITE_MUSIC_URL]
+    assert len(pages) == 1
+    assert len(pages[0].entities) == 1
+    entity = pages[0].entities[0]
+    assert entity.remote_id.startswith("music:")
+    assert (entity.title, entity.subtitle, entity.entity_type) == (
+        "收藏音乐",
+        "创作者",
+        "music",
+    )
+    assert page.reads >= 3
 
 
 async def test_provider_incremental_account_source_stops_at_known_streak() -> None:

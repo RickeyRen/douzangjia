@@ -86,7 +86,8 @@ async def dashboard(request: Request) -> dict[str, object]:
         "AS incomplete_sources, "
         "(SELECT COUNT(*) FROM library_sources WHERE sync_status='never') "
         "AS never_sources, "
-        "(SELECT COUNT(*) FROM source_items) AS discovered_links, "
+        "(SELECT COUNT(*) FROM source_items) + "
+        "(SELECT COUNT(*) FROM source_entities) AS discovered_links, "
         "(SELECT COALESCE(SUM(byte_size), 0) FROM media_files WHERE status='ready') "
         "AS archived_bytes"
     )

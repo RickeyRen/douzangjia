@@ -1,7 +1,7 @@
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource } from "../../app/api";
+import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, fetchSourceEntities, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource, type SourceEntity } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -16,6 +16,7 @@ import { FeedGrid } from "./FeedGrid";
 import { FeedViewToggle, type FeedViewMode } from "./FeedViewToggle";
 import { ItemDetailsSheet } from "./ItemDetailsSheet";
 import { MobileSearchSheet } from "./MobileSearchSheet";
+import { SourceEntityGrid } from "./SourceEntityGrid";
 
 export function feedIndexFromTarget(target: HTMLElement): number {
   const index = Number(target.dataset.feedIndex);
@@ -44,6 +45,7 @@ export function FeedPage() {
   const [creator, setCreator] = useState<Creator | null>(null);
   const [viewMode, setViewMode] = useState<FeedViewMode>(savedFeedView);
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [entities, setEntities] = useState<SourceEntity[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
@@ -62,6 +64,8 @@ export function FeedPage() {
   const loadingMoreRef = useRef(false);
   const autoPaginatedCursor = useRef<string | null>(null);
   const pendingFocusIndex = useRef<number | null>(null);
+  const selectedSource = sources.find((item) => item.id === selected);
+  const entityMode = selectedSource?.kind === "favorite_music";
 
   useEffect(() => {
     let cancelled = false;
@@ -98,10 +102,19 @@ export function FeedPage() {
     setNextCursor(null);
     loadingMoreRef.current = false;
     autoPaginatedCursor.current = null;
-    void fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined })
+    const request = entityMode && selected
+      ? fetchSourceEntities({ sourceId: selected })
+      : fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined });
+    void request
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
-          setItems(result.items);
+          if (entityMode) {
+            setEntities(result.items as SourceEntity[]);
+            setItems([]);
+          } else {
+            setItems(result.items as FeedItem[]);
+            setEntities([]);
+          }
           setNextCursor(result.nextCursor);
           setActiveIndex(0);
         }
@@ -115,7 +128,7 @@ export function FeedPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredSearch, selected, selectedCreator]);
+  }, [deferredSearch, entityMode, selected, selectedCreator]);
 
   useEffect(() => {
     const root = viewport.current;
@@ -155,12 +168,21 @@ export function FeedPage() {
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const result = await fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined, cursor: requestedCursor });
+      const result = entityMode && selected
+        ? await fetchSourceEntities({ sourceId: selected, cursor: requestedCursor })
+        : await fetchFeed({ sourceId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined, cursor: requestedCursor });
       if (requestId !== feedRequestId.current) return;
-      setItems((current) => {
-        const known = new Set(current.map((item) => item.awemeId));
-        return [...current, ...result.items.filter((item) => !known.has(item.awemeId))];
-      });
+      if (entityMode) {
+        setEntities((current) => {
+          const known = new Set(current.map((item) => item.id));
+          return [...current, ...(result.items as SourceEntity[]).filter((item) => !known.has(item.id))];
+        });
+      } else {
+        setItems((current) => {
+          const known = new Set(current.map((item) => item.awemeId));
+          return [...current, ...(result.items as FeedItem[]).filter((item) => !known.has(item.awemeId))];
+        });
+      }
       setNextCursor(result.nextCursor);
     } catch {
       if (requestId === feedRequestId.current) {
@@ -171,7 +193,7 @@ export function FeedPage() {
       loadingMoreRef.current = false;
       if (requestId === feedRequestId.current) setLoadingMore(false);
     }
-  }, [deferredSearch, nextCursor, selected, selectedCreator]);
+  }, [deferredSearch, entityMode, nextCursor, selected, selectedCreator]);
 
   useEffect(() => {
     const target = paginationSentinel.current;
@@ -179,7 +201,7 @@ export function FeedPage() {
     if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
     const observer = new IntersectionObserver((entries) => {
       if (
-        (viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
+        (entityMode || viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
         && autoPaginatedCursor.current !== nextCursor
         && entries.some((entry) => entry.isIntersecting)
       ) {
@@ -189,7 +211,7 @@ export function FeedPage() {
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [activeIndex, items.length, loadMore, loadMoreError, nextCursor, viewMode]);
+  }, [activeIndex, entities.length, entityMode, items.length, loadMore, loadMoreError, nextCursor, viewMode]);
 
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
@@ -253,7 +275,7 @@ export function FeedPage() {
 
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
-      <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" ? " is-grid-view" : ""}`}>
+      <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
         <CollectionRail sources={sources} selected={selectedCreator ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
@@ -269,7 +291,7 @@ export function FeedPage() {
                 <CaretDown className="archive-mobile-only" size={17} weight="bold" />
               </button>
             )}
-            {selected && !selectedCreator ? (
+            {selected && !selectedCreator && !entityMode ? (
               <FriendlyIconButton label={t("archiveCurrentSource")} onClick={() => void archiveSelectedSource()}>
                 <DownloadSimple size={20} weight="bold" />
               </FriendlyIconButton>
@@ -278,7 +300,7 @@ export function FeedPage() {
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
             </label>
-            <FeedViewToggle mode={viewMode} onChange={changeViewMode} />
+            {!entityMode ? <FeedViewToggle mode={viewMode} onChange={changeViewMode} /> : null}
             <ThemeToggle />
             <FriendlyIconButton label={t("searchArchive")} onClick={() => setSearchOpen(true)} className="archive-mobile-search">
               <MagnifyingGlass size={21} weight="bold" />
@@ -287,7 +309,20 @@ export function FeedPage() {
 
           <div className="archive-feed-region">
             {creator ? <CreatorProfile creator={creator} onArchiveAll={archiveAllCreatorPosts} onToggleSubscription={toggleCreatorSubscription} /> : null}
-            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t(selectedCreator ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedCreator ? "creatorEmptyBody" : "emptyBody")} /> : (
+            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : entityMode ? entities.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
+              <div ref={viewport} className="archive-grid-viewport source-entity-viewport">
+                <SourceEntityGrid entities={deferredSearch ? entities.filter((entry) => `${entry.title} ${entry.subtitle || ""}`.toLowerCase().includes(deferredSearch.toLowerCase())) : entities} />
+                {nextCursor || loadMoreError ? (
+                  <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 items-center justify-center py-4">
+                    {loadMoreError ? (
+                      <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
+                        {loadingMore ? t("loadingMore") : t("retryLoadMore")}
+                      </button>
+                    ) : <span role="status" aria-live="polite">{loadingMore ? t("loadingMore") : ""}</span>}
+                  </div>
+                ) : null}
+              </div>
+            ) : items.length === 0 ? <EmptyState title={t(selectedCreator ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedCreator ? "creatorEmptyBody" : "emptyBody")} /> : (
               <div ref={viewport} className={viewMode === "grid" ? "archive-grid-viewport" : "feed-viewport snap-y snap-mandatory overflow-y-auto"}>
                 {viewMode === "grid" ? <FeedGrid items={items} activeIndex={activeIndex} onOpen={openGridItem} /> : items.map((item, index) => (
                     <div key={item.awemeId} data-feed-index={index}>
@@ -319,7 +354,7 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
+        {!entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
       </div>
 
       {drawerOpen ? <CollectionDrawer sources={sources} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}

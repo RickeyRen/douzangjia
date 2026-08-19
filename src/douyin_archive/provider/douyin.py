@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 from collections import deque
@@ -10,7 +11,14 @@ from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
 from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
-from .base import ProviderChanged, RawPageSource, RemoteCollection, RemotePage
+from .base import (
+    ProviderChanged,
+    RawPageSource,
+    RemoteCollection,
+    RemotePage,
+    RemoteSourceEntity,
+    RemoteSourceEntityPage,
+)
 from .normalizers import normalize_collections, normalize_page
 
 logger = logging.getLogger(__name__)
@@ -136,6 +144,65 @@ class DouyinProvider:
         async for page in self._normalized_pages(iterator, full_scan=full_scan):
             yield page
 
+    def supported_account_entity_sources(self) -> tuple[str, ...]:
+        if not hasattr(self.source, "iter_account_raw_entity_pages"):
+            return ()
+        return PlaywrightDouyinSource.SUPPORTED_ACCOUNT_ENTITY_SOURCES
+
+    async def iter_account_entity_pages(
+        self, kind: str, *, full_scan: bool
+    ) -> AsyncIterator[RemoteSourceEntityPage]:
+        del full_scan
+        async for raw_page in self.source.iter_account_raw_entity_pages(kind):
+            records = raw_page.get("entities", [])
+            if not isinstance(records, list):
+                raise ProviderChanged("Douyin entity page returned invalid records")
+            entities: list[RemoteSourceEntity] = []
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                remote_id = str(record.get("remote_id", "")).strip()
+                title = str(record.get("title", "")).strip()
+                if not remote_id or not title:
+                    continue
+                entities.append(
+                    RemoteSourceEntity(
+                        remote_id=remote_id,
+                        entity_type=str(record.get("entity_type", "external")),
+                        title=title,
+                        subtitle=(
+                            str(record["subtitle"]).strip()
+                            if record.get("subtitle")
+                            else None
+                        ),
+                        cover_url=(
+                            str(record["cover_url"])
+                            if record.get("cover_url")
+                            else None
+                        ),
+                        source_url=(
+                            str(record["source_url"])
+                            if record.get("source_url")
+                            else None
+                        ),
+                        remote_order=(
+                            str(record["remote_order"])
+                            if record.get("remote_order") is not None
+                            else None
+                        ),
+                        metadata=(
+                            record.get("metadata", {})
+                            if isinstance(record.get("metadata", {}), dict)
+                            else {}
+                        ),
+                    )
+                )
+            yield RemoteSourceEntityPage(
+                tuple(entities),
+                str(raw_page["cursor"]) if raw_page.get("cursor") is not None else None,
+                bool(raw_page.get("has_more", False)),
+            )
+
     async def iter_creator_pages(
         self, creator_id: str, *, full_scan: bool
     ) -> AsyncIterator[RemotePage]:
@@ -182,12 +249,21 @@ class PlaywrightDouyinSource:
         "https://www.douyin.com/user/self?from_tab_name=main&showTab=favorite_collection"
     )
     SELF_URL = "https://www.douyin.com/user/self?from_tab_name=main"
+    FOLLOWING_URL = "https://www.douyin.com/follow?from_nav=1"
+    FAVORITE_MUSIC_URL = (
+        f"{SELF_URL}&showTab=favorite_collection&showSubTab=music"
+    )
+    SUPPORTED_ACCOUNT_ENTITY_SOURCES = ("favorite_music",)
     SUPPORTED_ACCOUNT_SOURCES = (
         "post",
         "like",
         "favorite_video",
+        "favorite_series",
+        "favorite_drama",
         "watch_history",
         "watch_later",
+        "reservation",
+        "following",
     )
     ACCOUNT_SOURCE_TABS: ClassVar[dict[str, str]] = {
         "post": "post",
@@ -195,6 +271,16 @@ class PlaywrightDouyinSource:
         "favorite_video": "favorite_collection",
         "watch_history": "record",
         "watch_later": "watch_later",
+        "reservation": "my_appointment",
+    }
+    ACCOUNT_SOURCE_URLS: ClassVar[dict[str, str]] = {
+        "following": FOLLOWING_URL,
+        "favorite_series": (
+            f"{SELF_URL}&showTab=favorite_collection&showSubTab=compilation"
+        ),
+        "favorite_drama": (
+            f"{SELF_URL}&showTab=favorite_collection&showSubTab=playlet"
+        ),
     }
     ACCOUNT_SOURCE_CLICKS: ClassVar[dict[str, tuple[tuple[str, ...], ...]]] = {
         "post": (("作品",),),
@@ -349,9 +435,12 @@ class PlaywrightDouyinSource:
         if kind not in self.SUPPORTED_ACCOUNT_SOURCES:
             raise ProviderChanged("unsupported Douyin account source")
         await self.open()
-        tab_key = self.ACCOUNT_SOURCE_TABS[kind]
+        target_url = self.ACCOUNT_SOURCE_URLS.get(kind)
+        if target_url is None:
+            tab_key = self.ACCOUNT_SOURCE_TABS[kind]
+            target_url = f"{self.SELF_URL}&showTab={tab_key}"
         await self._page.goto(
-            f"{self.SELF_URL}&showTab={tab_key}",
+            target_url,
             wait_until="domcontentloaded",
             timeout=45_000,
         )
@@ -359,11 +448,176 @@ class PlaywrightDouyinSource:
         if kind == "favorite_video":
             await self._click_text_candidates(("视频", "收藏视频"))
 
-        discovered_ids = await self._collect_visible_item_ids(
-            known_ids=known_ids, full_scan=full_scan
-        )
+        discovered_ids: list[str] = []
+        if kind in {"favorite_series", "favorite_drama"}:
+            nested_links = await self._visible_nested_links(kind)
+            for nested_link in nested_links:
+                await self._page.goto(
+                    nested_link, wait_until="domcontentloaded", timeout=45_000
+                )
+                await self._page.wait_for_timeout(800)
+                discovered_ids.extend(
+                    await self._collect_visible_item_ids(
+                        known_ids=known_ids, full_scan=full_scan
+                    )
+                )
+        else:
+            discovered_ids = await self._collect_visible_item_ids(
+                known_ids=known_ids, full_scan=full_scan
+            )
+        discovered_ids = list(dict.fromkeys(discovered_ids))
         async for payload in self._detail_pages(discovered_ids):
             yield payload
+
+    async def iter_account_raw_entity_pages(
+        self, kind: str
+    ) -> AsyncIterator[dict[str, object]]:
+        if kind not in self.SUPPORTED_ACCOUNT_ENTITY_SOURCES:
+            raise ProviderChanged("unsupported Douyin account entity source")
+        await self.open()
+        await self._page.goto(
+            self.FAVORITE_MUSIC_URL,
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        await self._page.wait_for_timeout(1_000)
+        seen: set[str] = set()
+        stable_rounds = 0
+        order = 0
+        while stable_rounds < 3:
+            visible = await self._visible_music_entities()
+            records: list[dict[str, object]] = []
+            for record in visible:
+                identity = "\n".join(
+                    (
+                        str(record.get("title", "")).strip(),
+                        str(record.get("subtitle", "")).strip(),
+                        str(record.get("duration", "")).strip(),
+                        str(record.get("coverUrl", "")).split("?", 1)[0],
+                    )
+                )
+                if not identity.strip() or identity in seen:
+                    continue
+                seen.add(identity)
+                remote_id = "music:" + hashlib.sha256(identity.encode()).hexdigest()[:24]
+                records.append(
+                    {
+                        "remote_id": remote_id,
+                        "entity_type": "music",
+                        "title": str(record.get("title", "")).strip(),
+                        "subtitle": str(record.get("subtitle", "")).strip() or None,
+                        "cover_url": str(record.get("coverUrl", "")).strip() or None,
+                        "source_url": self.FAVORITE_MUSIC_URL,
+                        "remote_order": f"{1_000_000_000 - order:010d}",
+                        "metadata": {"duration": record.get("duration")},
+                    }
+                )
+                order += 1
+            if records:
+                stable_rounds = 0
+                yield {
+                    "entities": records,
+                    "cursor": str(order),
+                    "has_more": True,
+                }
+            else:
+                stable_rounds += 1
+            if stable_rounds < 3:
+                await self._scroll_source_entities()
+                await self._page.wait_for_timeout(750)
+
+    async def _visible_music_entities(self) -> list[dict[str, object]]:
+        result = await self._page.evaluate(
+            """
+            () => { // __yingcangVisibleMusicEntities
+              const visible = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const result = [];
+              for (const item of document.querySelectorAll('li')) {
+                if (!visible(item) || !item.textContent?.includes('取消收藏')) continue;
+                const image = [...item.querySelectorAll('img')].find((candidate) => {
+                  const rect = candidate.getBoundingClientRect();
+                  return rect.width >= 60 && rect.height >= 60;
+                });
+                if (!image) continue;
+                const lines = (item.innerText || '').split(/\n+/)
+                  .map((value) => value.trim())
+                  .filter((value) => value && !['去使用', '取消收藏'].includes(value));
+                const duration = lines.find((value) => /^\\d{1,2}:\\d{2}$/.test(value)) || '';
+                const labels = lines.filter((value) => value !== duration);
+                if (!labels[0]) continue;
+                result.push({
+                  title: labels[0],
+                  subtitle: labels[1] || '',
+                  duration,
+                  coverUrl: image.currentSrc || image.src || '',
+                });
+              }
+              return result;
+            }
+            """
+        )
+        if not isinstance(result, list):
+            raise ProviderChanged("Douyin music source returned invalid entities")
+        return [value for value in result if isinstance(value, dict)]
+
+    async def _scroll_source_entities(self) -> None:
+        await self._page.evaluate(
+            """
+            () => { // __yingcangScrollSourceEntities
+              const cards = [...document.querySelectorAll('li')].filter((item) =>
+                item.textContent?.includes('取消收藏') && item.querySelector('img')
+              );
+              const last = cards[cards.length - 1];
+              let element = last?.parentElement || document.body;
+              let scrollRoot = null;
+              while (element && element !== document.documentElement) {
+                const style = getComputedStyle(element);
+                if (element.scrollHeight > element.clientHeight + 64 &&
+                    ['auto', 'scroll'].includes(style.overflowY)) {
+                  scrollRoot = element;
+                  break;
+                }
+                element = element.parentElement;
+              }
+              last?.scrollIntoView({block: 'end'});
+              if (scrollRoot) scrollRoot.scrollTo({top: scrollRoot.scrollHeight});
+              else window.scrollTo(0, document.documentElement.scrollHeight);
+              return true;
+            }
+            """
+        )
+
+    async def _visible_nested_links(self, kind: str) -> list[str]:
+        patterns = (
+            ("/collection/",)
+            if kind == "favorite_series"
+            else ("/series/", "/collection/")
+        )
+        result = await self._page.evaluate(
+            """
+            ({patterns}) => { // __yingcangVisibleNestedLinks
+              const visible = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              return [...new Set([...document.querySelectorAll('a[href]')]
+                .filter((anchor) => visible(anchor) && !anchor.closest('footer'))
+                .map((anchor) => anchor.href)
+                .filter((href) => patterns.some((pattern) => href.includes(pattern))))];
+            }
+            """,
+            {"patterns": list(patterns)},
+        )
+        if not isinstance(result, list):
+            raise ProviderChanged("Douyin nested source returned invalid links")
+        return [str(value) for value in result if str(value).startswith("https://")]
 
     async def iter_creator_raw_pages(
         self,
@@ -443,6 +697,19 @@ class PlaywrightDouyinSource:
               };
               const ids = [];
               const seen = new Set();
+              const currentMatch = location.pathname.match(/\/(?:video|note)\/(\d+)/);
+              if (currentMatch) {
+                seen.add(currentMatch[1]);
+                ids.push(currentMatch[1]);
+              }
+              for (const element of document.querySelectorAll('[data-e2e-aweme-id]')) {
+                if (!visible(element) || element.closest('footer')) continue;
+                const itemId = element.getAttribute('data-e2e-aweme-id') || '';
+                if (/^\d+$/.test(itemId) && !seen.has(itemId)) {
+                  seen.add(itemId);
+                  ids.push(itemId);
+                }
+              }
               for (const anchor of document.querySelectorAll(
                 'a[href*="/video/"], a[href*="/note/"]'
               )) {
@@ -467,18 +734,32 @@ class PlaywrightDouyinSource:
         await self._page.evaluate(
             """
             () => { // __yingcangScrollAccountPanel
-              const panels = [...document.querySelectorAll('[role="tabpanel"]')];
-              const panel = panels.find((element) => {
+              const visible = (element) => {
                 const style = getComputedStyle(element);
                 return style.display !== 'none' && style.visibility !== 'hidden' &&
                   element.getBoundingClientRect().height > 0;
-              });
-              const root = panel || document.querySelector('main') || document.body;
-              const anchors = root.querySelectorAll(
-                'a[href*="/video/"], a[href*="/note/"]'
-              );
-              anchors[anchors.length - 1]?.scrollIntoView({block: 'end'});
-              window.scrollTo(0, document.documentElement.scrollHeight);
+              };
+              const items = [...document.querySelectorAll(
+                '[data-e2e-aweme-id], a[href*="/video/"], a[href*="/note/"]'
+              )].filter(visible);
+              const lastItem = items[items.length - 1];
+              let element = lastItem?.parentElement || document.body;
+              let scrollRoot = null;
+              while (element && element !== document.documentElement) {
+                const style = getComputedStyle(element);
+                if (element.scrollHeight > element.clientHeight + 64 &&
+                    ['auto', 'scroll'].includes(style.overflowY)) {
+                  scrollRoot = element;
+                  break;
+                }
+                element = element.parentElement;
+              }
+              lastItem?.scrollIntoView({block: 'end'});
+              if (scrollRoot) {
+                scrollRoot.scrollTo({top: scrollRoot.scrollHeight, behavior: 'instant'});
+              } else {
+                window.scrollTo(0, document.documentElement.scrollHeight);
+              }
               return true;
             }
             """
@@ -682,7 +963,10 @@ class PlaywrightDouyinSource:
         content_type = response.headers.get("content-type", "")
         if "json" not in content_type.lower():
             return
-        with suppress(ValueError):
+        # Playwright can lose a response body when the official page navigates
+        # while the asynchronous callback is still reading it. The response
+        # observer is diagnostic/fallback-only and must never fail the sync.
+        with suppress(Exception):
             payload = await response.json()
             if isinstance(payload, dict):
                 if any(marker in url for marker in self.COLLECTION_PATH_MARKERS):

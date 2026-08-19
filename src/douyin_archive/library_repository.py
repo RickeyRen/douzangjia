@@ -8,6 +8,7 @@ from .library_models import (
     CreatorRecord,
     LibrarySource,
     LibrarySyncStatus,
+    SourceEntityRecord,
     SourceIntegrity,
 )
 
@@ -143,7 +144,10 @@ class LibraryRepository:
         self, source_id: str, current_item_ids: set[str]
     ) -> int:
         if not current_item_ids:
-            return 0
+            cursor = await self.db.execute(
+                "DELETE FROM source_items WHERE source_id=?", (source_id,)
+            )
+            return cursor.rowcount
         placeholders = ",".join("?" for _ in current_item_ids)
         cursor = await self.db.execute(
             f"DELETE FROM source_items WHERE source_id=? "
@@ -152,20 +156,72 @@ class LibraryRepository:
         )
         return cursor.rowcount
 
+    async def upsert_source_entity(self, entity: SourceEntityRecord) -> None:
+        now = int(time.time())
+        metadata_json = json.dumps(
+            entity.metadata or {},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        await self.db.execute(
+            "INSERT INTO source_entities "
+            "(source_id, remote_id, entity_type, title, subtitle, cover_url, "
+            "source_url, remote_order, metadata_json, first_seen_at, last_seen_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(source_id, remote_id) DO UPDATE SET "
+            "entity_type=excluded.entity_type, title=excluded.title, "
+            "subtitle=excluded.subtitle, cover_url=excluded.cover_url, "
+            "source_url=excluded.source_url, remote_order=excluded.remote_order, "
+            "metadata_json=excluded.metadata_json, last_seen_at=excluded.last_seen_at",
+            (
+                entity.source_id,
+                entity.remote_id,
+                entity.entity_type,
+                entity.title,
+                entity.subtitle,
+                entity.cover_url,
+                entity.source_url,
+                entity.remote_order,
+                metadata_json,
+                now,
+                now,
+            ),
+        )
+
+    async def reconcile_source_entities(
+        self, source_id: str, current_entity_ids: set[str]
+    ) -> int:
+        if not current_entity_ids:
+            cursor = await self.db.execute(
+                "DELETE FROM source_entities WHERE source_id=?", (source_id,)
+            )
+            return cursor.rowcount
+        placeholders = ",".join("?" for _ in current_entity_ids)
+        cursor = await self.db.execute(
+            f"DELETE FROM source_entities WHERE source_id=? "
+            f"AND remote_id NOT IN ({placeholders})",
+            (source_id, *sorted(current_entity_ids)),
+        )
+        return cursor.rowcount
+
     async def source_integrity(self, source_id: str) -> SourceIntegrity | None:
         row = await self.db.fetchone(
             "SELECT s.id, s.declared_count, s.sync_status, "
-            "COUNT(si.item_id) AS discovered_count, "
-            "COALESCE(SUM(CASE WHEN EXISTS ("
+            "(SELECT COUNT(*) FROM source_items si_count "
+            "WHERE si_count.source_id=s.id) + "
+            "(SELECT COUNT(*) FROM source_entities se_count "
+            "WHERE se_count.source_id=s.id) AS discovered_count, "
+            "COALESCE((SELECT SUM(CASE WHEN EXISTS ("
             "SELECT 1 FROM media_files mf_ready "
-            "WHERE mf_ready.item_id=si.item_id AND mf_ready.status='ready'"
+            "WHERE mf_ready.item_id=si_archive.item_id AND mf_ready.status='ready'"
             ") AND NOT EXISTS ("
             "SELECT 1 FROM media_files mf_pending "
-            "WHERE mf_pending.item_id=si.item_id AND mf_pending.status!='ready'"
-            ") THEN 1 ELSE 0 END), 0) AS archived_count "
+            "WHERE mf_pending.item_id=si_archive.item_id AND mf_pending.status!='ready'"
+            ") THEN 1 ELSE 0 END) FROM source_items si_archive "
+            "WHERE si_archive.source_id=s.id), 0) AS archived_count "
             "FROM library_sources s "
-            "LEFT JOIN source_items si ON si.source_id=s.id "
-            "WHERE s.id=? GROUP BY s.id",
+            "WHERE s.id=?",
             (source_id,),
         )
         if row is None:

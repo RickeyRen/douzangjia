@@ -44,6 +44,16 @@ export type FeedItem = {
   local: LocalArchiveState;
 };
 
+export type SourceEntity = {
+  id: string;
+  type: "music" | "series" | "drama" | "reservation" | "external";
+  title: string;
+  subtitle: string | null;
+  coverUrl: string | null;
+  sourceUrl: string | null;
+  metadata: Record<string, unknown>;
+};
+
 export type CreatorSubscription = {
   creatorId?: string;
   enabled: boolean;
@@ -224,6 +234,11 @@ export const loginAdmin = (password: string) =>
   });
 export const fetchCollections = () => request<{ items: Collection[] }>("/api/collections");
 export const fetchLibrarySources = () => request<{ items: LibrarySource[] }>("/api/library/sources");
+export const fetchSourceEntities = ({ sourceId, cursor }: { sourceId: string; cursor?: string }) => {
+  const query = new URLSearchParams({ sourceId, limit: "20" });
+  if (cursor) query.set("cursor", cursor);
+  return request<{ items: SourceEntity[]; nextCursor: string | null }>(`/api/library/entities?${query}`);
+};
 export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchDashboard = () => request<DashboardSnapshot>("/api/dashboard");

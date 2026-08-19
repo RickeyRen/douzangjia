@@ -13,6 +13,7 @@ vi.mock("../../app/api", () => ({
   controlArchiveBatch: vi.fn(),
   fetchLibrarySources: vi.fn(),
   fetchFeed: vi.fn(),
+  fetchSourceEntities: vi.fn(),
   fetchJobs: vi.fn(),
   fetchStatus: vi.fn(),
   fetchSyncRuns: vi.fn(),
@@ -33,6 +34,12 @@ const sources: api.LibrarySource[] = [
   {
     id: "account:posts", kind: "post", remoteId: "self", name: "作品",
     declaredCount: null, discoveredCount: 3, archivedCount: 1, missingCount: 0,
+    syncStatus: "incomplete", complete: false, lastFullScanAt: 1,
+    lastIncrementalScanAt: null, errorCode: "COUNT_UNKNOWN",
+  },
+  {
+    id: "account:favorite_music", kind: "favorite_music", remoteId: "self", name: "收藏音乐",
+    declaredCount: null, discoveredCount: 1, archivedCount: 0, missingCount: 0,
     syncStatus: "incomplete", complete: false, lastFullScanAt: 1,
     lastIncrementalScanAt: null, errorCode: "COUNT_UNKNOWN",
   },
@@ -81,6 +88,14 @@ describe("FeedPage", () => {
       items: [itemFor(collections.find((item) => `favorite_collection:${item.id}` === sourceId) ?? collections[0])],
       nextCursor: null,
     }));
+    vi.mocked(api.fetchSourceEntities).mockResolvedValue({
+      items: [{
+        id: "music:one", type: "music", title: "收藏音乐条目", subtitle: "创作者",
+        coverUrl: "https://media.test/music.jpg", sourceUrl: null,
+        metadata: { duration: "00:15" },
+      }],
+      nextCursor: null,
+    });
     vi.mocked(api.fetchJobs).mockResolvedValue({
       summary: {
         pending: 0,
@@ -201,6 +216,22 @@ describe("FeedPage", () => {
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(
       expect.objectContaining({ sourceId: "account:posts" }),
     ));
+  });
+
+  it("renders favorite music as a browsable non-video library", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    const rail = within((await screen.findByRole("navigation", { name: "打开收藏夹" })).closest("aside")!);
+    await user.click(rail.getByRole("button", { name: "收藏音乐1" }));
+
+    await waitFor(() => expect(api.fetchSourceEntities).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceId: "account:favorite_music" }),
+    ));
+    expect(await screen.findByText("收藏音乐条目")).toBeVisible();
+    expect(api.fetchFeed).not.toHaveBeenLastCalledWith(
+      expect.objectContaining({ sourceId: "account:favorite_music" }),
+    );
   });
 
   it("renders a useful empty state instead of a blank viewport", async () => {

@@ -130,3 +130,63 @@ async def library_feed(
             last["library_sort_key"], str(last["remote_id"])
         )
     return {"items": items, "nextCursor": next_cursor}
+
+
+@router.get("/entities")
+async def library_entities(
+    request: Request,
+    source_id: str = Query(alias="sourceId"),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = None,
+):
+    parameters: list[object] = [source_id]
+    conditions = ["source_id=?"]
+    sort_expression = "COALESCE(remote_order, '')"
+    if cursor:
+        try:
+            before_key, before_id = _decode_library_cursor(cursor)
+            if not isinstance(before_key, str):
+                raise TypeError
+        except (TypeError, ValueError):
+            return JSONResponse(
+                status_code=400,
+                content={"code": "INVALID_CURSOR", "message": "分页游标无效"},
+            )
+        conditions.append(
+            f"({sort_expression} < ? OR "
+            f"({sort_expression} = ? AND remote_id < ?))"
+        )
+        parameters.extend((before_key, before_key, before_id))
+    rows = await request.app.state.database.fetchall(
+        "SELECT *, "
+        f"{sort_expression} AS entity_sort_key FROM source_entities "
+        f"WHERE {' AND '.join(conditions)} "
+        f"ORDER BY {sort_expression} DESC, remote_id DESC LIMIT ?",
+        (*parameters, limit + 1),
+    )
+    has_more = len(rows) > limit
+    visible = rows[:limit]
+    items = []
+    for row in visible:
+        try:
+            metadata = json.loads(str(row["metadata_json"]))
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+        items.append(
+            {
+                "id": row["remote_id"],
+                "type": row["entity_type"],
+                "title": row["title"],
+                "subtitle": row["subtitle"],
+                "coverUrl": row["cover_url"],
+                "sourceUrl": row["source_url"],
+                "metadata": metadata if isinstance(metadata, dict) else {},
+            }
+        )
+    next_cursor = None
+    if has_more and visible:
+        last = visible[-1]
+        next_cursor = _encode_library_cursor(
+            str(last["entity_sort_key"]), str(last["remote_id"])
+        )
+    return {"items": items, "nextCursor": next_cursor}

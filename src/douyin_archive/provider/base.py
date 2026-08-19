@@ -41,6 +41,25 @@ class RemotePage:
     has_more: bool
 
 
+@dataclass(frozen=True, slots=True)
+class RemoteSourceEntity:
+    remote_id: str
+    entity_type: str
+    title: str
+    subtitle: str | None
+    cover_url: str | None
+    source_url: str | None
+    remote_order: str | None
+    metadata: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteSourceEntityPage:
+    entities: tuple[RemoteSourceEntity, ...]
+    next_cursor: str | None
+    has_more: bool
+
+
 class RawPageSource(Protocol):
     async def fetch_collections(self) -> dict: ...
 
