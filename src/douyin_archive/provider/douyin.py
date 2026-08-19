@@ -777,18 +777,28 @@ class PlaywrightDouyinSource:
                 url.searchParams.set('aweme_id', id);
                 url.searchParams.set('aid', '6383');
                 url.searchParams.set('device_platform', 'webapp');
-                const response = await fetch(url.toString(), {
-                  credentials: 'include',
-                  headers: {Accept: 'application/json, text/plain, */*'},
-                });
-                if (!response.ok) return null;
-                const data = await response.json();
-                return data?.aweme_detail || data?.aweme_list?.[0] || null;
+                for (let attempt = 0; attempt < 3; attempt += 1) {
+                  try {
+                    const response = await fetch(url.toString(), {
+                      credentials: 'include',
+                      cache: 'no-store',
+                      headers: {Accept: 'application/json, text/plain, */*'},
+                    });
+                    if (!response.ok) return null;
+                    const data = JSON.parse(await response.text());
+                    return data?.aweme_detail || data?.aweme_list?.[0] || null;
+                  } catch {
+                    if (attempt < 2) {
+                      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+                    }
+                  }
+                }
+                return null;
               };
               const records = [];
-              for (let offset = 0; offset < ids.length; offset += 5) {
-                const group = await Promise.all(ids.slice(offset, offset + 5).map(fetchOne));
-                records.push(...group.filter(Boolean));
+              for (const id of ids) {
+                const record = await fetchOne(id);
+                if (record) records.push(record);
               }
               return {status_code: 0, aweme_list: records};
             }

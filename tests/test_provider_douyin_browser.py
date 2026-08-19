@@ -521,6 +521,8 @@ async def test_item_detail_fetch_retries_a_truncated_json_response() -> None:
 
         async def evaluate(self, script: str, arguments=None):
             assert "__yingcangFetchDetails" in script
+            assert "JSON.parse(await response.text())" in script
+            assert "for (let attempt = 0; attempt < 3; attempt += 1)" in script
             self.calls += 1
             if self.calls < 3:
                 raise RuntimeError("Unexpected end of JSON input")
