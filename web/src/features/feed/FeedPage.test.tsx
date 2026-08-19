@@ -118,9 +118,13 @@ describe("FeedPage", () => {
 
     await user.click(await screen.findByRole("button", { name: /好看的美女/ }));
 
-    expect(await screen.findByText("来自 好看的美女")).toBeVisible();
     await waitFor(() => {
       expect(screen.getAllByTestId("feed-card-active")).toHaveLength(1);
+      expect(
+        within(screen.getByTestId("feed-card-active")).getByText(
+          "来自 好看的美女",
+        ),
+      ).toBeVisible();
     });
   });
 
@@ -141,6 +145,21 @@ describe("FeedPage", () => {
     expect(shouldAutoPaginate(19, 40)).toBe(false);
   });
 
+  it("keeps desktop navigation, media, and details in one flow grid", async () => {
+    render(<FeedPage />);
+
+    const workspace = await screen.findByTestId("desktop-workspace");
+    const content = screen.getByTestId("desktop-content");
+    const details = await screen.findByTestId("desktop-details");
+
+    expect(workspace).toHaveClass("archive-desktop-grid");
+    expect(content).toBeVisible();
+    expect(details).toBeVisible();
+    expect(details).not.toHaveClass("absolute");
+    expect(details).toHaveTextContent("旅行家");
+    expect(details).toHaveTextContent("来自 想去的地方");
+  });
+
   it("opens real download, sync, and settings panels", async () => {
     const user = userEvent.setup();
     const view = within(render(<FeedPage />).container);
@@ -157,8 +176,9 @@ describe("FeedPage", () => {
     await user.click(view.getByRole("button", { name: "关闭面板" }));
 
     await user.click(desktopRail.getByRole("button", { name: "设置" }));
-    expect(await view.findByText("抖音已连接")).toBeVisible();
-    expect(view.getByText("永久保留本地原文件")).toBeVisible();
+    const settingsDialog = await view.findByRole("dialog", { name: "设置" });
+    expect(within(settingsDialog).getByText("抖音已连接")).toBeVisible();
+    expect(within(settingsDialog).getByText("永久保留本地原文件")).toBeVisible();
   });
 
   it("keeps collections, search, activity, and settings reachable on mobile", async () => {

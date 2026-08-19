@@ -1,12 +1,14 @@
-import { CaretDown, CaretUp, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { CaretDown, CaretLeft, CaretRight, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { fetchCollections, fetchFeed, type Collection, type FeedItem } from "../../app/api";
+import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { CollectionRail } from "../navigation/CollectionRail";
 import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
+import { DesktopItemDetails } from "./DesktopItemDetails";
 import { FeedCard } from "./FeedCard";
 import { ItemDetailsSheet } from "./ItemDetailsSheet";
 import { MobileSearchSheet } from "./MobileSearchSheet";
@@ -159,60 +161,56 @@ export function FeedPage() {
   }
 
   return (
-    <main data-testid="archive-feed-root" className="iphone-feed-shell flex h-[100dvh] overflow-hidden bg-[#0c0e11] text-[#f7f8fa]">
-      <CollectionRail collections={collections} selected={selected} onSelect={setSelected} onOpenPanel={setUtilityPanel} />
-      <section className="relative min-w-0 flex-1">
-        <header className="absolute inset-x-0 top-0 z-[2] flex h-[76px] items-center justify-between border-b border-white/8 bg-[#0c0e11]/88 px-6 backdrop-blur-xl max-lg:h-auto max-lg:border-0 max-lg:bg-gradient-to-b max-lg:from-[#0c0e11]/90 max-lg:to-transparent max-lg:px-4 max-lg:pb-8 max-lg:pt-[calc(14px+env(safe-area-inset-top))]">
-          <button className="flex min-h-11 items-center gap-2 text-base font-semibold lg:pointer-events-none" type="button" onClick={() => setDrawerOpen(true)}>
-            <span className="hidden text-lg tracking-[-.04em] max-lg:inline">{t("brand")}</span>
-            <span className="max-lg:text-sm max-lg:font-medium">{selectedName}</span>
-            <CaretDown className="hidden max-lg:block" size={16} />
-          </button>
-          <label className="flex h-10 w-[min(34vw,380px)] items-center gap-2 rounded-lg border border-white/8 bg-white/[.04] px-3 text-[#747a84] focus-within:border-white/20 max-lg:hidden">
-            <MagnifyingGlass size={19} weight="regular" />
-            <input aria-label={t("searchArchive")} className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-[#656b75]" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
-          </label>
-          <button type="button" onClick={() => setSearchOpen(true)} aria-label={t("searchArchive")} className="touch-target hidden h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#111419]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-md active:scale-[.96] max-lg:grid"><MagnifyingGlass size={20} /></button>
-        </header>
+    <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
+      <div data-testid="desktop-workspace" className="archive-desktop-grid">
+        <CollectionRail collections={collections} selected={selected} onSelect={setSelected} onOpenPanel={setUtilityPanel} />
+        <section data-testid="desktop-content" className="archive-content-column friendly-panel">
+          <header className="archive-topbar">
+            <button className="archive-collection-trigger" type="button" onClick={() => setDrawerOpen(true)}>
+              <span className="archive-mobile-brand">{t("brand")}</span>
+              <span>{selectedName}</span>
+              <CaretDown className="archive-mobile-only" size={17} weight="bold" />
+            </button>
+            <label className="archive-search-field">
+              <MagnifyingGlass size={20} weight="bold" />
+              <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
+            </label>
+            <FriendlyIconButton label={t("searchArchive")} onClick={() => setSearchOpen(true)} className="archive-mobile-search">
+              <MagnifyingGlass size={21} weight="bold" />
+            </FriendlyIconButton>
+          </header>
 
-        {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
-          <div ref={viewport} className="feed-viewport h-[100dvh] snap-y snap-mandatory overflow-y-auto">
-            {items.map((item, index) => (
-              <div key={item.awemeId} data-feed-index={index}>
-                <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} />
+          <div className="archive-feed-region">
+            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
+              <div ref={viewport} className="feed-viewport snap-y snap-mandatory overflow-y-auto">
+                {items.map((item, index) => (
+                  <div key={item.awemeId} data-feed-index={index}>
+                    <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} />
+                  </div>
+                ))}
+                {nextCursor || loadMoreError ? (
+                  <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 snap-start snap-always items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
+                    <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
+                      {loadingMore ? t("loadingMore") : loadMoreError ? t("retryLoadMore") : t("loadMore")}
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ))}
-            {nextCursor || loadMoreError ? (
-              <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 snap-start snap-always items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
-                <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="touch-target min-h-11 rounded-full border border-white/10 bg-[#15181d]/92 px-5 text-sm text-[#d8dbe0] active:scale-[.98] disabled:opacity-60">
-                  {loadingMore ? t("loadingMore") : loadMoreError ? t("retryLoadMore") : t("loadMore")}
-                </button>
-              </div>
-            ) : null}
+            )}
           </div>
-        )}
 
-        {active ? (
-          <aside className="absolute bottom-0 right-0 top-[76px] hidden w-[310px] border-l border-white/10 bg-[#101318]/94 px-8 py-10 xl:block">
-            <p className="text-sm text-[#a8adb6]">@{active.author}</p>
-            <div className="my-7 border-t border-white/8" />
-            <h2 className="text-2xl font-semibold tracking-[-.03em]">{t("itemLabel")} · {active.description}</h2>
-            <div className="my-7 border-t border-white/8" />
-            <p className="text-sm text-[#969ba5]">{t("archived")} · {new Date(active.archivedAt * 1000).toLocaleDateString()}</p>
-            <div className="my-7 border-t border-white/8" />
-            <p className="text-sm text-[#969ba5]">{t("collectionLabel")} · {active.collections.map((item) => item.name).join("、")}</p>
-            <div className="my-7 border-t border-white/8" />
-            <p className="text-sm text-[#d7d9de]">{t("localOriginal")}</p>
-          </aside>
-        ) : null}
+          {active ? (
+            <footer className="archive-desktop-pager">
+              <FriendlyIconButton label={t("previousItem")} disabled={activeIndex === 0} onClick={() => move(-1)}><CaretLeft size={21} weight="bold" /></FriendlyIconButton>
+              <span>{activeIndex + 1} / {items.length}</span>
+              <FriendlyIconButton label={t("nextItem")} disabled={activeIndex === items.length - 1} onClick={() => move(1)}><CaretRight size={21} weight="bold" /></FriendlyIconButton>
+            </footer>
+          ) : null}
+        </section>
+        {active ? <DesktopItemDetails item={active} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" />}
+      </div>
 
-        <div className="absolute bottom-7 right-[330px] hidden grid gap-2 xl:grid">
-          <button aria-label={t("previousItem")} onClick={() => move(-1)} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#15181d] active:scale-[.96]"><CaretUp size={19} /></button>
-          <button aria-label={t("nextItem")} onClick={() => move(1)} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#15181d] active:scale-[.96]"><CaretDown size={19} /></button>
-        </div>
-
-        {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { setSelected(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
-      </section>
+      {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { setSelected(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
       {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
       {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} /> : null}
