@@ -1,18 +1,24 @@
-import { ArrowClockwise, CheckCircle, CircleNotch, Database, X } from "@phosphor-icons/react";
+import { ArrowClockwise, CheckCircle, CircleNotch, Database, HardDrives, Pulse, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import {
+  controlArchiveBatch,
+  fetchArchiveBatches,
+  fetchDashboard,
   fetchJobs,
   fetchStatus,
   fetchSyncRuns,
   triggerSync,
+  type ArchiveBatch,
   type BootstrapStatus,
+  type DashboardSnapshot,
   type DownloadSnapshot,
   type SyncRun,
 } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import type { UtilityPanel } from "../navigation/CollectionRail";
 import { DownloadMonitor } from "./DownloadMonitor";
+import { formatBytes, formatSpeed } from "./downloadFormat";
 
 const EMPTY_DOWNLOAD_SNAPSHOT: DownloadSnapshot = {
   summary: { pending: 0, running: 0, retry: 0, failed: 0, completed: 0, downloadedBytes: 0, totalBytes: 0, speedBps: 0, etaSeconds: 0 },
@@ -24,6 +30,8 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
   const [downloads, setDownloads] = useState<DownloadSnapshot>(EMPTY_DOWNLOAD_SNAPSHOT);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [status, setStatus] = useState<BootstrapStatus | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
+  const [batches, setBatches] = useState<ArchiveBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -39,7 +47,13 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
       if (showLoading) setLoading(true);
       setError(false);
       try {
-        if (kind === "activity") {
+        if (kind === "dashboard") {
+          const [dashboardResult, batchResult] = await Promise.all([fetchDashboard(), fetchArchiveBatches()]);
+          if (!cancelled) {
+            setDashboard(dashboardResult);
+            setBatches(batchResult.items);
+          }
+        } else if (kind === "activity") {
           const [jobResult, runResult] = await Promise.all([fetchJobs(), fetchSyncRuns()]);
           if (!cancelled) {
             setDownloads(jobResult);
@@ -71,6 +85,16 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
     };
   }, [kind]);
 
+  async function controlBatch(batchId: number, action: "pause" | "resume" | "cancel") {
+    setError(false);
+    try {
+      const updated = await controlArchiveBatch(batchId, action);
+      setBatches((current) => current.map((batch) => batch.id === batchId ? { ...batch, ...updated } : batch));
+    } catch {
+      setError(true);
+    }
+  }
+
   async function runFullSync() {
     setSyncing(true);
     setError(false);
@@ -85,11 +109,11 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
     }
   }
 
-  const title = kind === "downloads" ? t("downloadJobs") : kind === "sync" ? t("syncStatus") : kind === "activity" ? t("mobileActivity") : t("settings");
+  const title = kind === "dashboard" ? t("dashboard") : kind === "downloads" ? t("downloadJobs") : kind === "sync" ? t("syncStatus") : kind === "activity" ? t("mobileActivity") : t("settings");
 
   return (
     <div className="utility-overlay" onClick={onClose}>
-      <aside role="dialog" aria-modal="true" className="cinematic-drawer utility-drawer" onClick={(event) => event.stopPropagation()} aria-label={title}>
+      <aside role="dialog" aria-modal="true" className={`cinematic-drawer utility-drawer${kind === "dashboard" ? " utility-dashboard-drawer" : ""}`} onClick={(event) => event.stopPropagation()} aria-label={title}>
         <header className="utility-drawer-header">
           <h2>{title}</h2>
           <button type="button" onClick={onClose} aria-label={t("closePanel")} className="utility-close-button"><X size={20} /></button>
@@ -97,6 +121,7 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
         <div className="utility-drawer-body">
           {loading ? <p className="utility-loading"><CircleNotch className="animate-spin" size={18} />{t("loadingStatus")}</p> : null}
           {error ? <p className="utility-error">{t("statusLoadFailed")}</p> : null}
+          {!loading && dashboard && kind === "dashboard" ? <DashboardOverview snapshot={dashboard} batches={batches} onControl={controlBatch} /> : null}
           {!loading && kind === "downloads" ? <DownloadMonitor snapshot={downloads} /> : null}
           {!loading && kind === "activity" ? (
             <div>
@@ -126,6 +151,63 @@ export function ArchiveStatusPanel({ kind, onClose }: { kind: UtilityPanel; onCl
         </div>
       </aside>
     </div>
+  );
+}
+
+function DashboardOverview({ snapshot, batches, onControl }: { snapshot: DashboardSnapshot; batches: ArchiveBatch[]; onControl: (batchId: number, action: "pause" | "resume" | "cancel") => Promise<void> }) {
+  const { locale, t } = useI18n();
+  const number = new Intl.NumberFormat(locale);
+  const memoryPercent = snapshot.system.memoryTotalBytes > 0
+    ? Math.round(snapshot.system.memoryUsedBytes / snapshot.system.memoryTotalBytes * 100)
+    : 0;
+  return (
+    <section aria-label={t("dashboardOverview")} className="dashboard-overview">
+      <div className="dashboard-metric-grid">
+        <MetricCard icon={<HardDrives size={20} />} label={t("storageUsage")} value={`${snapshot.storage.usedPercent}%`} detail={`${formatBytes(snapshot.storage.usedBytes)} / ${formatBytes(snapshot.storage.totalBytes)}`} progress={snapshot.storage.usedPercent} />
+        <MetricCard icon={<Pulse size={20} />} label={t("downloadSpeed")} value={formatSpeed(snapshot.queue.speedBps)} detail={`${snapshot.queue.running} ${t("statusRunning")} · ${snapshot.queue.pending} ${t("statusPending")}`} />
+        <MetricCard icon={<Pulse size={20} />} label={t("systemLoad")} value={`${snapshot.system.cpuLoadPercent}%`} detail={`${snapshot.system.cpuCount} CPU · load ${snapshot.system.loadAverage1m}`} progress={snapshot.system.cpuLoadPercent} />
+        <MetricCard icon={<Database size={20} />} label={t("processMemory")} value={formatBytes(snapshot.system.processMemoryBytes)} detail={`${memoryPercent}% · ${formatBytes(snapshot.system.memoryUsedBytes)} / ${formatBytes(snapshot.system.memoryTotalBytes)}`} progress={memoryPercent} />
+        <MetricCard icon={<Database size={20} />} label={t("libraryIntegrity")} value={`${number.format(snapshot.library.archivedItems)} / ${number.format(snapshot.library.items)}`} detail={`${snapshot.library.completeSources}/${snapshot.library.sources} ${t("syncStatus")}`} progress={snapshot.library.items > 0 ? snapshot.library.archivedItems / snapshot.library.items * 100 : 0} />
+        <MetricCard icon={<Pulse size={20} />} label={t("recentErrors")} value={number.format(snapshot.health.recentErrors)} detail={`${formatBytes(snapshot.library.archivedBytes)} · ${number.format(snapshot.library.creators)} creators`} />
+      </div>
+      <section className="dashboard-batches" aria-label={t("archiveBatches")}>
+        <div className="dashboard-section-heading"><div><span>{t("archiveBatches")}</span><strong>{batches.length}</strong></div></div>
+        {batches.length === 0 ? <p className="download-empty">{t("batchEmpty")}</p> : (
+          <div className="dashboard-batch-list">
+            {batches.map((batch) => {
+              const completed = batch.completedCount ?? 0;
+              const total = batch.discoveredCount ?? 0;
+              return (
+                <article key={batch.id} className="dashboard-batch-card">
+                  <div className="dashboard-batch-main"><div><small>#{batch.id} · {batch.kind}</small><strong>{batch.targetId}</strong></div><span className={`download-status download-status-${batch.status}`}>{batch.status}</span></div>
+                  <div className="dashboard-batch-progress"><progress aria-label={`${batch.targetId} ${t("queueProgress")}`} max={Math.max(total, 1)} value={completed} /><span>{completed} / {total}</span></div>
+                  {batch.errorCode ? <p className="download-failure">{batch.errorCode}</p> : null}
+                  {!["completed", "failed", "cancelled"].includes(batch.status) ? (
+                    <div className="dashboard-batch-actions">
+                      {batch.status === "paused"
+                        ? <button type="button" onClick={() => void onControl(batch.id, "resume")}>{t("resumeBatch")}</button>
+                        : <button type="button" onClick={() => void onControl(batch.id, "pause")}>{t("pauseBatch")}</button>}
+                      <button type="button" onClick={() => void onControl(batch.id, "cancel")}>{t("cancelBatch")}</button>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function MetricCard({ icon, label, value, detail, progress }: { icon: React.ReactNode; label: string; value: string; detail: string; progress?: number }) {
+  return (
+    <article className="dashboard-metric-card">
+      <div className="dashboard-metric-label"><span>{icon}</span><p>{label}</p></div>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+      {progress !== undefined ? <progress aria-label={label} max={100} value={Math.min(Math.max(progress, 0), 100)} /> : null}
+    </article>
   );
 }
 

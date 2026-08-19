@@ -1,10 +1,10 @@
-import { Archive, BookmarkSimple, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, UserList } from "@phosphor-icons/react";
+import { Archive, BookmarkSimple, ChartDonut, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, UserList } from "@phosphor-icons/react";
 
 import type { Icon } from "@phosphor-icons/react";
 import type { LibrarySource } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 
-export type UtilityPanel = "downloads" | "sync" | "activity" | "settings";
+export type UtilityPanel = "dashboard" | "downloads" | "sync" | "activity" | "settings";
 
 const sourceIcons: Partial<Record<LibrarySource["kind"], Icon>> = {
   post: FilmSlate,
@@ -51,6 +51,7 @@ export function CollectionRail({ sources, selected, onSelect, onOpenPanel }: { s
         {favoriteFolders.map(renderSource)}
       </nav>
       <div className="collection-utility-navigation">
+        <button type="button" onClick={() => onOpenPanel("dashboard")}><ChartDonut size={21} weight="duotone" /><span>{t("dashboard")}</span></button>
         <button type="button" onClick={() => onOpenPanel("downloads")}><DownloadSimple size={21} weight="duotone" /><span>{t("downloadJobs")}</span></button>
         <button type="button" onClick={() => onOpenPanel("sync")}><Pulse size={21} weight="duotone" /><span>{t("syncStatus")}</span></button>
       </div>

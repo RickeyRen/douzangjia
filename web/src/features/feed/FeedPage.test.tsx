@@ -8,6 +8,9 @@ import { ThemeProvider } from "../../theme/ThemeProvider";
 import { FeedPage, feedIndexFromTarget, shouldAutoPaginate } from "./FeedPage";
 
 vi.mock("../../app/api", () => ({
+  fetchDashboard: vi.fn(),
+  fetchArchiveBatches: vi.fn(),
+  controlArchiveBatch: vi.fn(),
   fetchLibrarySources: vi.fn(),
   fetchFeed: vi.fn(),
   fetchJobs: vi.fn(),
@@ -267,7 +270,7 @@ describe("FeedPage", () => {
     await user.click(screen.getByRole("button", { name: "关闭收藏夹" }));
 
     await user.click(within(navigation).getByRole("button", { name: "活动" }));
-    expect(await screen.findByRole("dialog", { name: "活动" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "控制台" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "关闭面板" }));
 
     await user.click(within(navigation).getByRole("button", { name: "设置" }));

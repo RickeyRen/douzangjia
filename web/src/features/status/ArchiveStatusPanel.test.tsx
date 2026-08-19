@@ -53,6 +53,9 @@ const snapshot = {
 };
 
 vi.mock("../../app/api", () => ({
+  fetchDashboard: vi.fn(),
+  fetchArchiveBatches: vi.fn(),
+  controlArchiveBatch: vi.fn(),
   fetchJobs: vi.fn(),
   fetchStatus: vi.fn(),
   fetchSyncRuns: vi.fn(),
@@ -65,6 +68,32 @@ beforeEach(() => {
   vi.mocked(api.fetchSyncRuns).mockResolvedValue({ items: [] });
   vi.mocked(api.fetchStatus).mockResolvedValue({ configured: true, authenticated: true, douyinAuthenticated: true });
   vi.mocked(api.triggerSync).mockResolvedValue({ runId: 41 });
+  vi.mocked(api.fetchDashboard).mockResolvedValue({
+    storage: { totalBytes: 1_000_000_000, usedBytes: 420_000_000, freeBytes: 580_000_000, archiveBytes: 120_000_000, usedPercent: 42 },
+    system: { cpuCount: 4, cpuLoadPercent: 18.5, loadAverage1m: 0.74, loadAverage5m: 0.62, loadAverage15m: 0.58, memoryTotalBytes: 8_000_000_000, memoryUsedBytes: 3_000_000_000, processMemoryBytes: 180_000_000 },
+    library: { items: 1600, archivedItems: 1569, creators: 328, sources: 14, completeSources: 3, incompleteSources: 6, neverSyncedSources: 5, discoveredLinks: 2300, archivedBytes: 120_000_000 },
+    queue: snapshot.summary,
+    health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
+    generatedAt: 1_780_000,
+  });
+  vi.mocked(api.fetchArchiveBatches).mockResolvedValue({
+    items: [{ id: 12, kind: "source", targetId: "account:likes", status: "running", discoveredCount: 20, completedCount: 8, failedCount: 0, downloadedBytes: 4_000_000, totalBytes: 10_000_000, errorCode: null }],
+  });
+  vi.mocked(api.controlArchiveBatch).mockResolvedValue({ id: 12, kind: "source", targetId: "account:likes", status: "paused" });
+});
+
+it("shows NAS metrics and controls active archive batches", async () => {
+  const user = userEvent.setup();
+  render(<ArchiveStatusPanel kind="dashboard" onClose={vi.fn()} />);
+
+  const dashboard = await screen.findByRole("region", { name: "运行概览" });
+  expect(within(dashboard).getByText("42%")) .toBeVisible();
+  expect(within(dashboard).getByText("18.5%")) .toBeVisible();
+  expect(within(dashboard).getByText("1,569 / 1,600")) .toBeVisible();
+  expect(screen.getByText("account:likes")).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "暂停" }));
+  expect(api.controlArchiveBatch).toHaveBeenCalledWith(12, "pause");
 });
 
 afterEach(() => {

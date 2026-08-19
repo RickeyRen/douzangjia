@@ -194,7 +194,8 @@ export function FeedPage() {
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
     else if (destination === "search") setSearchOpen(true);
-    else if (destination === "activity" || destination === "settings") setUtilityPanel(destination);
+    else if (destination === "activity") setUtilityPanel("dashboard");
+    else if (destination === "settings") setUtilityPanel(destination);
     else if (destination === "feed") {
       setDrawerOpen(false);
       setUtilityPanel(null);

@@ -80,6 +80,15 @@ export type ArchiveBatch = {
   errorCode?: string | null;
 };
 
+export type DashboardSnapshot = {
+  storage: { totalBytes: number; usedBytes: number; freeBytes: number; archiveBytes: number; usedPercent: number };
+  system: { cpuCount: number; cpuLoadPercent: number; loadAverage1m: number; loadAverage5m: number; loadAverage15m: number; memoryTotalBytes: number; memoryUsedBytes: number; processMemoryBytes: number };
+  library: { items: number; archivedItems: number; creators: number; sources: number; completeSources: number; incompleteSources: number; neverSyncedSources: number; discoveredLinks: number; archivedBytes: number };
+  queue: DownloadSummary;
+  health: { recentErrors: number; uptimeSeconds: number; latestSync: SyncRun | null };
+  generatedAt: number;
+};
+
 export type LocalArchiveState = {
   state: "downloaded" | "downloading" | "waiting" | "retry" | "failed";
   readyAssets: number;
@@ -217,6 +226,10 @@ export const fetchCollections = () => request<{ items: Collection[] }>("/api/col
 export const fetchLibrarySources = () => request<{ items: LibrarySource[] }>("/api/library/sources");
 export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
+export const fetchDashboard = () => request<DashboardSnapshot>("/api/dashboard");
+export const fetchArchiveBatches = () => request<{ items: ArchiveBatch[] }>("/api/archive/batches?limit=20");
+export const controlArchiveBatch = (batchId: number, action: "pause" | "resume" | "cancel") =>
+  request<ArchiveBatch>(`/api/archive/batches/${batchId}/${action}`, { method: "POST" });
 export const fetchFeed = ({
   sourceId,
   collectionId,

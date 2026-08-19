@@ -169,6 +169,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app = FastAPI(title="Yingcang", lifespan=lifespan)
     app.state.settings = settings
     app.state.admin_store = admin_store
+    app.state.started_at = int(time.time())
 
     def decode_session(request: Request) -> bool:
         return session_codec.is_valid(request.cookies.get(SESSION_COOKIE))
@@ -471,6 +472,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     from .routes.archive import router as archive_router
     from .routes.creators import router as creators_router
+    from .routes.dashboard import router as dashboard_router
     from .routes.feed import router as feed_router
     from .routes.jobs import router as jobs_router
     from .routes.library import router as library_router
@@ -478,6 +480,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     app.include_router(archive_router)
     app.include_router(creators_router)
+    app.include_router(dashboard_router)
     app.include_router(feed_router)
     app.include_router(jobs_router)
     app.include_router(library_router)

@@ -246,6 +246,30 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .utility-drawer-header h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
 .utility-close-button { display: grid; width: 42px; height: 42px; place-items: center; border: 0; border-radius: 9px; color: var(--app-muted); background: transparent; }
 .utility-drawer-body { min-height: 0; flex: 1; overflow-y: auto; padding: 22px; }
+.utility-dashboard-drawer { width: min(96vw, 920px); }
+.dashboard-overview { display: grid; gap: 22px; }
+.dashboard-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dashboard-metric-card { min-width: 0; border: 1px solid var(--app-line); border-radius: 10px; padding: 15px; background: var(--app-surface-raised); }
+.dashboard-metric-label { display: flex; align-items: center; gap: 8px; color: var(--app-accent); }
+.dashboard-metric-label p { margin: 0; color: var(--app-muted); font-size: 10px; font-weight: 600; }
+.dashboard-metric-card > strong { display: block; margin-top: 13px; overflow: hidden; color: var(--app-text); font-size: 21px; font-weight: 680; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-metric-card > small { display: block; margin-top: 5px; overflow: hidden; color: var(--app-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-metric-card progress, .dashboard-batch-progress progress { width: 100%; height: 5px; margin-top: 12px; accent-color: var(--app-accent); }
+.dashboard-section-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 11px; border-bottom: 1px solid var(--app-line); }
+.dashboard-section-heading > div { display: flex; align-items: center; gap: 8px; }
+.dashboard-section-heading span { color: var(--app-text); font-size: 13px; font-weight: 630; }
+.dashboard-section-heading strong { min-width: 24px; border-radius: 99px; padding: 3px 7px; color: var(--app-accent); background: var(--app-accent-soft); text-align: center; font-size: 9px; }
+.dashboard-batch-list { display: grid; gap: 9px; margin-top: 11px; }
+.dashboard-batch-card { border: 1px solid var(--app-line); border-radius: 10px; padding: 13px; background: var(--app-surface-raised); }
+.dashboard-batch-main, .dashboard-batch-progress, .dashboard-batch-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dashboard-batch-main > div { min-width: 0; }
+.dashboard-batch-main small, .dashboard-batch-main strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-batch-main small { color: var(--app-faint); font-size: 9px; }
+.dashboard-batch-main strong { margin-top: 4px; color: var(--app-text); font-size: 12px; font-weight: 620; }
+.dashboard-batch-progress progress { min-width: 0; flex: 1; }
+.dashboard-batch-progress span { flex: 0 0 auto; margin-top: 9px; color: var(--app-muted); font-size: 9px; }
+.dashboard-batch-actions { justify-content: flex-end; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--app-line); }
+.dashboard-batch-actions button { min-height: 32px; border: 1px solid var(--app-line); border-radius: 7px; padding: 0 11px; color: var(--app-muted); background: var(--app-bg); font-size: 10px; font-weight: 580; }
 .utility-loading { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--app-muted); font-size: 13px; }
 .utility-error, .download-failure { margin: 0; border: 1px solid color-mix(in srgb, var(--app-danger) 28%, transparent); border-radius: 9px; padding: 12px; color: var(--app-danger); background: var(--app-danger-soft); font-size: 12px; line-height: 1.6; }
 .utility-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; margin-bottom: 18px; padding: 3px; border: 1px solid var(--app-line); border-radius: 9px; background: var(--app-bg); }
@@ -426,6 +450,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
   .mobile-navigation-item { display: grid; min-height: 49px; place-items: center; gap: 2px; border: 0; border-radius: 8px; padding: 3px 1px; color: var(--app-muted); background: transparent; font-size: 9px; transition: transform 160ms ease, color 160ms ease, background-color 160ms ease; }
   .mobile-navigation-item:active { transform: scale(.96); color: var(--app-text); background: var(--app-control-hover); }
   .utility-drawer { inset: auto 0 0; width: 100%; max-height: 88dvh; border: 0; border-top: 1px solid var(--app-line); border-radius: 16px 16px 0 0; }
+}
+
+@media (max-width: 520px) {
+  .dashboard-metric-grid { grid-template-columns: 1fr; }
+  .utility-dashboard-drawer { width: 100%; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
