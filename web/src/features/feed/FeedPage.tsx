@@ -58,7 +58,7 @@ export function FeedPage() {
   const paginationSentinel = useRef<HTMLDivElement>(null);
   const feedRequestId = useRef(0);
   const loadingMoreRef = useRef(false);
-  const autoPaginatedRequestId = useRef<number | null>(null);
+  const autoPaginatedCursor = useRef<string | null>(null);
   const pendingFocusIndex = useRef<number | null>(null);
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export function FeedPage() {
     setLoadMoreError(false);
     setNextCursor(null);
     loadingMoreRef.current = false;
-    autoPaginatedRequestId.current = null;
+    autoPaginatedCursor.current = null;
     void fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined })
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
@@ -135,12 +135,13 @@ export function FeedPage() {
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMoreRef.current) return;
+    const requestedCursor = nextCursor;
     const requestId = feedRequestId.current;
     loadingMoreRef.current = true;
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const result = await fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined, cursor: nextCursor });
+      const result = await fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined, cursor: requestedCursor });
       if (requestId !== feedRequestId.current) return;
       setItems((current) => {
         const known = new Set(current.map((item) => item.awemeId));
@@ -148,7 +149,10 @@ export function FeedPage() {
       });
       setNextCursor(result.nextCursor);
     } catch {
-      if (requestId === feedRequestId.current) setLoadMoreError(true);
+      if (requestId === feedRequestId.current) {
+        if (autoPaginatedCursor.current === requestedCursor) autoPaginatedCursor.current = null;
+        setLoadMoreError(true);
+      }
     } finally {
       loadingMoreRef.current = false;
       if (requestId === feedRequestId.current) setLoadingMore(false);
@@ -162,10 +166,10 @@ export function FeedPage() {
     const observer = new IntersectionObserver((entries) => {
       if (
         (viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
-        && autoPaginatedRequestId.current !== feedRequestId.current
+        && autoPaginatedCursor.current !== nextCursor
         && entries.some((entry) => entry.isIntersecting)
       ) {
-        autoPaginatedRequestId.current = feedRequestId.current;
+        autoPaginatedCursor.current = nextCursor;
         void loadMore();
       }
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
@@ -248,9 +252,15 @@ export function FeedPage() {
                   ))}
                 {nextCursor || loadMoreError ? (
                   <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 snap-start snap-always items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
-                    <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
-                      {loadingMore ? t("loadingMore") : loadMoreError ? t("retryLoadMore") : t("loadMore")}
-                    </button>
+                    {loadMoreError ? (
+                      <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
+                        {loadingMore ? t("loadingMore") : t("retryLoadMore")}
+                      </button>
+                    ) : (
+                      <span role="status" aria-live="polite" className="pagination-background-status">
+                        {loadingMore ? t("loadingMore") : ""}
+                      </span>
+                    )}
                   </div>
                 ) : null}
               </div>

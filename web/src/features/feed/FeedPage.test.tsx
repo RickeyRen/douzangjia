@@ -210,15 +210,40 @@ describe("FeedPage", () => {
     expect(await screen.findByRole("dialog", { name: "设置" })).toBeVisible();
   });
 
-  it("loads and appends the next cursor page without duplicates", async () => {
+  it("shows a retry action only after background pagination fails", async () => {
+    const observers: Array<{ callback: IntersectionObserverCallback; elements: Element[]; instance: IntersectionObserver }> = [];
+    class FakeIntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+      readonly elements: Element[] = [];
+      constructor(readonly callback: IntersectionObserverCallback) {
+        observers.push({ callback, elements: this.elements, instance: this as unknown as IntersectionObserver });
+      }
+      observe = (element: Element) => { this.elements.push(element); };
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = () => [];
+    }
+    vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
     vi.mocked(api.fetchFeed)
       .mockResolvedValueOnce({ items: [itemFor(collections[0])], nextCursor: "page-2" })
-      .mockResolvedValueOnce({ items: [itemFor(collections[0]), itemFor(collections[1])], nextCursor: null });
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce({ items: [itemFor(collections[1])], nextCursor: null });
     const user = userEvent.setup();
     const view = render(<FeedPage />);
 
     await screen.findAllByText("来自 想去的地方");
-    await user.click(screen.getByRole("button", { name: "加载更多" }));
+    expect(screen.queryByRole("button", { name: "加载更多" })).not.toBeInTheDocument();
+    const sentinel = view.container.querySelector(".pagination-sentinel");
+    expect(sentinel).not.toBeNull();
+    await waitFor(() => expect(observers.some((observer) => observer.elements.includes(sentinel!))).toBe(true));
+    const paginationObserver = observers.find((observer) => observer.elements.includes(sentinel!))!;
+    act(() => {
+      paginationObserver.callback([{ isIntersecting: true, intersectionRatio: 1, target: sentinel } as unknown as IntersectionObserverEntry], paginationObserver.instance);
+    });
+
+    await user.click(await screen.findByRole("button", { name: "加载失败，重试" }));
 
     await waitFor(() => expect(view.container.querySelectorAll("[data-feed-index]")).toHaveLength(2));
     expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: "page-2" }));
@@ -302,7 +327,7 @@ describe("FeedPage", () => {
     expect(within(navigation).getAllByRole("button").every((button) => button.classList.contains("touch-target"))).toBe(true);
   });
 
-  it("loads the next page when the pagination sentinel becomes visible", async () => {
+  it("keeps auto-paginating for each distinct cursor in the multi-post grid", async () => {
     const observers: Array<{ callback: IntersectionObserverCallback; elements: Element[]; instance: IntersectionObserver }> = [];
     class FakeIntersectionObserver {
       readonly root = null;
@@ -318,30 +343,35 @@ describe("FeedPage", () => {
       takeRecords = () => [];
     }
     vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
+    window.localStorage.setItem("liuying.feedView.v1", "grid");
+    const thirdCollection = { id: "1003", name: "第三页", itemCount: 1, lastSeenAt: 1 };
+    const fourthCollection = { id: "1004", name: "第四页", itemCount: 1, lastSeenAt: 1 };
     vi.mocked(api.fetchFeed)
       .mockResolvedValueOnce({ items: [itemFor(collections[0])], nextCursor: "page-2" })
       .mockResolvedValueOnce({ items: [itemFor(collections[1])], nextCursor: "page-3" })
-      .mockResolvedValueOnce({ items: [], nextCursor: null });
-    render(<FeedPage />);
-    const loadMore = await screen.findByRole("button", { name: "加载更多" });
-    expect(loadMore.closest(".pagination-sentinel")).toHaveClass("snap-start");
+      .mockResolvedValueOnce({ items: [itemFor(thirdCollection)], nextCursor: "page-4" })
+      .mockResolvedValueOnce({ items: [itemFor(fourthCollection)], nextCursor: null });
+    const view = render(<FeedPage />);
 
-    await waitFor(() => expect(observers.some((observer) => observer.elements.some((element) => element.contains(loadMore)))).toBe(true));
-    const paginationObserver = observers.find((observer) => observer.elements.some((element) => element.contains(loadMore)));
-    expect(paginationObserver).toBeDefined();
-    act(() => {
-      paginationObserver!.callback([{ isIntersecting: true, intersectionRatio: 1, target: loadMore } as unknown as IntersectionObserverEntry], paginationObserver!.instance);
-      paginationObserver!.callback([{ isIntersecting: true, intersectionRatio: 1, target: loadMore } as unknown as IntersectionObserverEntry], paginationObserver!.instance);
-    });
+    await screen.findByTestId("feed-grid");
+    expect(screen.queryByRole("button", { name: "加载更多" })).not.toBeInTheDocument();
 
-    await waitFor(() => expect(api.fetchFeed).toHaveBeenCalledWith(expect.objectContaining({ cursor: "page-2" })));
-    expect(vi.mocked(api.fetchFeed).mock.calls.filter(([request]) => request.cursor === "page-2")).toHaveLength(1);
+    for (const cursor of ["page-2", "page-3", "page-4"]) {
+      const sentinel = view.container.querySelector(".pagination-sentinel");
+      expect(sentinel).not.toBeNull();
+      await waitFor(() => expect(observers.some((observer) => observer.elements.includes(sentinel!))).toBe(true));
+      const paginationObserver = observers.filter((observer) => observer.elements.includes(sentinel!)).at(-1)!;
+      act(() => {
+        paginationObserver.callback([
+          { isIntersecting: true, intersectionRatio: 1, target: sentinel },
+          { isIntersecting: true, intersectionRatio: 1, target: sentinel },
+        ] as unknown as IntersectionObserverEntry[], paginationObserver.instance);
+      });
+      await waitFor(() => expect(api.fetchFeed).toHaveBeenCalledWith(expect.objectContaining({ cursor })));
+      expect(vi.mocked(api.fetchFeed).mock.calls.filter(([request]) => request.cursor === cursor)).toHaveLength(1);
+    }
 
-    await waitFor(() => expect(observers.filter((observer) => observer.elements.some((element) => element.contains(loadMore))).length).toBeGreaterThan(1));
-    const replacementObserver = observers.filter((observer) => observer.elements.some((element) => element.contains(loadMore))).at(-1)!;
-    act(() => {
-      replacementObserver.callback([{ isIntersecting: true, intersectionRatio: 1, target: loadMore } as unknown as IntersectionObserverEntry], replacementObserver.instance);
-    });
-    expect(vi.mocked(api.fetchFeed).mock.calls.filter(([request]) => request.cursor === "page-3")).toHaveLength(0);
+    await waitFor(() => expect(view.container.querySelectorAll(".archive-grid-card")).toHaveLength(4));
+    expect(view.container.querySelector(".pagination-sentinel")).toBeNull();
   });
 });
