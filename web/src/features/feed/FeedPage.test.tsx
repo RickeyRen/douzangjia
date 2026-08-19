@@ -17,6 +17,7 @@ vi.mock("../../app/api", () => ({
   fetchCreator: vi.fn(),
   archiveItem: vi.fn(),
   archiveCreator: vi.fn(),
+  archiveSource: vi.fn(),
   updateCreatorSubscription: vi.fn(),
 }));
 
@@ -130,6 +131,7 @@ describe("FeedPage", () => {
     });
     vi.mocked(api.archiveItem).mockResolvedValue({ id: 1, kind: "item", targetId: "1001", status: "completed" });
     vi.mocked(api.archiveCreator).mockResolvedValue({ id: 2, kind: "creator", targetId: "creator-1", status: "running" });
+    vi.mocked(api.archiveSource).mockResolvedValue({ id: 3, kind: "source", targetId: "favorite_collection:1002", status: "running" });
     vi.mocked(api.updateCreatorSubscription).mockResolvedValue({
       creatorId: "creator-1", enabled: true, scanIntervalSeconds: 21600,
       archiveNewItems: true, lastScanAt: null, nextScanAt: 1, lastErrorCode: null,
@@ -158,6 +160,16 @@ describe("FeedPage", () => {
         ),
       ).toBeVisible();
     });
+  });
+
+  it("archives the entire selected collection from the top bar", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    await user.click(await screen.findByRole("button", { name: /好看的美女/ }));
+    await user.click(screen.getByRole("button", { name: "保存当前收藏夹全部作品" }));
+
+    expect(api.archiveSource).toHaveBeenCalledWith("favorite_collection:1002");
   });
 
   it("renders a useful empty state instead of a blank viewport", async () => {

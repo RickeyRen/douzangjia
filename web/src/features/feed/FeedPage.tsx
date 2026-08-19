@@ -1,7 +1,7 @@
-import { CaretDown, CaretLeft, CaretRight, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { archiveCreator, archiveItem, fetchCollections, fetchCreator, fetchFeed, updateCreatorSubscription, type Collection, type Creator, type FeedItem } from "../../app/api";
+import { archiveCreator, archiveItem, archiveSource, fetchCollections, fetchCreator, fetchFeed, updateCreatorSubscription, type Collection, type Creator, type FeedItem } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -238,6 +238,12 @@ export function FeedPage() {
     setUtilityPanel("downloads");
   }
 
+  async function archiveSelectedSource() {
+    if (!selected) return;
+    await archiveSource(`favorite_collection:${selected}`);
+    setUtilityPanel("downloads");
+  }
+
   async function toggleCreatorSubscription(enabled: boolean) {
     if (!selectedCreator?.id) return;
     const subscription = await updateCreatorSubscription(selectedCreator.id, enabled);
@@ -262,6 +268,11 @@ export function FeedPage() {
                 <CaretDown className="archive-mobile-only" size={17} weight="bold" />
               </button>
             )}
+            {selected && !selectedCreator ? (
+              <FriendlyIconButton label={t("archiveCurrentSource")} onClick={() => void archiveSelectedSource()}>
+                <DownloadSimple size={20} weight="bold" />
+              </FriendlyIconButton>
+            ) : null}
             <label className="archive-search-field">
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />

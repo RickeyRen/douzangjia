@@ -94,6 +94,7 @@ export const zhCN = {
   showCollections: "查看收藏夹",
   itemInformation: "作品信息",
   saveToNas: "保存到 NAS",
+  archiveCurrentSource: "保存当前收藏夹全部作品",
   viewCreatorArchivePrefix: "查看",
   viewCreatorArchiveSuffix: "的已收藏作品",
   creatorArchive: "博主归档",

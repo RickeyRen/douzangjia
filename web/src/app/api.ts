@@ -227,6 +227,8 @@ export const archiveItem = (remoteId: string) =>
   request<ArchiveBatch>(`/api/archive/items/${encodeURIComponent(remoteId)}`, { method: "POST" });
 export const archiveCreator = (creatorId: string) =>
   request<ArchiveBatch>(`/api/archive/creators/${encodeURIComponent(creatorId)}`, { method: "POST" });
+export const archiveSource = (sourceId: string) =>
+  request<ArchiveBatch>(`/api/archive/sources/${encodeURIComponent(sourceId)}`, { method: "POST" });
 export const updateCreatorSubscription = (creatorId: string, enabled: boolean) =>
   request<CreatorSubscription>(`/api/creator-subscriptions/${encodeURIComponent(creatorId)}`, {
     method: "PUT",

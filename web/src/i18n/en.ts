@@ -94,6 +94,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   showCollections: "View collections",
   itemInformation: "Post information",
   saveToNas: "Save to NAS",
+  archiveCurrentSource: "Save every post in this collection",
   viewCreatorArchivePrefix: "View ",
   viewCreatorArchiveSuffix: "'s favorited posts",
   creatorArchive: "Creator archive",
