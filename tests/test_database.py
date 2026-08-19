@@ -38,6 +38,36 @@ async def test_schema_creates_archive_tables(database: Database) -> None:
     } <= names
 
 
+async def test_schema_creates_library_source_tables(database: Database) -> None:
+    """Catches a release that omits the account-library migration."""
+    rows = await database.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    )
+    names = {row["name"] for row in rows}
+    assert {
+        "creators",
+        "library_sources",
+        "source_items",
+        "sync_checkpoints",
+    } <= names
+
+
+async def test_schema_extends_items_with_creator_and_remote_metadata(
+    database: Database,
+) -> None:
+    """Catches a migration that creates sources but cannot describe their items."""
+    rows = await database.fetchall("PRAGMA table_info(items)")
+    names = {row["name"] for row in rows}
+    assert {
+        "cover_url",
+        "creator_id",
+        "duration_ms",
+        "source_url",
+        "statistics_json",
+        "visibility",
+    } <= names
+
+
 async def test_collection_rename_preserves_name_history(database: Database) -> None:
     repository = ArchiveRepository(database)
     await repository.upsert_collection("folder-1", "想去的地方")
