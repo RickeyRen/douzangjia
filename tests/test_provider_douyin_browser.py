@@ -8,6 +8,8 @@ from douyin_archive.provider.base import ProviderChanged
 from douyin_archive.provider.douyin import (
     ALL_FAVORITES_REMOTE_ID,
     PlaywrightDouyinSource,
+    _merge_collection_counts,
+    _parse_collection_counts,
     _payload_shape,
 )
 
@@ -142,6 +144,45 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
     assert source._page.calls[0]["path"].endswith("/collects/list/")
     assert source._page.calls[1]["params"]["collects_id"] == "2001"
     assert "AbortController" in source._page.scripts[0]
+
+
+def test_collection_counts_are_recovered_from_the_official_folder_view() -> None:
+    counts = _parse_collection_counts(
+        """
+        新建收藏夹
+        ✈️
+        共2390作品
+        有用的收藏
+        共 33 作品
+        想去的地方
+        共1.2万作品
+        """,
+        ("✈️", "有用的收藏", "想去的地方", "不存在"),
+    )
+
+    assert counts == {"✈️": 2390, "有用的收藏": 33, "想去的地方": 12_000}
+
+
+def test_dom_counts_fill_missing_api_counts_without_overwriting_api_values() -> None:
+    payload = {
+        "status_code": 0,
+        "collects_list": [
+            {
+                "collects_id_str": "2001",
+                "collects_name": "想去的地方",
+            },
+            {
+                "collects_id_str": "2002",
+                "collects_name": "家居设计",
+                "aweme_count": 2,
+            },
+        ],
+    }
+
+    enriched = _merge_collection_counts(payload, {"想去的地方": 19, "家居设计": 99})
+
+    assert enriched["collects_list"][0]["aweme_count"] == 19
+    assert enriched["collects_list"][1]["aweme_count"] == 2
 
 
 async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:

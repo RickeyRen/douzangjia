@@ -56,6 +56,27 @@ async def test_source_item_link_is_idempotent_and_exposes_missing_count(
     assert integrity.complete is False
 
 
+async def test_source_integrity_requires_a_declared_remote_count(
+    database: Database,
+) -> None:
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="favorite_collection:unknown",
+            kind=LibrarySourceKind.FAVORITE_COLLECTION,
+            remote_id="unknown",
+            name="未知数量收藏夹",
+            declared_count=None,
+            sync_status=LibrarySyncStatus.COMPLETE,
+        )
+    )
+
+    integrity = await library.source_integrity("favorite_collection:unknown")
+
+    assert integrity is not None
+    assert integrity.complete is False
+
+
 async def test_source_upsert_preserves_identity_and_updates_remote_state(
     database: Database,
 ) -> None:

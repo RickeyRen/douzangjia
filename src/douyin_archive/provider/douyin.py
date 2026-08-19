@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import suppress
@@ -15,6 +16,62 @@ from .normalizers import normalize_collections, normalize_page
 logger = logging.getLogger(__name__)
 ALL_FAVORITES_REMOTE_ID = "__douyin_all_favorites__"
 ALL_FAVORITES_NAME = "抖音全部收藏"
+
+
+def _parse_compact_count(raw: str) -> int | None:
+    cleaned = raw.strip().replace(",", "")
+    multiplier = 10_000 if cleaned.endswith("万") else 1
+    if multiplier > 1:
+        cleaned = cleaned[:-1]
+    try:
+        return int(float(cleaned) * multiplier)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_collection_counts(
+    page_text: str, expected_names: tuple[str, ...]
+) -> dict[str, int]:
+    """Extract folder counts from Douyin's visible collection view."""
+
+    counts: dict[str, int] = {}
+    for name in expected_names:
+        if not name:
+            continue
+        match = re.search(
+            rf"(?:^|\n)\s*{re.escape(name)}\s*(?:\n|\r|\s)+"
+            rf"共\s*([\d,.]+(?:万)?)\s*作品",
+            page_text,
+        )
+        if match is None:
+            continue
+        parsed = _parse_compact_count(match.group(1))
+        if parsed is not None:
+            counts[name] = parsed
+    return counts
+
+
+def _merge_collection_counts(
+    payload: dict[str, Any], counts: dict[str, int]
+) -> dict[str, Any]:
+    records = payload.get("collects_list")
+    if not isinstance(records, list) or not counts:
+        return payload
+    enriched: list[object] = []
+    for value in records:
+        if not isinstance(value, dict):
+            enriched.append(value)
+            continue
+        record = dict(value)
+        statistics = record.get("statis")
+        has_api_count = (
+            isinstance(statistics, dict) and statistics.get("aweme_count") is not None
+        ) or any(record.get(key) is not None for key in ("aweme_count", "item_count"))
+        name = str(record.get("collects_name", "")).strip()
+        if not has_api_count and name in counts:
+            record["aweme_count"] = counts[name]
+        enriched.append(record)
+    return {**payload, "collects_list": enriched}
 
 
 def _payload_shape(payload: dict[str, Any]) -> dict[str, object]:
@@ -157,6 +214,15 @@ class PlaywrightDouyinSource:
         normalize_collections(direct_payload)
         if _has_collection_schema(direct_payload):
             collections = normalize_collections(direct_payload)
+            counts = await self._read_collection_counts_from_page(
+                tuple(
+                    item.name
+                    for item in collections
+                    if item.remote_id != ALL_FAVORITES_REMOTE_ID
+                )
+            )
+            direct_payload = _merge_collection_counts(direct_payload, counts)
+            collections = normalize_collections(direct_payload)
             self._collection_names = {
                 item.remote_id: item.name for item in collections
             }
@@ -167,6 +233,29 @@ class PlaywrightDouyinSource:
         collections = normalize_collections(payload)
         self._collection_names = {item.remote_id: item.name for item in collections}
         return payload
+
+    async def _read_collection_counts_from_page(
+        self, expected_names: tuple[str, ...]
+    ) -> dict[str, int]:
+        if not expected_names:
+            return {}
+        try:
+            await self._click_text_candidates(("收藏", "收藏夹"))
+            await self._page.wait_for_timeout(800)
+            page_text = await self._page.locator("body").inner_text(timeout=5_000)
+        except Exception as error:  # noqa: BLE001 - best-effort UI fallback
+            logger.warning(
+                "Douyin collection count fallback unavailable error_type=%s",
+                type(error).__name__,
+            )
+            return {}
+        counts = _parse_collection_counts(page_text, expected_names)
+        logger.warning(
+            "Douyin collection count fallback matched=%s expected=%s",
+            len(counts),
+            len(expected_names),
+        )
+        return counts
 
     async def iter_raw_pages(self, remote_id: str) -> AsyncIterator[dict]:
         await self.open()

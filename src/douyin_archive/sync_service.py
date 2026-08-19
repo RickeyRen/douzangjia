@@ -128,11 +128,15 @@ class SyncService:
                             ),
                         )
                         existing = await self.jobs.get_by_key("download", item.remote_id)
-                        await self.jobs.enqueue_unique(
-                            "download", item.remote_id, asdict(item)
-                        )
                         if existing is None:
+                            await self.jobs.enqueue_unique(
+                                "download", item.remote_id, asdict(item)
+                            )
                             enqueued += 1
+                        elif existing.status != "completed":
+                            await self.jobs.enqueue_unique(
+                                "download", item.remote_id, asdict(item)
+                            )
                     last_cursor = page.next_cursor
                     await self.library.save_checkpoint(
                         source_id,
@@ -161,11 +165,16 @@ class SyncService:
                 integrity = await self.library.source_integrity(source_id)
                 source_complete = bool(
                     integrity is not None
-                    and (
-                        collection.item_count is None
-                        or integrity.discovered_count == collection.item_count
-                    )
+                    and collection.item_count is not None
+                    and integrity.discovered_count == collection.item_count
                 )
+                source_error_code = None
+                if not source_complete:
+                    source_error_code = (
+                        "COUNT_UNKNOWN"
+                        if collection.item_count is None
+                        else "COUNT_MISMATCH"
+                    )
                 await self.library.upsert_source(
                     LibrarySource(
                         id=source.id,
@@ -181,7 +190,7 @@ class SyncService:
                         ),
                         last_full_scan_at=source.last_full_scan_at,
                         last_incremental_scan_at=source.last_incremental_scan_at,
-                        error_code=None if source_complete else "COUNT_MISMATCH",
+                        error_code=source_error_code,
                     )
                 )
         except ProviderError as error:

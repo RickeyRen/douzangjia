@@ -152,7 +152,8 @@ class LibraryRepository:
             sync_status=sync_status,
             complete=(
                 sync_status is LibrarySyncStatus.COMPLETE
-                and (declared_count is None or declared_count == discovered_count)
+                and declared_count is not None
+                and declared_count == discovered_count
             ),
         )
 

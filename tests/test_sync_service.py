@@ -127,6 +127,63 @@ async def test_incremental_sync_repairs_a_collection_with_a_remote_count_gap(
     assert links is not None and links["total"] == 2
 
 
+async def test_unknown_remote_count_never_marks_a_source_complete(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+
+    class UnknownCountProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return [RemoteCollection("1001", "想去的地方", None)]
+
+        async def iter_collection_pages(
+            self, remote_id: str, *, full_scan: bool
+        ) -> AsyncIterator[RemotePage]:
+            yield RemotePage((item("734"),), None, False)
+
+    result = await SyncService(UnknownCountProvider(), archive, jobs).run(full_scan=False)
+
+    assert result.status == "completed"
+    source = await database.fetchone(
+        "SELECT declared_count, sync_status, error_code FROM library_sources "
+        "WHERE id='favorite_collection:1001'"
+    )
+    assert source is not None
+    assert source["declared_count"] is None
+    assert source["sync_status"] == "incomplete"
+    assert source["error_code"] == "COUNT_UNKNOWN"
+
+
+async def test_repeated_sync_preserves_completed_download_jobs(
+    sync_components,
+) -> None:
+    _database, archive, jobs = sync_components
+
+    class OneItemProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return [RemoteCollection("1001", "想去的地方", 1)]
+
+        async def iter_collection_pages(
+            self, remote_id: str, *, full_scan: bool
+        ) -> AsyncIterator[RemotePage]:
+            yield RemotePage((item("734"),), None, False)
+
+    provider = OneItemProvider()
+    first = await SyncService(provider, archive, jobs).run(full_scan=True)
+    claimed = await jobs.claim_next(worker_id="worker-a")
+    assert claimed is not None
+    await jobs.complete(claimed.id)
+
+    second = await SyncService(provider, archive, jobs).run(full_scan=True)
+
+    completed = await jobs.get_by_key("download", "734")
+    assert first.enqueued == 1
+    assert second.enqueued == 0
+    assert completed is not None
+    assert completed.status == "completed"
+    assert await jobs.claim_next(worker_id="worker-b") is None
+
+
 async def test_sync_failure_records_stable_error_code(sync_components) -> None:
     class FailingProvider(FakeProvider):
         async def list_collections(self) -> list[RemoteCollection]:
