@@ -11,9 +11,11 @@ from typing import Any, Protocol
 import httpx
 
 from .archive_handler import ArchiveJobHandler
+from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .auth_service import AuthService
 from .browser_coordinator import BrowserCoordinator
 from .config import Settings
+from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
 from .provider.base import SessionExpired
@@ -71,7 +73,7 @@ class RuntimeSyncCoordinator:
             lambda: PlaywrightDouyinSource(browser_coordinator)
         )
         self._lock = asyncio.Lock()
-        self._tasks: set[asyncio.Task[SyncResult]] = set()
+        self._tasks: set[asyncio.Task[Any]] = set()
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
         service = SyncService(_ExpiredProvider(), self.archive, self.jobs)
@@ -86,6 +88,92 @@ class RuntimeSyncCoordinator:
 
     async def run_full(self) -> SyncResult:
         return await self._run(full_scan=True)
+
+    async def trigger_creator_archive(self, creator_id: str) -> ArchiveBatch:
+        batches = ArchiveBatchRepository(self.database)
+        batch = await batches.create_batch("creator", creator_id)
+        await batches.set_status(batch.id, "discovering")
+        task = asyncio.create_task(
+            self._run_creator_archive(
+                creator_id,
+                batch.id,
+                full_scan=True,
+                archive_new_items=True,
+            )
+        )
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        current = await batches.get_batch(batch.id)
+        if current is None:
+            raise RuntimeError("creator archive batch disappeared")
+        return current
+
+    async def _run_creator_archive(
+        self,
+        creator_id: str,
+        batch_id: int,
+        *,
+        full_scan: bool,
+        archive_new_items: bool,
+    ) -> ArchiveBatch | None:
+        async with self._lock:
+            batches = ArchiveBatchRepository(self.database)
+            source = None
+            cookies = await self.auth.load_cookies()
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated and cookies:
+                await self.browser_coordinator.add_cookies(cookies)
+                authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated:
+                await batches.set_status(
+                    batch_id, "failed", error_code="DOUYIN_SESSION_EXPIRED"
+                )
+                return await batches.get_batch(batch_id)
+            try:
+                source = self.source_factory()
+                known_ids = await self.archive.list_known_item_ids()
+                provider = DouyinProvider(source, known_ids=known_ids)
+                return await CreatorSyncService(
+                    provider, self.archive, self.jobs, batches
+                ).run(
+                    creator_id,
+                    batch_id,
+                    full_scan=full_scan,
+                    archive_new_items=archive_new_items,
+                )
+            finally:
+                if source is not None:
+                    await source.close()
+
+    async def run_creator_subscriptions(self) -> int:
+        batches = ArchiveBatchRepository(self.database)
+        subscriptions = await batches.list_due_subscriptions()
+        scanned = 0
+        for subscription in subscriptions:
+            batch = await batches.create_batch("creator", subscription.creator_id)
+            try:
+                await self._run_creator_archive(
+                    subscription.creator_id,
+                    batch.id,
+                    full_scan=False,
+                    archive_new_items=subscription.archive_new_items,
+                )
+            except Exception:  # noqa: BLE001 - scheduler boundary persists stable state
+                await batches.finish_subscription_scan(
+                    subscription.creator_id, error_code="CREATOR_SYNC_FAILED"
+                )
+            else:
+                refreshed = await batches.get_batch(batch.id)
+                await batches.finish_subscription_scan(
+                    subscription.creator_id,
+                    error_code=(
+                        refreshed.error_code
+                        if refreshed is not None and refreshed.status == "failed"
+                        else None
+                    ),
+                )
+            scanned += 1
+        return scanned
 
     async def _run(
         self, *, full_scan: bool, run_id: int | None = None
@@ -212,6 +300,9 @@ class ArchiveRuntime:
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
         return await self.sync.trigger_sync(full_scan=full_scan)
+
+    async def trigger_creator_archive(self, creator_id: str) -> ArchiveBatch:
+        return await self.sync.trigger_creator_archive(creator_id)
 
     async def _initial_sync(self) -> int:
         return await self.trigger_sync(full_scan=True)

@@ -269,6 +269,35 @@ class ArchiveBatchRepository:
             ),
         )
 
+    async def list_due_subscriptions(
+        self, *, now: int | None = None, limit: int = 20
+    ) -> list[CreatorSubscription]:
+        due_at = int(time.time()) if now is None else now
+        rows = await self.db.fetchall(
+            "SELECT creator_id FROM creator_subscriptions "
+            "WHERE enabled=1 AND next_scan_at IS NOT NULL AND next_scan_at<=? "
+            "ORDER BY next_scan_at, creator_id LIMIT ?",
+            (due_at, limit),
+        )
+        result: list[CreatorSubscription] = []
+        for row in rows:
+            subscription = await self.get_subscription(str(row["creator_id"]))
+            if subscription is not None:
+                result.append(subscription)
+        return result
+
+    async def finish_subscription_scan(
+        self, creator_id: str, *, error_code: str | None = None
+    ) -> CreatorSubscription | None:
+        now = int(time.time())
+        await self.db.execute(
+            "UPDATE creator_subscriptions SET last_scan_at=?, "
+            "next_scan_at=CASE WHEN enabled=1 THEN ? + scan_interval_seconds ELSE NULL END, "
+            "last_error_code=?, updated_at=? WHERE creator_id=?",
+            (now, now, error_code, now, creator_id),
+        )
+        return await self.get_subscription(creator_id)
+
     @staticmethod
     def _batch(row) -> ArchiveBatch:
         return ArchiveBatch(

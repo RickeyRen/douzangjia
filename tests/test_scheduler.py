@@ -26,6 +26,9 @@ class FakeSyncService:
     async def run_full(self) -> None:
         pass
 
+    async def run_creator_subscriptions(self) -> None:
+        pass
+
 
 def test_scheduler_runs_every_five_minutes_without_overlap(
     tmp_path: Path, master_key: str
@@ -39,6 +42,12 @@ def test_scheduler_runs_every_five_minutes_without_overlap(
     assert interval[2]["seconds"] == 300
     assert interval[2]["max_instances"] == 1
     assert interval[2]["coalesce"] is True
+    creator_updates = next(
+        job for job in scheduler.jobs if job[2]["id"] == "creator-subscriptions"
+    )
+    assert creator_updates[1] == "interval"
+    assert creator_updates[2]["seconds"] == 300
+    assert creator_updates[2]["max_instances"] == 1
 
 
 @pytest.fixture

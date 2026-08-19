@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from douyin_archive.archive_repository import ArchiveBatchRepository
 from douyin_archive.db import Database
 from douyin_archive.repositories import ArchiveRepository, JobRepository
 from douyin_archive.runtime import RuntimeSyncCoordinator, recover_interrupted_sync_runs
@@ -33,6 +34,34 @@ class FakeSource:
 
     async def close(self) -> None:
         self.closed = True
+
+    async def iter_creator_raw_pages(
+        self,
+        creator_id: str,
+        *,
+        known_ids: set[str],
+        full_scan: bool,
+    ) -> AsyncIterator[dict]:
+        assert creator_id == "creator-sec-uid"
+        assert isinstance(full_scan, bool)
+        yield {
+            "aweme_list": [
+                {
+                    "aweme_id": "creator-post-1",
+                    "desc": "远程博主作品",
+                    "author": {
+                        "sec_uid": creator_id,
+                        "nickname": "旅行博主",
+                    },
+                    "video": {
+                        "play_addr": {
+                            "url_list": ["https://media.test/creator-post-1.mp4"]
+                        }
+                    },
+                }
+            ],
+            "has_more": False,
+        }
 
 
 class FakeBrowserCoordinator:
@@ -82,6 +111,81 @@ async def test_trigger_sync_returns_run_id_and_finishes_in_background(
     assert source.closed is True
     assert browser_coordinator.added_cookies == []
     assert browser_coordinator.authentication_checks == 1
+    await coordinator.close()
+    await database.close()
+
+
+async def test_trigger_creator_archive_discovers_remote_posts_in_background(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    source = FakeSource()
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(),
+        source_factory=lambda: source,
+    )
+
+    batch = await coordinator.trigger_creator_archive("creator-sec-uid")
+    assert batch.status in {"queued", "discovering"}
+
+    await coordinator.wait_for_idle()
+
+    finished = await database.fetchone(
+        "SELECT status, discovered_count FROM archive_batches WHERE id=?",
+        (batch.id,),
+    )
+    assert finished is not None
+    assert tuple(finished) == ("running", 1)
+    assert await JobRepository(database).count() == 1
+    assert source.closed is True
+    await coordinator.close()
+    await database.close()
+
+
+async def test_due_creator_subscriptions_archive_new_remote_posts(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO creators (remote_id, nickname, first_seen_at, last_seen_at) "
+        "VALUES ('creator-sec-uid', '旅行博主', 1, 1)"
+    )
+    subscriptions = ArchiveBatchRepository(database)
+    await subscriptions.upsert_subscription(
+        "creator-sec-uid",
+        enabled=True,
+        scan_interval_seconds=3600,
+        archive_new_items=True,
+    )
+    await database.execute(
+        "UPDATE creator_subscriptions SET next_scan_at=0 "
+        "WHERE creator_id='creator-sec-uid'"
+    )
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(),
+        source_factory=FakeSource,
+    )
+
+    scanned = await coordinator.run_creator_subscriptions()
+
+    assert scanned == 1
+    subscription = await subscriptions.get_subscription("creator-sec-uid")
+    assert subscription is not None
+    assert subscription.last_scan_at is not None
+    assert subscription.next_scan_at is not None
+    assert subscription.next_scan_at >= subscription.last_scan_at + 3600
+    assert subscription.last_error_code is None
+    assert await JobRepository(database).count() == 1
     await coordinator.close()
     await database.close()
 

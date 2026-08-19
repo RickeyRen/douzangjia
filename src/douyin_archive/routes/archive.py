@@ -60,6 +60,13 @@ async def _archive_target(request: Request, kind: str, target_id: str):
             batch = await service.archive_item(target_id)
         elif kind == "source":
             batch = await service.archive_source(target_id)
+        elif request.app.state.runtime is not None:
+            creator = await request.app.state.database.fetchone(
+                "SELECT remote_id FROM creators WHERE remote_id=?", (target_id,)
+            )
+            if creator is None:
+                raise ArchiveTargetNotFound(target_id)
+            batch = await request.app.state.runtime.trigger_creator_archive(target_id)
         else:
             batch = await service.archive_creator(target_id)
     except ArchiveTargetNotFound:

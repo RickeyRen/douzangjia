@@ -16,6 +16,15 @@ def configure_scheduler(scheduler: Any, sync_service: Any, settings: Settings) -
         replace_existing=True,
     )
     scheduler.add_job(
+        sync_service.run_creator_subscriptions,
+        "interval",
+        seconds=settings.sync_interval_seconds,
+        id="creator-subscriptions",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
         sync_service.run_incremental,
         "cron",
         hour=3,

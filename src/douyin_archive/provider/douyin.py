@@ -136,6 +136,17 @@ class DouyinProvider:
         async for page in self._normalized_pages(iterator, full_scan=full_scan):
             yield page
 
+    async def iter_creator_pages(
+        self, creator_id: str, *, full_scan: bool
+    ) -> AsyncIterator[RemotePage]:
+        iterator = self.source.iter_creator_raw_pages(
+            creator_id,
+            known_ids=self.known_ids,
+            full_scan=full_scan,
+        )
+        async for page in self._normalized_pages(iterator, full_scan=full_scan):
+            yield page
+
     async def _normalized_pages(
         self, raw_pages: AsyncIterator[dict], *, full_scan: bool
     ) -> AsyncIterator[RemotePage]:
@@ -337,6 +348,34 @@ class PlaywrightDouyinSource:
         for candidates in self.ACCOUNT_SOURCE_CLICKS[kind]:
             await self._click_text_candidates(candidates)
 
+        discovered_ids = await self._collect_visible_item_ids(
+            known_ids=known_ids, full_scan=full_scan
+        )
+        async for payload in self._detail_pages(discovered_ids):
+            yield payload
+
+    async def iter_creator_raw_pages(
+        self,
+        creator_id: str,
+        *,
+        known_ids: set[str] | None = None,
+        full_scan: bool = True,
+    ) -> AsyncIterator[dict]:
+        await self.open()
+        await self._page.goto(
+            f"https://www.douyin.com/user/{creator_id}",
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        discovered_ids = await self._collect_visible_item_ids(
+            known_ids=known_ids, full_scan=full_scan
+        )
+        async for payload in self._detail_pages(discovered_ids):
+            yield payload
+
+    async def _collect_visible_item_ids(
+        self, *, known_ids: set[str] | None, full_scan: bool
+    ) -> list[str]:
         discovered_ids: list[str] = []
         discovered_set: set[str] = set()
         stable_rounds = 0
@@ -355,7 +394,9 @@ class PlaywrightDouyinSource:
                 break
             await self._scroll_account_panel()
             await self._page.wait_for_timeout(750)
+        return discovered_ids
 
+    async def _detail_pages(self, discovered_ids: list[str]) -> AsyncIterator[dict]:
         for offset in range(0, len(discovered_ids), 20):
             chunk = discovered_ids[offset : offset + 20]
             payload = await self._fetch_aweme_details(chunk)

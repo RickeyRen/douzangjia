@@ -370,6 +370,57 @@ async def test_provider_incremental_account_source_stops_at_known_streak() -> No
     assert pages == []
 
 
+async def test_creator_source_opens_stable_creator_url_and_fetches_details() -> None:
+    class CreatorPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.goto_urls: list[str] = []
+            self.id_reads = 0
+
+        async def goto(self, url: str, **kwargs) -> None:
+            self.goto_urls.append(url)
+
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangVisibleAccountIds" in script:
+                self.id_reads += 1
+                return ["9001"]
+            if "__yingcangScrollAccountPanel" in script:
+                return True
+            if "__yingcangFetchDetails" in script:
+                return {
+                    "status_code": 0,
+                    "aweme_list": [
+                        {
+                            "aweme_id": "9001",
+                            "author": {
+                                "sec_uid": "creator-sec-uid",
+                                "nickname": "旅行博主",
+                            },
+                            "video": {
+                                "play_addr": {
+                                    "url_list": ["https://media.test/9001.mp4"]
+                                }
+                            },
+                        }
+                    ],
+                }
+            raise AssertionError("unexpected browser evaluation")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = CreatorPage()
+    source._page = page
+
+    pages = [
+        page async for page in source.iter_creator_raw_pages("creator-sec-uid")
+    ]
+
+    assert page.goto_urls == ["https://www.douyin.com/user/creator-sec-uid"]
+    assert pages[0]["aweme_list"][0]["aweme_id"] == "9001"
+
+
 async def test_browser_api_timeout_is_a_stable_provider_error() -> None:
     class TimedOutPage(FakePage):
         async def evaluate(self, script: str, arguments: dict) -> dict:
