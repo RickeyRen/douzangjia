@@ -52,6 +52,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .archive-mobile-search { margin-left: auto; }
 .archive-feed-region { min-height: 0; overflow: hidden; background: var(--app-stage); }
 .feed-viewport { width: 100%; height: 100%; }
+.feed-viewport > [data-feed-index] { width: 100%; height: 100%; min-height: 100%; }
 .archive-desktop-pager { display: none; }
 .collection-rail, .desktop-item-details { display: none; }
 
@@ -129,7 +130,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .mobile-media-caption, .mobile-media-actions, .mobile-media-progress { display: none; }
 .gallery-viewer { position: relative; width: 100%; height: 100%; overflow: hidden; }
 .gallery-strip { display: flex; width: 100%; height: 100%; overflow-x: auto; }
-.gallery-image { min-width: 100%; }
+.gallery-image { display: block; min-width: 100%; max-width: 100%; min-height: 0; flex: 0 0 100%; }
 .gallery-position { position: absolute; top: 14px; left: 50%; display: flex; gap: 6px; transform: translateX(-50%); }
 .gallery-position span { width: 6px; height: 3px; border-radius: 4px; background: rgb(255 255 255 / 36%); transition: width 160ms ease, background-color 160ms ease; }
 .gallery-position span.is-active { width: 20px; background: #fff; }
