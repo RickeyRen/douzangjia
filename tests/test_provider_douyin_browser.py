@@ -288,6 +288,8 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
 
         async def evaluate(self, script: str, arguments=None):
             if "__yingcangVisibleAccountIds" in script:
+                assert "closest('footer')" in script
+                assert "img, picture, video" in script
                 self.id_reads += 1
                 return ["734", "735"]
             if "__yingcangScrollAccountPanel" in script:

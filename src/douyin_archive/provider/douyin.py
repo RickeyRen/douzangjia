@@ -430,23 +430,14 @@ class PlaywrightDouyinSource:
                 return style.display !== 'none' && style.visibility !== 'hidden' &&
                   rect.width > 0 && rect.height > 0;
               };
-              const selectedTab = document.querySelector(
-                '[role="tab"][aria-selected="true"]'
-              );
-              const controlledId = selectedTab?.getAttribute('aria-controls');
-              const controlled = controlledId ? document.getElementById(controlledId) : null;
-              const panels = [...document.querySelectorAll('[role="tabpanel"]')]
-                .filter(visible);
-              const root = (controlled && visible(controlled) && controlled) ||
-                panels.find((panel) => panel.querySelector('a[href*="/video/"], a[href*="/note/"]')) ||
-                document.querySelector('main');
-              if (!root) return [];
               const ids = [];
               const seen = new Set();
-              for (const anchor of root.querySelectorAll(
+              for (const anchor of document.querySelectorAll(
                 'a[href*="/video/"], a[href*="/note/"]'
               )) {
-                if (!visible(anchor)) continue;
+                if (!visible(anchor) || anchor.closest('footer')) continue;
+                if (!anchor.querySelector('img, picture, video')) continue;
+                if (anchor.href.includes('source=Baiduspider')) continue;
                 const match = anchor.href.match(/\/(?:video|note)\/(\d+)/);
                 if (match && !seen.has(match[1])) {
                   seen.add(match[1]);
