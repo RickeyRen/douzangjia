@@ -8,6 +8,7 @@ import { GalleryViewer } from "./GalleryViewer";
 export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { item: FeedItem; active: boolean; onOpenDetails?: (item: FeedItem) => void; onOpenCollections?: () => void }) {
   const { t } = useI18n();
   const collection = item.collections[0]?.name ?? t("allArchives");
+  const titleId = `feed-title-${item.awemeId}`;
   const video = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(active);
   const [muted, setMuted] = useState(true);
@@ -40,7 +41,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
     setProgress(element && Number.isFinite(element.duration) && element.duration > 0 ? element.currentTime / element.duration : 0);
   }
   return (
-    <article className="feed-card archive-media-stage snap-start snap-always" data-testid={active ? "feed-card-active" : "feed-card"}>
+    <article aria-labelledby={titleId} className="feed-card archive-media-stage snap-start snap-always" data-testid={active ? "feed-card-active" : "feed-card"}>
       <div className="media-frame archive-media-frame">
         {item.media.length === 0 ? (
           <div className="archive-media-empty">{t("noMedia")}</div>
@@ -57,7 +58,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
 
         <div className="mobile-media-caption">
           <p className="mobile-media-author">@{item.author}</p>
-          <h2>{item.description}</h2>
+          <h2 id={titleId}>{item.description}</h2>
           <p className="mobile-media-source">{t("from")} {collection} · {t("localOriginal")}</p>
         </div>
 

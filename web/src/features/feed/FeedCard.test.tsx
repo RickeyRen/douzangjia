@@ -65,3 +65,10 @@ it("exposes post controls as a labelled toolbar", () => {
   expect(controls).toContainElement(screen.getByRole("button", { name: "查看收藏夹" }));
   expect(controls).toContainElement(screen.getByRole("button", { name: "作品信息" }));
 });
+
+it("labels the post with its visible title", () => {
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  render(<FeedCard item={item} active />);
+
+  expect(screen.getByRole("article", { name: "海边日落" })).toBeVisible();
+});
