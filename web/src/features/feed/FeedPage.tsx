@@ -1,7 +1,7 @@
 import { CaretDown, CaretLeft, CaretRight, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { fetchCollections, fetchFeed, type Collection, type FeedItem } from "../../app/api";
+import { archiveCreator, archiveItem, fetchCollections, fetchCreator, fetchFeed, updateCreatorSubscription, type Collection, type Creator, type FeedItem } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -10,6 +10,7 @@ import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { DesktopItemDetails } from "./DesktopItemDetails";
+import { CreatorProfile } from "./CreatorProfile";
 import { FeedCard } from "./FeedCard";
 import { FeedGrid } from "./FeedGrid";
 import { FeedViewToggle, type FeedViewMode } from "./FeedViewToggle";
@@ -39,7 +40,8 @@ export function FeedPage() {
   const { t } = useI18n();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selected, setSelected] = useState<string | undefined>();
-  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+  const [selectedCreator, setSelectedCreator] = useState<{ id: string | null; name: string } | null>(null);
+  const [creator, setCreator] = useState<Creator | null>(null);
   const [viewMode, setViewMode] = useState<FeedViewMode>(savedFeedView);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -77,6 +79,18 @@ export function FeedPage() {
 
   useEffect(() => {
     let cancelled = false;
+    if (!selectedCreator?.id) {
+      setCreator(null);
+      return () => { cancelled = true; };
+    }
+    void fetchCreator(selectedCreator.id)
+      .then((value) => { if (!cancelled) setCreator(value); })
+      .catch(() => { if (!cancelled) setCreator(null); });
+    return () => { cancelled = true; };
+  }, [selectedCreator]);
+
+  useEffect(() => {
+    let cancelled = false;
     const requestId = ++feedRequestId.current;
     setLoading(true);
     setError(false);
@@ -84,7 +98,7 @@ export function FeedPage() {
     setNextCursor(null);
     loadingMoreRef.current = false;
     autoPaginatedCursor.current = null;
-    void fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined })
+    void fetchFeed({ collectionId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined })
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
           setItems(result.items);
@@ -101,7 +115,7 @@ export function FeedPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredSearch, selected, selectedAuthor]);
+  }, [deferredSearch, selected, selectedCreator]);
 
   useEffect(() => {
     const root = viewport.current;
@@ -141,7 +155,7 @@ export function FeedPage() {
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const result = await fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined, cursor: requestedCursor });
+      const result = await fetchFeed({ collectionId: selectedCreator ? undefined : selected, creatorId: selectedCreator?.id ?? undefined, author: selectedCreator && !selectedCreator.id ? selectedCreator.name : undefined, search: deferredSearch || undefined, cursor: requestedCursor });
       if (requestId !== feedRequestId.current) return;
       setItems((current) => {
         const known = new Set(current.map((item) => item.awemeId));
@@ -157,7 +171,7 @@ export function FeedPage() {
       loadingMoreRef.current = false;
       if (requestId === feedRequestId.current) setLoadingMore(false);
     }
-  }, [deferredSearch, nextCursor, selected, selectedAuthor]);
+  }, [deferredSearch, nextCursor, selected, selectedCreator]);
 
   useEffect(() => {
     const target = paginationSentinel.current;
@@ -187,14 +201,14 @@ export function FeedPage() {
     }
   }
 
-  function openAuthor(author: string) {
-    setSelectedAuthor(author);
+  function openAuthor(creatorId: string | null, author: string) {
+    setSelectedCreator({ id: creatorId, name: author });
     setSearch("");
     setDetailItem(null);
   }
 
   function selectCollection(id?: string) {
-    setSelectedAuthor(null);
+    setSelectedCreator(null);
     setSelected(id);
   }
 
@@ -213,16 +227,33 @@ export function FeedPage() {
     changeViewMode("focus", index);
   }
 
+  async function archivePost(item: FeedItem) {
+    await archiveItem(item.awemeId);
+    setUtilityPanel("downloads");
+  }
+
+  async function archiveAllCreatorPosts() {
+    if (!selectedCreator?.id) return;
+    await archiveCreator(selectedCreator.id);
+    setUtilityPanel("downloads");
+  }
+
+  async function toggleCreatorSubscription(enabled: boolean) {
+    if (!selectedCreator?.id) return;
+    const subscription = await updateCreatorSubscription(selectedCreator.id, enabled);
+    setCreator((current) => current ? { ...current, subscription } : current);
+  }
+
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
       <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" ? " is-grid-view" : ""}`}>
-        <CollectionRail collections={collections} selected={selectedAuthor ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
+        <CollectionRail collections={collections} selected={selectedCreator ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
-            {selectedAuthor ? (
+            {selectedCreator ? (
               <div className="creator-archive-heading">
-                <FriendlyIconButton label={t("backToArchive")} onClick={() => setSelectedAuthor(null)}><CaretLeft size={20} weight="bold" /></FriendlyIconButton>
-                <div><span>{t("creatorArchive")}</span><h1>@{selectedAuthor}</h1></div>
+                <FriendlyIconButton label={t("backToArchive")} onClick={() => setSelectedCreator(null)}><CaretLeft size={20} weight="bold" /></FriendlyIconButton>
+                <div><span>{t("creatorArchive")}</span><h1>@{selectedCreator.name}</h1></div>
               </div>
             ) : (
               <button className="archive-collection-trigger" type="button" onClick={() => setDrawerOpen(true)}>
@@ -243,11 +274,12 @@ export function FeedPage() {
           </header>
 
           <div className="archive-feed-region">
-            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t(selectedAuthor ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedAuthor ? "creatorEmptyBody" : "emptyBody")} /> : (
+            {creator ? <CreatorProfile creator={creator} onArchiveAll={archiveAllCreatorPosts} onToggleSubscription={toggleCreatorSubscription} /> : null}
+            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t(selectedCreator ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedCreator ? "creatorEmptyBody" : "emptyBody")} /> : (
               <div ref={viewport} className={viewMode === "grid" ? "archive-grid-viewport" : "feed-viewport snap-y snap-mandatory overflow-y-auto"}>
                 {viewMode === "grid" ? <FeedGrid items={items} activeIndex={activeIndex} onOpen={openGridItem} /> : items.map((item, index) => (
                     <div key={item.awemeId} data-feed-index={index}>
-                      <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} onOpenAuthor={openAuthor} />
+                      <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} onOpenAuthor={openAuthor} onArchiveItem={(entry) => void archivePost(entry)} />
                     </div>
                   ))}
                 {nextCursor || loadMoreError ? (

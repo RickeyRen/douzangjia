@@ -16,14 +16,52 @@ export type MediaFile = {
 
 export type FeedItem = {
   awemeId: string;
+  creatorId: string | null;
   author: string;
   description: string;
   type: "video" | "gallery";
   publishedAt: number | null;
   archivedAt: number;
+  sourceUrl: string | null;
   collections: Array<{ id: string; name: string }>;
   media: MediaFile[];
   local: LocalArchiveState;
+};
+
+export type CreatorSubscription = {
+  creatorId?: string;
+  enabled: boolean;
+  scanIntervalSeconds: number;
+  archiveNewItems: boolean;
+  lastScanAt: number | null;
+  nextScanAt: number | null;
+  lastErrorCode: string | null;
+};
+
+export type Creator = {
+  id: string;
+  nickname: string;
+  uniqueId: string | null;
+  avatarUrl: string | null;
+  followerCount: number | null;
+  postCount: number | null;
+  knownItemCount: number;
+  archivedItemCount: number;
+  lastSeenAt: number;
+  subscription: CreatorSubscription | null;
+};
+
+export type ArchiveBatch = {
+  id: number;
+  kind: "item" | "source" | "creator";
+  targetId: string;
+  status: string;
+  discoveredCount?: number;
+  completedCount?: number;
+  failedCount?: number;
+  downloadedBytes?: number;
+  totalBytes?: number | null;
+  errorCode?: string | null;
 };
 
 export type LocalArchiveState = {
@@ -165,21 +203,35 @@ export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs
 export const fetchFeed = ({
   collectionId,
   author,
+  creatorId,
   search,
   cursor,
 }: {
   collectionId?: string;
   author?: string;
+  creatorId?: string;
   search?: string;
   cursor?: string;
 }) => {
   const query = new URLSearchParams({ limit: "20" });
+  if (creatorId) query.set("creatorId", creatorId);
   if (collectionId) query.set("collectionId", collectionId);
   if (author) query.set("author", author);
-  if (search) query.set("search", search);
+  if (search && !creatorId) query.set("search", search);
   if (cursor) query.set("cursor", cursor);
-  return request<{ items: FeedItem[]; nextCursor: string | null }>(`/api/feed?${query}`);
+  const path = creatorId ? "/api/library/feed" : "/api/feed";
+  return request<{ items: FeedItem[]; nextCursor: string | null }>(`${path}?${query}`);
 };
+export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
+export const archiveItem = (remoteId: string) =>
+  request<ArchiveBatch>(`/api/archive/items/${encodeURIComponent(remoteId)}`, { method: "POST" });
+export const archiveCreator = (creatorId: string) =>
+  request<ArchiveBatch>(`/api/archive/creators/${encodeURIComponent(creatorId)}`, { method: "POST" });
+export const updateCreatorSubscription = (creatorId: string, enabled: boolean) =>
+  request<CreatorSubscription>(`/api/creator-subscriptions/${encodeURIComponent(creatorId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ enabled, scanIntervalSeconds: 21_600, archiveNewItems: true }),
+  });
 export const beginDouyinLogin = () =>
   request<LoginStatus>("/api/douyin/login", { method: "POST" });
 export const getDouyinLogin = (id: string) => request<LoginStatus>(`/api/douyin/login/${id}`);

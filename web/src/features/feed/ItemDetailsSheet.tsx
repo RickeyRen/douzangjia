@@ -5,14 +5,14 @@ import { useI18n } from "../../i18n/context";
 import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
 
-export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (author: string) => void }) {
+export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
   const { t } = useI18n();
   return (
     <div className="collection-drawer-overlay" onClick={onClose}>
       <section role="dialog" aria-modal="true" aria-label={t("itemInformation")} className="item-details-drawer" onClick={(event) => event.stopPropagation()}>
         <div className="drawer-handle" />
         <header className="item-details-header">
-          <div><p><AuthorButton author={item.author} onOpen={onOpenAuthor} /></p><h2>{t("itemInformation")}</h2></div>
+          <div><p><AuthorButton creatorId={item.creatorId} author={item.author} onOpen={onOpenAuthor} /></p><h2>{t("itemInformation")}</h2></div>
           <button type="button" onClick={onClose} aria-label={t("closePanel")} className="touch-target utility-close-button"><X size={20} /></button>
         </header>
         <p className="item-details-description">{item.description}</p>

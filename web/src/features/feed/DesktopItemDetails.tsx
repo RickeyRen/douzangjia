@@ -12,13 +12,13 @@ import { useI18n } from "../../i18n/context";
 import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
 
-export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onOpenAuthor?: (author: string) => void }) {
+export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
   const { t } = useI18n();
   const rows = [
     {
       icon: <UserCircle size={20} weight="duotone" />,
       label: t("source"),
-      value: <AuthorButton author={item.author} onOpen={onOpenAuthor} />,
+      value: <AuthorButton creatorId={item.creatorId} author={item.author} onOpen={onOpenAuthor} />,
     },
     {
       icon: <NotePencil size={20} weight="duotone" />,

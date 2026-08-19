@@ -7,11 +7,13 @@ import { FeedCard } from "./FeedCard";
 
 const item: FeedItem = {
   awemeId: "7384162057",
+  creatorId: "creator-1",
   author: "旅行家",
   description: "海边日落",
   type: "video",
   publishedAt: 1,
   archivedAt: 2,
+  sourceUrl: "https://www.douyin.com/video/7384162057",
   collections: [{ id: "1001", name: "想去的地方" }],
   media: [{ id: 91, index: 0, type: "video", byteSize: 1024, mimeType: "video/mp4", url: "/api/media/91" }],
   local: { state: "downloaded", readyAssets: 1, totalAssets: 1, downloadedBytes: 1024, totalBytes: 1024 },
@@ -82,6 +84,17 @@ it("opens the creator archive and shows the local download state", async () => {
 
   await user.click(screen.getByRole("button", { name: "查看旅行家的已收藏作品" }));
 
-  expect(onOpenAuthor).toHaveBeenCalledWith("旅行家");
+  expect(onOpenAuthor).toHaveBeenCalledWith("creator-1", "旅行家");
   expect(screen.getByText("已下载到 NAS")).toBeVisible();
+});
+
+it("can request an idempotent archive batch for one post", async () => {
+  const user = userEvent.setup();
+  const onArchiveItem = vi.fn();
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  render(<FeedCard item={item} active onArchiveItem={onArchiveItem} />);
+
+  await user.click(screen.getByRole("button", { name: "保存到 NAS" }));
+
+  expect(onArchiveItem).toHaveBeenCalledWith(item);
 });

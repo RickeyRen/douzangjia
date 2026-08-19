@@ -14,6 +14,10 @@ vi.mock("../../app/api", () => ({
   fetchStatus: vi.fn(),
   fetchSyncRuns: vi.fn(),
   triggerSync: vi.fn(),
+  fetchCreator: vi.fn(),
+  archiveItem: vi.fn(),
+  archiveCreator: vi.fn(),
+  updateCreatorSubscription: vi.fn(),
 }));
 
 const collections = [
@@ -23,11 +27,13 @@ const collections = [
 
 const itemFor = (collection: (typeof collections)[number]) => ({
   awemeId: collection.id,
+  creatorId: "creator-1",
   author: "旅行家",
   description: `来自 ${collection.name}`,
   type: "video" as const,
   publishedAt: null,
   archivedAt: 1,
+  sourceUrl: `https://www.douyin.com/video/${collection.id}`,
   collections: [{ id: collection.id, name: collection.name }],
   media: [
     {
@@ -110,6 +116,24 @@ describe("FeedPage", () => {
       douyinAuthenticated: true,
     });
     vi.mocked(api.triggerSync).mockResolvedValue({ runId: 10 });
+    vi.mocked(api.fetchCreator).mockResolvedValue({
+      id: "creator-1",
+      nickname: "旅行家",
+      uniqueId: "travel-id",
+      avatarUrl: null,
+      followerCount: 321,
+      postCount: 17,
+      knownItemCount: 1,
+      archivedItemCount: 1,
+      lastSeenAt: 1,
+      subscription: null,
+    });
+    vi.mocked(api.archiveItem).mockResolvedValue({ id: 1, kind: "item", targetId: "1001", status: "completed" });
+    vi.mocked(api.archiveCreator).mockResolvedValue({ id: 2, kind: "creator", targetId: "creator-1", status: "running" });
+    vi.mocked(api.updateCreatorSubscription).mockResolvedValue({
+      creatorId: "creator-1", enabled: true, scanIntervalSeconds: 21600,
+      archiveNewItems: true, lastScanAt: null, nextScanAt: 1, lastErrorCode: null,
+    });
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
   });
@@ -263,20 +287,26 @@ describe("FeedPage", () => {
     expect(input).toHaveValue("");
   });
 
-  it("enters a creator archive from the author name and can return", async () => {
+  it("opens a stable creator profile with archive-all and follow controls", async () => {
     const user = userEvent.setup();
     render(<FeedPage />);
 
     await user.click((await screen.findAllByRole("button", { name: "查看旅行家的已收藏作品" }))[0]);
 
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({
-      author: "旅行家",
+      creatorId: "creator-1",
       collectionId: undefined,
     })));
     expect(screen.getByRole("heading", { name: "@旅行家" })).toBeVisible();
+    expect(await screen.findByText("本地已归档 1 / 已发现 1")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "保存该博主全部作品" }));
+    expect(api.archiveCreator).toHaveBeenCalledWith("creator-1");
+    await user.click(screen.getByRole("button", { name: "开启自动追更" }));
+    expect(api.updateCreatorSubscription).toHaveBeenCalledWith("creator-1", true);
 
     await user.click(screen.getByRole("button", { name: "返回全部归档" }));
-    await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ author: undefined })));
+    await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ creatorId: undefined })));
   });
 
   it("switches to the multi-post grid and remembers the preference", async () => {

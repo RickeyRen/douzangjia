@@ -1,4 +1,4 @@
-import { FolderSimple, Info, Pause, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
+import { DownloadSimple, FolderSimple, Info, Pause, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 import type { FeedItem } from "../../app/api";
@@ -7,7 +7,7 @@ import { AuthorButton } from "./AuthorButton";
 import { GalleryViewer } from "./GalleryViewer";
 import { LocalStateBadge } from "./LocalStateBadge";
 
-export function FeedCard({ item, active, onOpenDetails, onOpenCollections, onOpenAuthor }: { item: FeedItem; active: boolean; onOpenDetails?: (item: FeedItem) => void; onOpenCollections?: () => void; onOpenAuthor?: (author: string) => void }) {
+export function FeedCard({ item, active, onOpenDetails, onOpenCollections, onOpenAuthor, onArchiveItem }: { item: FeedItem; active: boolean; onOpenDetails?: (item: FeedItem) => void; onOpenCollections?: () => void; onOpenAuthor?: (creatorId: string | null, author: string) => void; onArchiveItem?: (item: FeedItem) => void }) {
   const { t } = useI18n();
   const collection = item.collections[0]?.name ?? t("allArchives");
   const titleId = `feed-title-${item.awemeId}`;
@@ -59,7 +59,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections, onOpe
         )}
 
         <div className="mobile-media-caption">
-          <p className="mobile-media-author"><AuthorButton author={item.author} onOpen={onOpenAuthor} /></p>
+          <p className="mobile-media-author"><AuthorButton creatorId={item.creatorId} author={item.author} onOpen={onOpenAuthor} /></p>
           <h2 id={titleId}>{item.description}</h2>
           <p className="mobile-media-source">{t("from")} {collection} · {t("localOriginal")}</p>
           <LocalStateBadge local={item.local} />
@@ -67,6 +67,7 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections, onOpe
 
         <div role="toolbar" aria-label={t("mediaControls")} className="mobile-media-actions media-control-toolbar">
           {item.type === "video" && item.media.length > 0 ? <MediaAction label={muted ? t("soundOn") : t("muteVideo")} onClick={() => setMuted((current) => !current)} icon={muted ? <SpeakerSlash size={22} /> : <SpeakerHigh size={22} />} /> : null}
+          <MediaAction label={t("saveToNas")} onClick={() => onArchiveItem?.(item)} icon={<DownloadSimple size={22} />} />
           <MediaAction label={t("showCollections")} onClick={onOpenCollections} icon={<FolderSimple size={22} />} />
           <MediaAction label={t("itemInformation")} onClick={() => onOpenDetails?.(item)} icon={<Info size={22} />} />
         </div>
