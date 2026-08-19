@@ -95,4 +95,4 @@
 - [x] Exercise theme persistence, collection switch, video play/pause, mobile navigation, download expansion and panel close.
 - [x] Use `view_image` on both concept images and final dark/light/mobile screenshots; fix all material mismatch-ledger findings.
 - [x] Run fresh full verification, create checkpoint commit and annotated `checkpoint/cinematic-theme-ui-20260819` tag.
-- [ ] Sync source with protected exclusions, rebuild only NAS archive service, then verify health, login preservation, asset hashes, real jobs API and clean recent logs.
+- [x] Sync source with protected exclusions, rebuild only NAS archive service, then verify health, login preservation, asset hashes, real jobs API and clean recent logs.
