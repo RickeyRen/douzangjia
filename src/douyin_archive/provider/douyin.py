@@ -289,8 +289,11 @@ class PlaywrightDouyinSource:
         "recommend": (("推荐",),),
         "like": (("喜欢",),),
         "favorite_video": (("收藏",), ("视频", "收藏视频")),
+        "favorite_series": (("收藏",), ("合集",)),
+        "favorite_drama": (("收藏",), ("短剧",)),
         "watch_history": (("观看历史",),),
         "watch_later": (("稍后再看",),),
+        "reservation": (("我的预约",),),
     }
     COLLECTION_PATH_MARKERS = (
         "mix/listcollection",
@@ -448,8 +451,8 @@ class PlaywrightDouyinSource:
             timeout=45_000,
         )
         await self._page.wait_for_timeout(1_000)
-        if kind == "favorite_video":
-            await self._click_text_candidates(("视频", "收藏视频"))
+        for labels in self.ACCOUNT_SOURCE_CLICKS.get(kind, ()):
+            await self._activate_profile_tab(labels)
 
         discovered_ids: list[str] = []
         if kind in {"favorite_series", "favorite_drama"}:
@@ -484,8 +487,8 @@ class PlaywrightDouyinSource:
             timeout=45_000,
         )
         await self._page.wait_for_timeout(1_000)
-        await self._click_text_candidates(("音乐",))
-        await self._page.wait_for_timeout(500)
+        await self._activate_profile_tab(("收藏",))
+        await self._activate_profile_tab(("音乐",))
         seen: set[str] = set()
         stable_rounds = 0
         order = 0
@@ -1061,6 +1064,42 @@ class PlaywrightDouyinSource:
                     count,
                     clicked,
                 )
+
+    async def _activate_profile_tab(self, labels: tuple[str, ...]) -> None:
+        for _ in range(12):
+            state = await self._page.evaluate(
+                """
+                ({labels}) => { // __yingcangActivateProfileTab
+                  const visible = (element) => {
+                    const style = getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.display !== 'none' && style.visibility !== 'hidden' &&
+                      rect.width > 0 && rect.height > 0;
+                  };
+                  const tabs = [...document.querySelectorAll('.semi-tabs-tab')]
+                    .filter(visible);
+                  for (const label of labels) {
+                    const exact = tabs.find((tab) =>
+                      (tab.textContent || '').trim() === label
+                    );
+                    const prefix = tabs.find((tab) =>
+                      (tab.textContent || '').trim().startsWith(label)
+                    );
+                    const tab = exact || prefix;
+                    if (!tab) continue;
+                    if (tab.classList.contains('semi-tabs-tab-active')) return 'active';
+                    tab.click();
+                    return 'clicked';
+                  }
+                  return 'missing';
+                }
+                """,
+                {"labels": list(labels)},
+            )
+            if state == "active":
+                return
+            await self._page.wait_for_timeout(500 if state == "clicked" else 250)
+        raise ProviderChanged("Douyin account source tab did not become active")
 
     async def _open_collection(self, remote_id: str) -> None:
         from playwright.async_api import Error as PlaywrightError

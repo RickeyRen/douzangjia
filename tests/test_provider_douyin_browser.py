@@ -272,20 +272,6 @@ async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:
 
 
 async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() -> None:
-    class Candidate:
-        async def count(self) -> int:
-            return 1
-
-        def nth(self, index: int):
-            assert index == 0
-            return self
-
-        async def is_visible(self, *, timeout: int) -> bool:
-            return True
-
-        async def click(self, *, timeout: int) -> None:
-            return None
-
     class AccountPage(FakePage):
         def __init__(self) -> None:
             super().__init__()
@@ -296,15 +282,12 @@ async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() ->
         async def goto(self, url: str, **kwargs) -> None:
             self.goto_urls.append(url)
 
-        def get_by_text(self, label: str, *, exact: bool) -> Candidate:
-            assert label == "作品"
-            assert exact is True
-            return Candidate()
-
         async def wait_for_timeout(self, milliseconds: int) -> None:
             return None
 
         async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                return "active"
             if "__yingcangVisibleAccountIds" in script:
                 assert "closest('footer')" in script
                 assert "img, picture, video" in script
@@ -447,6 +430,8 @@ async def test_additional_account_sources_use_stable_official_urls(
             return None
 
         async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                return "active"
             if "__yingcangVisibleNestedLinks" in script:
                 return []
             if "__yingcangVisibleAccountIds" in script:
@@ -466,27 +451,33 @@ async def test_additional_account_sources_use_stable_official_urls(
     assert pages == []
 
 
-async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
-    class MusicCandidate:
-        async def count(self) -> int:
-            return 1
-
-        def nth(self, index: int):
-            assert index == 0
-            return self
-
-        async def is_visible(self, *, timeout: int) -> bool:
-            return True
-
-        async def click(self, *, timeout: int) -> None:
+async def test_account_source_refuses_to_scan_when_the_expected_tab_is_missing() -> None:
+    class MissingTabPage(FakePage):
+        async def goto(self, url: str, **kwargs) -> None:
             return None
 
+        async def wait_for_timeout(self, milliseconds: int) -> None:
+            return None
+
+        async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                return "missing"
+            raise AssertionError("source content must not be scanned from the wrong tab")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = MissingTabPage()
+
+    with pytest.raises(ProviderChanged):
+        _ = [page async for page in source.iter_account_raw_pages("like")]
+
+
+async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
     class MusicPage(FakePage):
         def __init__(self) -> None:
             super().__init__()
             self.goto_urls: list[str] = []
             self.reads = 0
-            self.music_click_queries = 0
+            self.music_activation_reads = 0
 
         async def goto(self, url: str, **kwargs) -> None:
             self.goto_urls.append(url)
@@ -494,13 +485,10 @@ async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
         async def wait_for_timeout(self, milliseconds: int) -> None:
             return None
 
-        def get_by_text(self, label: str, *, exact: bool) -> MusicCandidate:
-            assert label == "音乐"
-            assert exact is True
-            self.music_click_queries += 1
-            return MusicCandidate()
-
         async def evaluate(self, script: str, arguments=None):
+            if "__yingcangActivateProfileTab" in script:
+                self.music_activation_reads += 1
+                return "active"
             if "__yingcangVisibleMusicEntities" in script:
                 assert r"split(/\n+/)" in script
                 self.reads += 1
@@ -529,7 +517,7 @@ async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
 
     assert provider.supported_account_entity_sources() == ("favorite_music",)
     assert page.goto_urls == [source.FAVORITE_MUSIC_URL]
-    assert page.music_click_queries == 1
+    assert page.music_activation_reads >= 1
     assert len(pages) == 1
     assert len(pages[0].entities) == 1
     entity = pages[0].entities[0]
