@@ -544,7 +544,7 @@ class PlaywrightDouyinSource:
                   return rect.width >= 60 && rect.height >= 60;
                 });
                 if (!image) continue;
-                const lines = (item.innerText || '').split(/\n+/)
+                const lines = (item.innerText || '').split(/\\n+/)
                   .map((value) => value.trim())
                   .filter((value) => value && !['去使用', '取消收藏'].includes(value));
                 const duration = lines.find((value) => /^\\d{1,2}:\\d{2}$/.test(value)) || '';

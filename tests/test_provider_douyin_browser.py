@@ -474,6 +474,7 @@ async def test_favorite_music_source_emits_stable_browsable_entities() -> None:
 
         async def evaluate(self, script: str, arguments=None):
             if "__yingcangVisibleMusicEntities" in script:
+                assert r"split(/\n+/)" in script
                 self.reads += 1
                 return [
                     {
