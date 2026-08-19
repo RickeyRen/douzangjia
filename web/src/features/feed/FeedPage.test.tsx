@@ -49,6 +49,7 @@ function render(ui: ReactElement) {
 describe("FeedPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     vi.mocked(api.fetchCollections).mockResolvedValue({ items: collections });
     vi.mocked(api.fetchFeed).mockImplementation(async ({ collectionId }) => ({
       items: [itemFor(collections.find((item) => item.id === collectionId) ?? collections[0])],
@@ -251,6 +252,45 @@ describe("FeedPage", () => {
 
     await user.click(screen.getByRole("button", { name: "返回全部归档" }));
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ author: undefined })));
+  });
+
+  it("switches to the multi-post grid and remembers the preference", async () => {
+    vi.mocked(api.fetchFeed).mockResolvedValue({
+      items: [itemFor(collections[0]), itemFor(collections[1])],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    await user.click(await screen.findByRole("button", { name: "多作品视图" }));
+
+    expect(screen.getByTestId("feed-grid")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /\u6253\u5f00\u4f5c\u54c1/ })).toHaveLength(2);
+    expect(window.localStorage.getItem("liuying.feedView.v1")).toBe("grid");
+  });
+
+  it("opens the selected grid post in the single-post view", async () => {
+    vi.mocked(api.fetchFeed).mockResolvedValue({
+      items: [itemFor(collections[0]), itemFor(collections[1])],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    render(<FeedPage />);
+    await user.click(await screen.findByRole("button", { name: "多作品视图" }));
+
+    await user.click(screen.getByRole("button", { name: "打开作品：来自 好看的美女" }));
+
+    expect(screen.getByRole("button", { name: "单个作品视图" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByTestId("feed-card-active")).getByRole("heading", { name: "来自 好看的美女" })).toBeVisible();
+  });
+
+  it("restores the saved multi-post preference", async () => {
+    window.localStorage.setItem("liuying.feedView.v1", "grid");
+
+    render(<FeedPage />);
+
+    expect(await screen.findByTestId("feed-grid")).toBeVisible();
+    expect(screen.getByRole("button", { name: "多作品视图" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("exposes stable safe-area structure for the iphone viewport", async () => {

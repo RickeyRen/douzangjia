@@ -11,6 +11,8 @@ import { MobileNavigation, type MobileDestination } from "../navigation/MobileNa
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { DesktopItemDetails } from "./DesktopItemDetails";
 import { FeedCard } from "./FeedCard";
+import { FeedGrid } from "./FeedGrid";
+import { FeedViewToggle, type FeedViewMode } from "./FeedViewToggle";
 import { ItemDetailsSheet } from "./ItemDetailsSheet";
 import { MobileSearchSheet } from "./MobileSearchSheet";
 
@@ -23,11 +25,22 @@ export function shouldAutoPaginate(activeIndex: number, itemCount: number): bool
   return itemCount > 0 && activeIndex >= Math.max(0, itemCount - 3);
 }
 
+const feedViewStorageKey = "liuying.feedView.v1";
+
+function savedFeedView(): FeedViewMode {
+  try {
+    return window.localStorage.getItem(feedViewStorageKey) === "grid" ? "grid" : "focus";
+  } catch {
+    return "focus";
+  }
+}
+
 export function FeedPage() {
   const { t } = useI18n();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selected, setSelected] = useState<string | undefined>();
   const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<FeedViewMode>(savedFeedView);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,6 +59,7 @@ export function FeedPage() {
   const feedRequestId = useRef(0);
   const loadingMoreRef = useRef(false);
   const autoPaginatedRequestId = useRef<number | null>(null);
+  const pendingFocusIndex = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +115,14 @@ export function FeedPage() {
     );
     root.querySelectorAll("[data-feed-index]").forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [items]);
+  }, [items, viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "focus" || pendingFocusIndex.current === null) return;
+    const index = pendingFocusIndex.current;
+    pendingFocusIndex.current = null;
+    viewport.current?.querySelector<HTMLElement>(`[data-feed-index="${index}"]`)?.scrollIntoView?.({ block: "start" });
+  }, [items, viewMode]);
 
   const active = items[activeIndex];
   const selectedName = collections.find((item) => item.id === selected)?.name ?? t("allArchives");
@@ -140,7 +161,7 @@ export function FeedPage() {
     if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
     const observer = new IntersectionObserver((entries) => {
       if (
-        shouldAutoPaginate(activeIndex, items.length)
+        (viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
         && autoPaginatedRequestId.current !== feedRequestId.current
         && entries.some((entry) => entry.isIntersecting)
       ) {
@@ -150,7 +171,7 @@ export function FeedPage() {
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [activeIndex, items.length, loadMore, loadMoreError, nextCursor]);
+  }, [activeIndex, items.length, loadMore, loadMoreError, nextCursor, viewMode]);
 
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
@@ -173,9 +194,24 @@ export function FeedPage() {
     setSelected(id);
   }
 
+  function changeViewMode(mode: FeedViewMode, focusIndex = activeIndex) {
+    if (mode === "focus") pendingFocusIndex.current = focusIndex;
+    setViewMode(mode);
+    try {
+      window.localStorage.setItem(feedViewStorageKey, mode);
+    } catch {
+      // Private browsing can reject storage; the in-memory preference still works.
+    }
+  }
+
+  function openGridItem(index: number) {
+    setActiveIndex(index);
+    changeViewMode("focus", index);
+  }
+
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
-      <div data-testid="desktop-workspace" className="archive-desktop-grid">
+      <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" ? " is-grid-view" : ""}`}>
         <CollectionRail collections={collections} selected={selectedAuthor ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
@@ -195,6 +231,7 @@ export function FeedPage() {
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
             </label>
+            <FeedViewToggle mode={viewMode} onChange={changeViewMode} />
             <ThemeToggle />
             <FriendlyIconButton label={t("searchArchive")} onClick={() => setSearchOpen(true)} className="archive-mobile-search">
               <MagnifyingGlass size={21} weight="bold" />
@@ -203,12 +240,12 @@ export function FeedPage() {
 
           <div className="archive-feed-region">
             {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t(selectedAuthor ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedAuthor ? "creatorEmptyBody" : "emptyBody")} /> : (
-              <div ref={viewport} className="feed-viewport snap-y snap-mandatory overflow-y-auto">
-                {items.map((item, index) => (
-                  <div key={item.awemeId} data-feed-index={index}>
-                    <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} onOpenAuthor={openAuthor} />
-                  </div>
-                ))}
+              <div ref={viewport} className={viewMode === "grid" ? "archive-grid-viewport" : "feed-viewport snap-y snap-mandatory overflow-y-auto"}>
+                {viewMode === "grid" ? <FeedGrid items={items} activeIndex={activeIndex} onOpen={openGridItem} /> : items.map((item, index) => (
+                    <div key={item.awemeId} data-feed-index={index}>
+                      <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} onOpenAuthor={openAuthor} />
+                    </div>
+                  ))}
                 {nextCursor || loadMoreError ? (
                   <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 snap-start snap-always items-center justify-center pb-[calc(96px+env(safe-area-inset-bottom))] pt-3">
                     <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
@@ -220,7 +257,7 @@ export function FeedPage() {
             )}
           </div>
 
-          {active ? (
+          {active && viewMode === "focus" ? (
             <footer className="archive-desktop-pager">
               <FriendlyIconButton label={t("previousItem")} disabled={activeIndex === 0} onClick={() => move(-1)}><CaretLeft size={21} weight="bold" /></FriendlyIconButton>
               <span>{activeIndex + 1} / {items.length}</span>
@@ -228,7 +265,7 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" />}
+        {viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
       </div>
 
       {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
