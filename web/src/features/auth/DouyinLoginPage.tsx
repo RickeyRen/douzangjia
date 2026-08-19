@@ -17,6 +17,7 @@ import {
   type PointerPoint,
 } from "../../app/api";
 import { useI18n } from "../../i18n/context";
+import { ThemeToggle } from "../../theme/ThemeToggle";
 import { useDouyinBrowserSocket } from "./useDouyinBrowserSocket";
 
 export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => void }) {
@@ -169,7 +170,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   if (status?.hasScreenshot) {
     return (
       <main
-        className="fixed inset-0 overflow-hidden bg-black text-[#f7f8fa]"
+        className="remote-browser-shell fixed inset-0 overflow-hidden bg-black text-[#f7f8fa]"
         data-testid="douyin-live-view"
       >
         <div className="absolute inset-0 grid place-items-center overflow-hidden">
@@ -205,17 +206,17 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
           )}
         </div>
 
-        <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-3 rounded-xl border border-white/10 bg-[#0c0e11]/85 px-4 py-3 shadow-2xl backdrop-blur-xl">
+        <div className="remote-browser-help">
           <QrCode size={21} weight="regular" />
           <div>
-            <p className="text-sm font-semibold">{t("douyinLoginTitle")}</p>
-            <p className="mt-0.5 text-[11px] text-[#a7abb3]">{t("dragHint")}</p>
+            <p>{t("douyinLoginTitle")}</p>
+            <small>{t("dragHint")}</small>
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
-          <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[#0c0e11]/85 px-4 py-2.5 text-sm text-[#d7dae0] shadow-2xl backdrop-blur-xl" role="status">
-            <span className="h-2 w-2 rounded-full bg-[#f16761] motion-safe:animate-pulse" />
+        <div className="remote-browser-status-wrap">
+          <div className="remote-browser-status" role="status">
+            <span />
             {interacting ? t("dragApplying") : `${statusText} · ${liveStatus}`}
           </div>
         </div>
@@ -224,17 +225,18 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
   }
 
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[#0c0e11] px-5 py-12 text-[#f7f8fa]">
-      <section className="w-full max-w-[520px] border-t border-white/10 pt-8 text-left">
-        <div className="mb-8 flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">
+    <main className="auth-shell auth-douyin-shell">
+      <ThemeToggle className="auth-theme-toggle" />
+      <section className="douyin-auth-card">
+        <div className="auth-icon">
           <QrCode size={25} weight="regular" />
         </div>
-        <h1 className="text-3xl font-semibold tracking-[-0.035em]">{t("douyinLoginTitle")}</h1>
-        <p className="mt-3 max-w-[46ch] text-[15px] leading-7 text-[#969ba5]">{t("douyinLoginBody")}</p>
+        <h1>{t("douyinLoginTitle")}</h1>
+        <p>{t("douyinLoginBody")}</p>
 
         {status ? (
-          <div className="mt-5 flex items-center gap-3 text-sm text-[#b8bcc4]" role="status">
-            <span className="h-2 w-2 rounded-full bg-[#f16761] motion-safe:animate-pulse" />
+          <div className="douyin-auth-status" role="status">
+            <span />
             {statusText}
           </div>
         ) : null}
@@ -244,7 +246,7 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
             type="button"
             onClick={() => void begin()}
             disabled={starting}
-            className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#f16761] px-5 text-sm font-semibold text-[#141518] transition-transform duration-200 active:scale-[.98] disabled:opacity-50"
+            className="friendly-button friendly-button-primary douyin-auth-button"
           >
             <ShieldCheck size={20} weight="regular" />
             {t("loginDouyin")}

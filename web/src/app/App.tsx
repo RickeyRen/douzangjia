@@ -25,8 +25,8 @@ export function App() {
     void refresh();
   }, []);
 
-  if (error) return <div className="grid min-h-[100dvh] place-items-center bg-[#0c0e11] px-6 text-center text-[#f7f8fa]"><div><p>{t("feedError")}</p><button className="mt-5 rounded-lg border border-white/10 px-5 py-3 text-sm" onClick={() => void refresh()}>{t("retry")}</button></div></div>;
-  if (!status) return <div className="grid min-h-[100dvh] place-items-center bg-[#0c0e11] text-sm text-[#747a84]">{t("loadingArchive")}</div>;
+  if (error) return <div className="app-state"><div><p>{t("feedError")}</p><button className="friendly-button friendly-button-secondary" onClick={() => void refresh()}>{t("retry")}</button></div></div>;
+  if (!status) return <div className="app-state">{t("loadingArchive")}</div>;
   if (!status.configured) return <SetupPage onComplete={() => void refresh()} />;
   if (!status.authenticated) return <LocalLoginPage onComplete={() => void refresh()} />;
   if (!status.douyinAuthenticated) return <DouyinLoginPage onAuthenticated={() => void refresh()} />;

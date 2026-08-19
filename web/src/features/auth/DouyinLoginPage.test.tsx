@@ -1,9 +1,15 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as renderView, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import * as api from "../../app/api";
+import { ThemeProvider } from "../../theme/ThemeProvider";
 import { DouyinLoginPage } from "./DouyinLoginPage";
+
+function render(ui: ReactElement) {
+  return renderView(<ThemeProvider>{ui}</ThemeProvider>);
+}
 
 vi.mock("../../app/api", () => ({
   beginDouyinLogin: vi.fn(),
@@ -79,6 +85,8 @@ it("shows the full persistent NAS browser without exposing cookie text", async (
   });
   const user = userEvent.setup();
   render(<DouyinLoginPage />);
+  expect(screen.getByRole("main")).toHaveClass("auth-shell");
+  expect(screen.getByRole("button", { name: "切换到亮色主题" })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "登录抖音" }));
 
   const canvas = await screen.findByLabelText("抖音登录二维码");
