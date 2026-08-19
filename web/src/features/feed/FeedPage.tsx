@@ -27,6 +27,7 @@ export function FeedPage() {
   const { t } = useI18n();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selected, setSelected] = useState<string | undefined>();
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -69,7 +70,7 @@ export function FeedPage() {
     setNextCursor(null);
     loadingMoreRef.current = false;
     autoPaginatedRequestId.current = null;
-    void fetchFeed({ collectionId: selected, search: deferredSearch || undefined })
+    void fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined })
       .then((result) => {
         if (!cancelled && requestId === feedRequestId.current) {
           setItems(result.items);
@@ -86,7 +87,7 @@ export function FeedPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredSearch, selected]);
+  }, [deferredSearch, selected, selectedAuthor]);
 
   useEffect(() => {
     const root = viewport.current;
@@ -118,7 +119,7 @@ export function FeedPage() {
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const result = await fetchFeed({ collectionId: selected, search: deferredSearch || undefined, cursor: nextCursor });
+      const result = await fetchFeed({ collectionId: selectedAuthor ? undefined : selected, author: selectedAuthor ?? undefined, search: deferredSearch || undefined, cursor: nextCursor });
       if (requestId !== feedRequestId.current) return;
       setItems((current) => {
         const known = new Set(current.map((item) => item.awemeId));
@@ -131,7 +132,7 @@ export function FeedPage() {
       loadingMoreRef.current = false;
       if (requestId === feedRequestId.current) setLoadingMore(false);
     }
-  }, [deferredSearch, nextCursor, selected]);
+  }, [deferredSearch, nextCursor, selected, selectedAuthor]);
 
   useEffect(() => {
     const target = paginationSentinel.current;
@@ -161,17 +162,35 @@ export function FeedPage() {
     }
   }
 
+  function openAuthor(author: string) {
+    setSelectedAuthor(author);
+    setSearch("");
+    setDetailItem(null);
+  }
+
+  function selectCollection(id?: string) {
+    setSelectedAuthor(null);
+    setSelected(id);
+  }
+
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
       <div data-testid="desktop-workspace" className="archive-desktop-grid">
-        <CollectionRail collections={collections} selected={selected} onSelect={setSelected} onOpenPanel={setUtilityPanel} />
+        <CollectionRail collections={collections} selected={selectedAuthor ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
-            <button className="archive-collection-trigger" type="button" onClick={() => setDrawerOpen(true)}>
-              <span className="archive-mobile-brand">{t("brand")}</span>
-              <span>{selectedName}</span>
-              <CaretDown className="archive-mobile-only" size={17} weight="bold" />
-            </button>
+            {selectedAuthor ? (
+              <div className="creator-archive-heading">
+                <FriendlyIconButton label={t("backToArchive")} onClick={() => setSelectedAuthor(null)}><CaretLeft size={20} weight="bold" /></FriendlyIconButton>
+                <div><span>{t("creatorArchive")}</span><h1>@{selectedAuthor}</h1></div>
+              </div>
+            ) : (
+              <button className="archive-collection-trigger" type="button" onClick={() => setDrawerOpen(true)}>
+                <span className="archive-mobile-brand">{t("brand")}</span>
+                <span>{selectedName}</span>
+                <CaretDown className="archive-mobile-only" size={17} weight="bold" />
+              </button>
+            )}
             <label className="archive-search-field">
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
@@ -183,11 +202,11 @@ export function FeedPage() {
           </header>
 
           <div className="archive-feed-region">
-            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
+            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : items.length === 0 ? <EmptyState title={t(selectedAuthor ? "creatorEmptyTitle" : "emptyTitle")} body={t(selectedAuthor ? "creatorEmptyBody" : "emptyBody")} /> : (
               <div ref={viewport} className="feed-viewport snap-y snap-mandatory overflow-y-auto">
                 {items.map((item, index) => (
                   <div key={item.awemeId} data-feed-index={index}>
-                    <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} />
+                    <FeedCard item={item} active={index === activeIndex} onOpenDetails={setDetailItem} onOpenCollections={() => setDrawerOpen(true)} onOpenAuthor={openAuthor} />
                   </div>
                 ))}
                 {nextCursor || loadMoreError ? (
@@ -209,13 +228,13 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {active ? <DesktopItemDetails item={active} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" />}
+        {active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" />}
       </div>
 
-      {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { setSelected(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
+      {drawerOpen ? <CollectionDrawer collections={collections} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
       {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
-      {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} /> : null}
+      {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} onOpenAuthor={openAuthor} /> : null}
       <MobileNavigation onOpen={openMobileDestination} />
     </main>
   );

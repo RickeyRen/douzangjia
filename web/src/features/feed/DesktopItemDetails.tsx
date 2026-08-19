@@ -9,14 +9,16 @@ import {
 
 import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
+import { AuthorButton } from "./AuthorButton";
+import { LocalStateBadge } from "./LocalStateBadge";
 
-export function DesktopItemDetails({ item }: { item: FeedItem }) {
+export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onOpenAuthor?: (author: string) => void }) {
   const { t } = useI18n();
   const rows = [
     {
       icon: <UserCircle size={20} weight="duotone" />,
       label: t("source"),
-      value: `@${item.author}`,
+      value: <AuthorButton author={item.author} onOpen={onOpenAuthor} />,
     },
     {
       icon: <NotePencil size={20} weight="duotone" />,
@@ -66,7 +68,7 @@ export function DesktopItemDetails({ item }: { item: FeedItem }) {
       <div className="desktop-local-state">
         <HardDrives size={22} weight="duotone" />
         <div>
-          <strong>{t("permanentRetention")}</strong>
+          <LocalStateBadge local={item.local} detailed />
           <p>{t("permanentRetentionBody")}</p>
         </div>
       </div>

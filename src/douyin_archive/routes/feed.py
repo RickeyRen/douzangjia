@@ -26,6 +26,34 @@ def _decode_cursor(value: str) -> tuple[int, str]:
         raise ValueError("invalid feed cursor") from error
 
 
+def _local_state(job_status: str | None, *, ready_assets: int, total_assets: int) -> str:
+    if total_assets > 0 and ready_assets == total_assets:
+        return "downloaded"
+    return {
+        "running": "downloading",
+        "retry": "retry",
+        "failed": "failed",
+    }.get(job_status or "", "waiting")
+
+
+def _payload_asset_summary(payload_json: str | None) -> tuple[int, int | None]:
+    try:
+        payload = json.loads(payload_json or "{}")
+        assets = payload.get("assets", [])
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return 0, None
+    if not isinstance(assets, list):
+        return 0, None
+    valid = [asset for asset in assets if isinstance(asset, dict)]
+    expected_sizes = [asset.get("expected_size") for asset in valid]
+    total_bytes = (
+        sum(int(size) for size in expected_sizes)
+        if valid and all(size is not None for size in expected_sizes)
+        else None
+    )
+    return len(valid), total_bytes
+
+
 async def _serialize_item(database, row) -> dict[str, Any]:
     collections = await database.fetchall(
         "SELECT c.remote_id, c.name FROM collections c "
@@ -38,6 +66,27 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         "WHERE item_id=? AND status='ready' ORDER BY asset_index",
         (row["remote_id"],),
     )
+    job = await database.fetchone(
+        "SELECT status, payload_json FROM download_jobs WHERE kind='download' AND remote_id=?",
+        (row["remote_id"],),
+    )
+    local = await database.fetchone(
+        "SELECT COUNT(*) AS total_assets, "
+        "COALESCE(SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END), 0) AS ready_assets, "
+        "COALESCE(SUM(CASE WHEN status='ready' THEN COALESCE(byte_size, downloaded_bytes) "
+        "ELSE downloaded_bytes END), 0) AS downloaded_bytes, "
+        "CASE WHEN COUNT(*)=0 OR SUM(CASE WHEN COALESCE(total_bytes, byte_size) IS NULL "
+        "THEN 1 ELSE 0 END)>0 THEN NULL ELSE SUM(COALESCE(total_bytes, byte_size)) END "
+        "AS total_bytes FROM media_files WHERE item_id=?",
+        (row["remote_id"],),
+    )
+    payload_assets, payload_total_bytes = _payload_asset_summary(
+        str(job["payload_json"]) if job is not None else None
+    )
+    total_assets = max(
+        int(local["total_assets"]) if local is not None else 0, payload_assets
+    )
+    ready_assets = int(local["ready_assets"]) if local is not None else 0
     return {
         "awemeId": row["remote_id"],
         "author": row["author_name"],
@@ -59,6 +108,23 @@ async def _serialize_item(database, row) -> dict[str, Any]:
             }
             for item in media
         ],
+        "local": {
+            "state": _local_state(
+                str(job["status"]) if job is not None else None,
+                ready_assets=ready_assets,
+                total_assets=total_assets,
+            ),
+            "readyAssets": ready_assets,
+            "totalAssets": total_assets,
+            "downloadedBytes": int(local["downloaded_bytes"]) if local is not None else 0,
+            "totalBytes": (
+                payload_total_bytes
+                if payload_total_bytes is not None
+                else int(local["total_bytes"])
+                if local is not None and local["total_bytes"] is not None
+                else None
+            ),
+        },
     }
 
 
@@ -89,6 +155,7 @@ async def feed(
     cursor: str | None = None,
     collection_id: str | None = Query(default=None, alias="collectionId"),
     media_type: str | None = Query(default=None, alias="type"),
+    author: str | None = None,
     search: str | None = None,
 ):
     conditions: list[str] = []
@@ -102,6 +169,9 @@ async def feed(
     if media_type:
         conditions.append("i.item_type=?")
         parameters.append(media_type)
+    if author:
+        conditions.append("i.author_name=?")
+        parameters.append(author)
     if search:
         conditions.append("(i.description LIKE ? OR i.author_name LIKE ? OR i.remote_id LIKE ?)")
         term = f"%{search}%"

@@ -39,6 +39,7 @@ const itemFor = (collection: (typeof collections)[number]) => ({
       url: `/api/media/${collection.id}`,
     },
   ],
+  local: { state: "downloaded" as const, readyAssets: 1, totalAssets: 1, downloadedBytes: 10, totalBytes: 10 },
 });
 
 function render(ui: ReactElement) {
@@ -234,6 +235,22 @@ describe("FeedPage", () => {
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ search: "旅行家" })));
     await user.click(within(dialog).getByRole("button", { name: "清除搜索" }));
     expect(input).toHaveValue("");
+  });
+
+  it("enters a creator archive from the author name and can return", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    await user.click((await screen.findAllByRole("button", { name: "查看旅行家的已收藏作品" }))[0]);
+
+    await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({
+      author: "旅行家",
+      collectionId: undefined,
+    })));
+    expect(screen.getByRole("heading", { name: "@旅行家" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "返回全部归档" }));
+    await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ author: undefined })));
   });
 
   it("exposes stable safe-area structure for the iphone viewport", async () => {

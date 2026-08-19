@@ -2,15 +2,17 @@ import { Archive, FolderSimple, HardDrives, X } from "@phosphor-icons/react";
 
 import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
+import { AuthorButton } from "./AuthorButton";
+import { LocalStateBadge } from "./LocalStateBadge";
 
-export function ItemDetailsSheet({ item, onClose }: { item: FeedItem; onClose: () => void }) {
+export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (author: string) => void }) {
   const { t } = useI18n();
   return (
     <div className="collection-drawer-overlay" onClick={onClose}>
       <section role="dialog" aria-modal="true" aria-label={t("itemInformation")} className="item-details-drawer" onClick={(event) => event.stopPropagation()}>
         <div className="drawer-handle" />
         <header className="item-details-header">
-          <div><p>@{item.author}</p><h2>{t("itemInformation")}</h2></div>
+          <div><p><AuthorButton author={item.author} onOpen={onOpenAuthor} /></p><h2>{t("itemInformation")}</h2></div>
           <button type="button" onClick={onClose} aria-label={t("closePanel")} className="touch-target utility-close-button"><X size={20} /></button>
         </header>
         <p className="item-details-description">{item.description}</p>
@@ -19,6 +21,7 @@ export function ItemDetailsSheet({ item, onClose }: { item: FeedItem; onClose: (
           <DetailRow icon={<FolderSimple size={20} />} label={t("collectionLabel")} value={item.collections.map((entry) => entry.name).join("、") || t("allArchives")} />
           <DetailRow icon={<HardDrives size={20} />} label={t("source")} value={t("localOriginal")} />
         </dl>
+        <LocalStateBadge local={item.local} detailed />
       </section>
     </div>
   );

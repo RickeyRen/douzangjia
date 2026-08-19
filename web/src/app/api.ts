@@ -23,6 +23,15 @@ export type FeedItem = {
   archivedAt: number;
   collections: Array<{ id: string; name: string }>;
   media: MediaFile[];
+  local: LocalArchiveState;
+};
+
+export type LocalArchiveState = {
+  state: "downloaded" | "downloading" | "waiting" | "retry" | "failed";
+  readyAssets: number;
+  totalAssets: number;
+  downloadedBytes: number;
+  totalBytes: number | null;
 };
 
 export type LoginStatus = {
@@ -155,15 +164,18 @@ export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchFeed = ({
   collectionId,
+  author,
   search,
   cursor,
 }: {
   collectionId?: string;
+  author?: string;
   search?: string;
   cursor?: string;
 }) => {
   const query = new URLSearchParams({ limit: "20" });
   if (collectionId) query.set("collectionId", collectionId);
+  if (author) query.set("author", author);
   if (search) query.set("search", search);
   if (cursor) query.set("cursor", cursor);
   return request<{ items: FeedItem[]; nextCursor: string | null }>(`/api/feed?${query}`);

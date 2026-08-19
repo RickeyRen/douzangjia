@@ -14,6 +14,7 @@ const item: FeedItem = {
   archivedAt: 2,
   collections: [{ id: "1001", name: "想去的地方" }],
   media: [{ id: 91, index: 0, type: "video", byteSize: 1024, mimeType: "video/mp4", url: "/api/media/91" }],
+  local: { state: "downloaded", readyAssets: 1, totalAssets: 1, downloadedBytes: 1024, totalBytes: 1024 },
 };
 
 afterEach(() => {
@@ -71,4 +72,16 @@ it("labels the post with its visible title", () => {
   render(<FeedCard item={item} active />);
 
   expect(screen.getByRole("article", { name: "海边日落" })).toBeVisible();
+});
+
+it("opens the creator archive and shows the local download state", async () => {
+  const user = userEvent.setup();
+  const onOpenAuthor = vi.fn();
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  render(<FeedCard item={item} active onOpenAuthor={onOpenAuthor} />);
+
+  await user.click(screen.getByRole("button", { name: "查看旅行家的已收藏作品" }));
+
+  expect(onOpenAuthor).toHaveBeenCalledWith("旅行家");
+  expect(screen.getByText("已下载到 NAS")).toBeVisible();
 });

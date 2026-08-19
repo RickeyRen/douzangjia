@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from "react";
 
 import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
+import { AuthorButton } from "./AuthorButton";
 import { GalleryViewer } from "./GalleryViewer";
+import { LocalStateBadge } from "./LocalStateBadge";
 
-export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { item: FeedItem; active: boolean; onOpenDetails?: (item: FeedItem) => void; onOpenCollections?: () => void }) {
+export function FeedCard({ item, active, onOpenDetails, onOpenCollections, onOpenAuthor }: { item: FeedItem; active: boolean; onOpenDetails?: (item: FeedItem) => void; onOpenCollections?: () => void; onOpenAuthor?: (author: string) => void }) {
   const { t } = useI18n();
   const collection = item.collections[0]?.name ?? t("allArchives");
   const titleId = `feed-title-${item.awemeId}`;
@@ -57,9 +59,10 @@ export function FeedCard({ item, active, onOpenDetails, onOpenCollections }: { i
         )}
 
         <div className="mobile-media-caption">
-          <p className="mobile-media-author">@{item.author}</p>
+          <p className="mobile-media-author"><AuthorButton author={item.author} onOpen={onOpenAuthor} /></p>
           <h2 id={titleId}>{item.description}</h2>
           <p className="mobile-media-source">{t("from")} {collection} · {t("localOriginal")}</p>
+          <LocalStateBadge local={item.local} />
         </div>
 
         <div role="toolbar" aria-label={t("mediaControls")} className="mobile-media-actions media-control-toolbar">
