@@ -1,19 +1,36 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: "Geist", "SF Pro Display", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
-  background: #0c0e11;
+  background: var(--friendly-bg);
+  color: var(--friendly-ink);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; width: 100%; min-width: 320px; min-height: 100%; background: #0c0e11; }
+html, body, #root { margin: 0; width: 100%; min-width: 320px; min-height: 100%; background: var(--friendly-bg); }
 html, body { overflow-x: hidden; }
 button, input { font: inherit; }
 button { cursor: pointer; touch-action: manipulation; }
-button:focus-visible, input:focus-visible { outline: 2px solid #f16761; outline-offset: 2px; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgb(88 168 74 / 32%); outline-offset: 3px; }
 .touch-target { min-width: 44px; min-height: 44px; }
 .iphone-feed-shell { isolation: isolate; }
+
+.friendly-surface { background: var(--friendly-surface); border: 2px solid var(--friendly-border); }
+.friendly-panel { border-radius: 24px; background: var(--friendly-surface); border: 2px solid var(--friendly-border); box-shadow: 0 4px 0 var(--friendly-border-strong); }
+.friendly-button, .friendly-icon-button { display: inline-flex; align-items: center; justify-content: center; border: 2px solid; font-weight: 750; transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1), background-color 180ms ease, color 180ms ease; }
+.friendly-button { min-height: 48px; gap: 10px; border-radius: 16px; padding: 0 20px; font-size: 14px; letter-spacing: -.01em; }
+.friendly-button-full { width: 100%; }
+.friendly-button-primary { color: #fff; background: var(--friendly-green); border-color: var(--friendly-green); box-shadow: 0 4px 0 var(--friendly-green-dark); }
+.friendly-button-secondary { color: var(--friendly-ink); background: var(--friendly-surface); border-color: var(--friendly-border); box-shadow: 0 4px 0 var(--friendly-border-strong); }
+.friendly-button-danger { color: #fff; background: var(--friendly-red); border-color: var(--friendly-red); box-shadow: 0 4px 0 var(--friendly-red-dark); }
+.friendly-icon-button { width: 46px; height: 46px; flex: 0 0 46px; border-radius: 15px; color: var(--friendly-ink); background: var(--friendly-surface); border-color: var(--friendly-border); box-shadow: 0 3px 0 var(--friendly-border-strong); }
+.friendly-button:active:not(:disabled), .friendly-icon-button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 currentColor; }
+.friendly-button:disabled, .friendly-icon-button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (hover: hover) {
+  .friendly-button:hover:not(:disabled), .friendly-icon-button:hover:not(:disabled) { transform: translateY(-1px); }
+}
 
 .feed-viewport { scrollbar-width: none; overscroll-behavior-y: contain; touch-action: pan-y pinch-zoom; }
 .feed-viewport::-webkit-scrollbar, .gallery-strip::-webkit-scrollbar { display: none; }
