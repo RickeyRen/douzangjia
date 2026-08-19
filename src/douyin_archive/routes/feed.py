@@ -89,11 +89,13 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     ready_assets = int(local["ready_assets"]) if local is not None else 0
     return {
         "awemeId": row["remote_id"],
+        "creatorId": row["creator_id"],
         "author": row["author_name"],
         "description": row["description"],
         "type": row["item_type"],
         "publishedAt": row["published_at"],
         "archivedAt": row["first_seen_at"],
+        "sourceUrl": row["source_url"],
         "collections": [
             {"id": item["remote_id"], "name": item["name"]} for item in collections
         ],

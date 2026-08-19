@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+import base64
+import json
+
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse
+
+router = APIRouter(prefix="/api/creators")
+
+
+def _encode_cursor(last_seen_at: int, remote_id: str) -> str:
+    raw = json.dumps([last_seen_at, remote_id], separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _decode_cursor(value: str) -> tuple[int, str]:
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded))
+        if not isinstance(decoded, list) or len(decoded) != 2:
+            raise ValueError
+        return int(decoded[0]), str(decoded[1])
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid creator cursor") from error
+
+
+def _serialize_creator(row) -> dict[str, object]:
+    subscription = None
+    if row["subscription_enabled"] is not None:
+        subscription = {
+            "enabled": bool(row["subscription_enabled"]),
+            "scanIntervalSeconds": int(row["scan_interval_seconds"]),
+            "archiveNewItems": bool(row["archive_new_items"]),
+            "lastScanAt": row["last_scan_at"],
+            "nextScanAt": row["next_scan_at"],
+            "lastErrorCode": row["subscription_error_code"],
+        }
+    return {
+        "id": row["remote_id"],
+        "nickname": row["nickname"],
+        "uniqueId": row["unique_id"],
+        "avatarUrl": row["avatar_url"],
+        "followerCount": row["follower_count"],
+        "postCount": row["post_count"],
+        "knownItemCount": int(row["known_item_count"]),
+        "archivedItemCount": int(row["archived_item_count"]),
+        "lastSeenAt": row["last_seen_at"],
+        "subscription": subscription,
+    }
+
+
+def _select_sql(where: str) -> str:
+    return (
+        "SELECT c.*, COUNT(DISTINCT i.remote_id) AS known_item_count, "
+        "COALESCE(SUM(CASE WHEN i.remote_id IS NOT NULL AND EXISTS("
+        "SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id "
+        "AND mf.status='ready') THEN 1 ELSE 0 END), 0) AS archived_item_count, "
+        "cs.enabled AS subscription_enabled, cs.scan_interval_seconds, "
+        "cs.archive_new_items, cs.last_scan_at, cs.next_scan_at, "
+        "cs.last_error_code AS subscription_error_code "
+        "FROM creators c LEFT JOIN items i ON i.creator_id=c.remote_id "
+        "LEFT JOIN creator_subscriptions cs ON cs.creator_id=c.remote_id "
+        f"{where} GROUP BY c.remote_id"
+    )
+
+
+@router.get("")
+async def list_creators(
+    request: Request,
+    limit: int = Query(default=40, ge=1, le=100),
+    cursor: str | None = None,
+    search: str | None = None,
+):
+    conditions: list[str] = []
+    parameters: list[object] = []
+    if search:
+        conditions.append("(c.nickname LIKE ? OR c.unique_id LIKE ?)")
+        term = f"%{search}%"
+        parameters.extend((term, term))
+    if cursor:
+        try:
+            seen_at, remote_id = _decode_cursor(cursor)
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"code": "INVALID_CURSOR", "message": "分页游标无效"},
+            )
+        conditions.append("(c.last_seen_at < ? OR (c.last_seen_at=? AND c.remote_id < ?))")
+        parameters.extend((seen_at, seen_at, remote_id))
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = await request.app.state.database.fetchall(
+        _select_sql(where) + " ORDER BY c.last_seen_at DESC, c.remote_id DESC LIMIT ?",
+        (*parameters, limit + 1),
+    )
+    visible = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit and visible:
+        last = visible[-1]
+        next_cursor = _encode_cursor(int(last["last_seen_at"]), str(last["remote_id"]))
+    return {
+        "items": [_serialize_creator(row) for row in visible],
+        "nextCursor": next_cursor,
+    }
+
+
+@router.get("/{creator_id}")
+async def creator_detail(creator_id: str, request: Request):
+    row = await request.app.state.database.fetchone(
+        _select_sql("WHERE c.remote_id=?"), (creator_id,)
+    )
+    if row is None:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "CREATOR_NOT_FOUND", "message": "创作者不存在"},
+        )
+    return _serialize_creator(row)

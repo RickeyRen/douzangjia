@@ -469,12 +469,14 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return {"accepted": True}
 
     from .routes.archive import router as archive_router
+    from .routes.creators import router as creators_router
     from .routes.feed import router as feed_router
     from .routes.jobs import router as jobs_router
     from .routes.library import router as library_router
     from .routes.media import router as media_router
 
     app.include_router(archive_router)
+    app.include_router(creators_router)
     app.include_router(feed_router)
     app.include_router(jobs_router)
     app.include_router(library_router)

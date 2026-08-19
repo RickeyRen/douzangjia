@@ -114,4 +114,5 @@ def test_library_feed_can_filter_by_stable_creator_id(
         "item-3",
         "item-2",
     ]
+    assert response.json()["items"][0]["creatorId"] == "creator-1"
     assert response.json()["nextCursor"] is not None
