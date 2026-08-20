@@ -25,6 +25,7 @@ from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepo
 from .scheduler import configure_scheduler
 from .storage import CollectionProjector, ObjectStore
 from .sync_service import SyncResult, SyncService
+from .telemetry import TelemetrySampler
 from .worker import Worker
 
 
@@ -268,6 +269,7 @@ class ArchiveRuntime:
             },
         )
         self.store = ObjectStore(settings.archive_root)
+        self.telemetry = TelemetrySampler(database, settings.archive_root)
         handler = ArchiveJobHandler(
             database,
             MediaDownloader(self.store, self.http),
@@ -294,7 +296,12 @@ class ArchiveRuntime:
             asyncio.create_task(worker.run_forever()) for worker in self.workers
         ]
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
-        configure_scheduler(self._scheduler, self.sync, self.settings)
+        configure_scheduler(
+            self._scheduler,
+            self.sync,
+            self.settings,
+            telemetry=self.telemetry,
+        )
         self._scheduler.start()
         if await self.auth_service.load_cookies():
             await self.sync.trigger_sync(full_scan=False)

@@ -5,7 +5,13 @@ from typing import Any
 from .config import Settings
 
 
-def configure_scheduler(scheduler: Any, sync_service: Any, settings: Settings) -> None:
+def configure_scheduler(
+    scheduler: Any,
+    sync_service: Any,
+    settings: Settings,
+    *,
+    telemetry: Any | None = None,
+) -> None:
     scheduler.add_job(
         sync_service.run_incremental,
         "interval",
@@ -45,3 +51,23 @@ def configure_scheduler(scheduler: Any, sync_service: Any, settings: Settings) -
         coalesce=True,
         replace_existing=True,
     )
+    if telemetry is not None:
+        scheduler.add_job(
+            telemetry.sample,
+            "interval",
+            seconds=5,
+            id="telemetry-sample",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            telemetry.prune,
+            "cron",
+            hour=2,
+            minute=40,
+            id="telemetry-prune",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )

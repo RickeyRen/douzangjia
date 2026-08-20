@@ -7,8 +7,12 @@ import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import StreamingResponse
 
+from ..account_health import AccountHealthService
+from ..dashboard_events import dashboard_event_stream
+from ..dashboard_service import DashboardService
 from ..download_monitor import DownloadMonitor
 
 router = APIRouter(prefix="/api")
@@ -79,6 +83,7 @@ async def dashboard(request: Request) -> dict[str, object]:
         "(SELECT COUNT(DISTINCT item_id) FROM media_files WHERE status='ready') "
         "AS archived_items, "
         "(SELECT COUNT(*) FROM creators) AS creators, "
+        "(SELECT COUNT(*) FROM media_files WHERE status='ready') AS media_files, "
         "(SELECT COUNT(*) FROM library_sources) AS sources, "
         "(SELECT COUNT(*) FROM library_sources WHERE sync_status='complete') "
         "AS complete_sources, "
@@ -118,6 +123,7 @@ async def dashboard(request: Request) -> dict[str, object]:
         "library": {
             "items": int(library["items"]) if library is not None else 0,
             "archivedItems": int(library["archived_items"]) if library is not None else 0,
+            "mediaFiles": int(library["media_files"]) if library is not None else 0,
             "creators": int(library["creators"]) if library is not None else 0,
             "sources": int(library["sources"]) if library is not None else 0,
             "completeSources": int(library["complete_sources"]) if library is not None else 0,
@@ -149,5 +155,41 @@ async def dashboard(request: Request) -> dict[str, object]:
                 else None
             ),
         },
+        "account": await AccountHealthService(database).snapshot(),
+        "sources": await DashboardService(
+            database, settings.archive_root
+        ).source_progress(),
         "generatedAt": generated_at,
     }
+
+
+@router.get("/dashboard/series")
+async def dashboard_series(
+    request: Request,
+    window: str = Query(default="24h", pattern="^(15m|24h|7d)$"),
+) -> dict[str, object]:
+    service = DashboardService(
+        request.app.state.database, request.app.state.settings.archive_root
+    )
+    return {"window": window, "items": await service.series(window)}
+
+
+@router.get("/events")
+async def dashboard_events(request: Request) -> StreamingResponse:
+    service = DashboardService(
+        request.app.state.database, request.app.state.settings.archive_root
+    )
+
+    async def load_snapshot() -> dict[str, object]:
+        return await service.snapshot()
+
+    return StreamingResponse(
+        dashboard_event_stream(
+            load_snapshot, request.app.state.dashboard_events, refresh_seconds=1.0
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )

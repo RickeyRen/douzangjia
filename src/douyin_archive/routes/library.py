@@ -6,11 +6,18 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
+from ..dashboard_service import DashboardService
+from ..download_policy import DownloadPolicyService
 from ..library_repository import LibraryRepository
 from .feed import _serialize_item
 
 router = APIRouter(prefix="/api/library")
+
+
+class DownloadPolicyRequest(BaseModel):
+    enabled: bool
 
 
 def _encode_library_cursor(sort_key: str | int, remote_id: str) -> str:
@@ -44,13 +51,18 @@ async def sources(request: Request) -> dict[str, object]:
         "WHEN 'favorite_collection' THEN 20 ELSE 19 END, name, id"
     )
     repository = LibraryRepository(request.app.state.database)
+    progress = {
+        str(item["id"]): item
+        for item in await DashboardService(
+            request.app.state.database, request.app.state.settings.archive_root
+        ).source_progress()
+    }
     items: list[dict[str, Any]] = []
     for row in rows:
         integrity = await repository.source_integrity(str(row["id"]))
         if integrity is None:
             continue
-        items.append(
-            {
+        serialized = {
                 "id": row["id"],
                 "kind": row["kind"],
                 "remoteId": row["remote_id"],
@@ -65,8 +77,39 @@ async def sources(request: Request) -> dict[str, object]:
                 "lastIncrementalScanAt": row["last_incremental_scan_at"],
                 "errorCode": row["error_code"],
             }
-        )
+        serialized.update(progress.get(str(row["id"]), {}))
+        items.append(serialized)
     return {"items": items}
+
+
+@router.put("/sources/{source_id}/download-policy")
+async def update_download_policy(
+    source_id: str, payload: DownloadPolicyRequest, request: Request
+) -> object:
+    service = DownloadPolicyService(request.app.state.database)
+    try:
+        updated = await service.set_enabled(source_id, payload.enabled)
+    except KeyError:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "SOURCE_NOT_FOUND", "message": "归档类目不存在"},
+        )
+    progress = {
+        str(item["id"]): item
+        for item in await DashboardService(
+            request.app.state.database, request.app.state.settings.archive_root
+        ).source_progress()
+    }
+    return progress.get(
+        source_id,
+        {
+            "id": updated.source_id,
+            "kind": updated.kind,
+            "name": updated.name,
+            "autoDownloadEnabled": updated.enabled,
+            "downloadPolicyUpdatedAt": updated.updated_at,
+        },
+    )
 
 
 @router.get("/feed")

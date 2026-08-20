@@ -88,6 +88,29 @@ def test_library_sources_expose_remote_sync_gap(
     assert source["complete"] is False
 
 
+def test_library_source_download_policy_can_be_changed_persistently(
+    tmp_path: Path, master_key: str
+) -> None:
+    """Catches a category switch that only changes browser-local state."""
+    client = build_client(tmp_path, master_key)
+    csrf = client.cookies.get("archive_csrf")
+    assert csrf
+    try:
+        updated = client.put(
+            "/api/library/sources/likes/download-policy",
+            json={"enabled": True},
+            headers={"X-CSRF-Token": csrf},
+        )
+        listing = client.get("/api/library/sources")
+    finally:
+        client.__exit__(None, None, None)
+
+    assert updated.status_code == 200
+    assert updated.json()["autoDownloadEnabled"] is True
+    source = next(item for item in listing.json()["items"] if item["id"] == "likes")
+    assert source["autoDownloadEnabled"] is True
+
+
 def test_account_sources_follow_the_official_profile_tab_order(
     tmp_path: Path, master_key: str
 ) -> None:

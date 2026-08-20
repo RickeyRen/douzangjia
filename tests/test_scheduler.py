@@ -31,6 +31,14 @@ class FakeSyncService:
         pass
 
 
+class FakeTelemetry:
+    async def sample(self) -> None:
+        pass
+
+    async def prune(self) -> None:
+        pass
+
+
 def test_scheduler_runs_every_five_minutes_without_overlap(
     tmp_path: Path, master_key: str
 ) -> None:
@@ -49,6 +57,25 @@ def test_scheduler_runs_every_five_minutes_without_overlap(
     assert creator_updates[1] == "interval"
     assert creator_updates[2]["seconds"] == 300
     assert creator_updates[2]["max_instances"] == 1
+
+
+def test_scheduler_samples_dashboard_metrics_without_blocking_sync(
+    tmp_path: Path, master_key: str
+) -> None:
+    """Catches telemetry being collected only while the dashboard is open."""
+    scheduler = FakeScheduler()
+    settings = Settings(archive_root=tmp_path, master_key=master_key)
+
+    configure_scheduler(
+        scheduler, FakeSyncService(), settings, telemetry=FakeTelemetry()
+    )
+
+    sample = next(job for job in scheduler.jobs if job[2]["id"] == "telemetry-sample")
+    prune = next(job for job in scheduler.jobs if job[2]["id"] == "telemetry-prune")
+    assert sample[1] == "interval"
+    assert sample[2]["seconds"] == 5
+    assert sample[2]["max_instances"] == 1
+    assert prune[1] == "cron"
 
 
 @pytest.fixture

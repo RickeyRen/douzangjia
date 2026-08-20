@@ -17,6 +17,7 @@ from .browser_coordinator import BrowserCoordinator
 from .browser_profile import BrowserProfileStore
 from .browser_socket import handle_browser_socket
 from .config import Settings
+from .dashboard_events import DashboardEventBus
 from .db import Database
 from .library_repository import LibraryRepository
 from .repositories import ArchiveRepository, JobRepository
@@ -130,6 +131,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         application.state.archive_repository = ArchiveRepository(owned_database)
         application.state.library_repository = library_repository
         application.state.job_repository = JobRepository(owned_database)
+        application.state.dashboard_events = DashboardEventBus()
         browser_coordinator = BrowserCoordinator(BrowserProfileStore(settings.archive_root))
         application.state.browser_coordinator = browser_coordinator
         owns_auth_service = auth_service is None
