@@ -251,8 +251,16 @@ async def test_cookie_backup_is_only_injected_when_profile_needs_recovery(
     )
 
     result = await coordinator.run_incremental()
+    health = await database.fetchone(
+        "SELECT health_status, last_verified_at, last_sync_at "
+        "FROM douyin_account WHERE provider='douyin'"
+    )
 
     assert result.status == "completed"
+    assert health is not None
+    assert health["health_status"] == "healthy"
+    assert health["last_verified_at"] is not None
+    assert health["last_sync_at"] is not None
     assert browser_coordinator.authentication_checks == 2
     assert browser_coordinator.added_cookies == [
         {"name": "sessionid", "value": "encrypted-before-use"}

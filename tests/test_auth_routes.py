@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -81,6 +82,50 @@ def test_login_routes_return_status_and_png_without_secrets(
     assert "cookie" not in status.text.lower()
     assert screenshot.headers["content-type"] == "image/png"
     assert screenshot.content.startswith(b"\x89PNG")
+
+
+def test_status_exposes_account_identity_and_real_health_without_secrets(
+    tmp_path: Path, master_key: str
+) -> None:
+    """Catches the UI receiving only a cookie-presence boolean."""
+    client, _csrf = authenticated_client(tmp_path, master_key)
+    try:
+        connection = sqlite3.connect(tmp_path / "data" / "archive.sqlite3")
+        connection.execute(
+            "INSERT INTO auth_sessions "
+            "(provider, encrypted_cookies, status, last_verified_at, updated_at) "
+            "VALUES ('douyin', X'00', 'authenticated', 100, 100)"
+        )
+        connection.execute(
+            "INSERT INTO douyin_account "
+            "(provider, remote_id, nickname, health_status, last_verified_at, updated_at) "
+            "VALUES ('douyin', 'self-id', '天鹰座裂缝之外', 'healthy', 100, 100)"
+        )
+        connection.commit()
+        connection.close()
+
+        response = client.get("/api/status")
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 200
+    assert response.json()["douyinHealth"] == {
+        "sessionStored": True,
+        "status": "healthy",
+        "lastVerifiedAt": 100,
+        "lastSyncAt": None,
+        "lastFailureAt": None,
+        "errorCode": None,
+        "consecutiveFailures": 0,
+        "account": {
+            "id": "self-id",
+            "nickname": "天鹰座裂缝之外",
+            "uniqueId": None,
+            "avatarUrl": None,
+        },
+    }
+    assert "encrypted" not in response.text.lower()
+    assert "cookie" not in response.text.lower()
 
 
 def test_login_live_stream_returns_multipart_jpeg_and_status_skips_png_refresh(

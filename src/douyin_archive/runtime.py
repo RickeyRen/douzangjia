@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from .account_health import AccountHealthService
 from .archive_handler import ArchiveJobHandler
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .auth_service import AuthService
@@ -63,6 +64,7 @@ class RuntimeSyncCoordinator:
         browser_coordinator: BrowserCoordinator,
         *,
         source_factory: Callable[[], Any] | None = None,
+        account_health: AccountHealthService | None = None,
     ) -> None:
         self.database = database
         self.archive = archive
@@ -72,6 +74,7 @@ class RuntimeSyncCoordinator:
         self.source_factory = source_factory or (
             lambda: PlaywrightDouyinSource(browser_coordinator)
         )
+        self.account_health = account_health or AccountHealthService(database)
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[Any]] = set()
 
@@ -179,6 +182,7 @@ class RuntimeSyncCoordinator:
         self, *, full_scan: bool, run_id: int | None = None
     ) -> SyncResult:
         async with self._lock:
+            await self.account_health.record_checking()
             cookies = await self.auth.load_cookies()
             source = None
             authenticated = await self.browser_coordinator.is_douyin_authenticated()
@@ -204,6 +208,17 @@ class RuntimeSyncCoordinator:
                     await self.database.execute(
                         "UPDATE auth_sessions SET status='expired' "
                         "WHERE provider='douyin'"
+                    )
+                checked_at = int(time.time())
+                if result.error_code is not None:
+                    await self.account_health.record_failure(
+                        result.error_code, checked_at=checked_at
+                    )
+                else:
+                    await self.account_health.record_success(
+                        await self.account_health.infer_self_profile(),
+                        verified_at=checked_at,
+                        sync_completed_at=checked_at,
                     )
                 return result
             finally:

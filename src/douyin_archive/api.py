@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .account_health import AccountHealthService
 from .browser_coordinator import BrowserCoordinator
 from .browser_profile import BrowserProfileStore
 from .browser_socket import handle_browser_socket
@@ -278,15 +279,17 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return {"configured": True}
 
     @app.get("/api/status")
-    async def public_status(request: Request) -> dict[str, bool]:
+    async def public_status(request: Request) -> dict[str, object]:
         douyin = await request.app.state.database.fetchone(
             "SELECT 1 FROM auth_sessions "
             "WHERE provider='douyin' AND status='authenticated'"
         )
+        health = await AccountHealthService(request.app.state.database).snapshot()
         return {
             "configured": admin_store.configured,
             "authenticated": decode_session(request),
             "douyinAuthenticated": douyin is not None,
+            "douyinHealth": health,
         }
 
     @app.post("/api/session")
