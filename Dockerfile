@@ -24,7 +24,10 @@ RUN sed -i \
     -e 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
     -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
     /etc/apt/sources.list.d/debian.sources
-RUN pip install --no-cache-dir ".[browser,worker]" \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir ".[browser,worker]" \
     && playwright install --with-deps --no-shell chromium \
     && chmod -R a+rX /app /ms-playwright
 RUN find /ms-playwright -path '*/chrome-linux*/chrome' -type f \

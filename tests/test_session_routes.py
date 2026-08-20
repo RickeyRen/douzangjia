@@ -19,9 +19,7 @@ def test_default_auth_browser_uses_app_persistent_coordinator(
         coordinator = app.state.browser_coordinator
         browser = app.state.auth_service.browser
         assert browser.coordinator is coordinator
-        assert coordinator.profile_store.profile_path == (
-            tmp_path / "data" / "chromium-profile"
-        )
+        assert coordinator.profile_store.profile_path == (tmp_path / "data" / "chromium-profile")
 
 
 def test_first_run_setup_creates_admin_and_session(tmp_path: Path, master_key: str) -> None:
@@ -63,18 +61,21 @@ def test_public_status_reports_only_setup_and_session_booleans(
         "authenticated": False,
         "douyinAuthenticated": False,
     }
-    assert authenticated.json() == {
+    assert {
+        key: authenticated.json()[key]
+        for key in ("configured", "authenticated", "douyinAuthenticated")
+    } == {
         "configured": True,
         "authenticated": True,
         "douyinAuthenticated": False,
     }
+    assert "douyinHealth" in authenticated.json()
     assert signed_out.status_code == 200
     assert signed_out.json()["authenticated"] is False
+    assert "douyinHealth" not in signed_out.json()
 
 
-def test_manual_sync_is_handed_to_the_runtime(
-    tmp_path: Path, master_key: str
-) -> None:
+def test_manual_sync_is_handed_to_the_runtime(tmp_path: Path, master_key: str) -> None:
     class FakeRuntime:
         def __init__(self, *_args) -> None:
             self.full_scan: bool | None = None

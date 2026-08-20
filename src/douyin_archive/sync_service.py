@@ -16,6 +16,7 @@ from .library_models import (
 )
 from .library_repository import LibraryRepository
 from .provider.base import ProviderError, RemoteCollection
+from .remote_availability import RemoteAvailabilityService
 from .repositories import ArchiveRepository, JobRepository
 
 FULL_REPAIR_COOLDOWN_SECONDS = 6 * 60 * 60
@@ -50,9 +51,8 @@ class SyncService:
         self.jobs = jobs
         self.db = archive.db
         self.library = LibraryRepository(self.db)
-        self.download_policy = download_policy or DownloadPolicyService(
-            self.db, jobs
-        )
+        self.download_policy = download_policy or DownloadPolicyService(self.db, jobs)
+        self.remote_availability = RemoteAvailabilityService(self.db)
 
     async def create_run(self, *, full_scan: bool, status: str = "running") -> int:
         now = int(time.time())
@@ -85,12 +85,8 @@ class SyncService:
             collections = await self.provider.list_collections()
             for collection in collections:
                 await self.archive.upsert_collection(collection.remote_id, collection.name)
-                source_id = self.library.favorite_collection_source_id(
-                    collection.remote_id
-                )
-                local_count = await self.archive.count_collection_items(
-                    collection.remote_id
-                )
+                source_id = self.library.favorite_collection_source_id(collection.remote_id)
+                local_count = await self.archive.count_collection_items(collection.remote_id)
                 previous_source = await self.db.fetchone(
                     "SELECT last_full_scan_at, last_incremental_scan_at "
                     "FROM library_sources WHERE id=?",
@@ -110,13 +106,11 @@ class SyncService:
                     else None
                 )
                 count_gap = (
-                    collection.item_count is not None
-                    and local_count < collection.item_count
+                    collection.item_count is not None and local_count < collection.item_count
                 )
                 recent_full_repair = bool(
                     previous_full_scan is not None
-                    and scan_started_at - previous_full_scan
-                    < FULL_REPAIR_COOLDOWN_SECONDS
+                    and scan_started_at - previous_full_scan < FULL_REPAIR_COOLDOWN_SECONDS
                 )
                 scan_all = full_scan or (count_gap and not recent_full_repair)
                 source = LibrarySource(
@@ -126,9 +120,7 @@ class SyncService:
                     name=collection.name,
                     declared_count=collection.item_count,
                     sync_status=LibrarySyncStatus.RUNNING,
-                    last_full_scan_at=(
-                        scan_started_at if scan_all else previous_full_scan
-                    ),
+                    last_full_scan_at=(scan_started_at if scan_all else previous_full_scan),
                     last_incremental_scan_at=(
                         previous_incremental_scan if scan_all else scan_started_at
                     ),
@@ -155,6 +147,7 @@ class SyncService:
                     await self.archive.save_discovery_page(collection.remote_id, page.items)
                     discovered += len(page.items)
                     for item in page.items:
+                        await self.remote_availability.record(item.remote_id, "OK")
                         await self.library.link_source_item(
                             source_id,
                             item.remote_id,
@@ -166,9 +159,7 @@ class SyncService:
                             asdict(item),
                         )
                         if source_policy is not None and source_policy.enabled:
-                            existing = await self.jobs.get_by_key(
-                                "download", item.remote_id
-                            )
+                            existing = await self.jobs.get_by_key("download", item.remote_id)
                             await self.download_policy.record_intent(
                                 item.remote_id, "source", source_id, asdict(item)
                             )
@@ -208,9 +199,7 @@ class SyncService:
                 source_error_code = None
                 if not source_complete:
                     source_error_code = (
-                        "COUNT_UNKNOWN"
-                        if collection.item_count is None
-                        else "COUNT_MISMATCH"
+                        "COUNT_UNKNOWN" if collection.item_count is None else "COUNT_MISMATCH"
                     )
                 await self.library.upsert_source(
                     LibrarySource(
@@ -230,9 +219,7 @@ class SyncService:
                         error_code=source_error_code,
                     )
                 )
-            supported_account_sources = getattr(
-                self.provider, "supported_account_sources", None
-            )
+            supported_account_sources = getattr(self.provider, "supported_account_sources", None)
             if callable(supported_account_sources):
                 for source_kind in supported_account_sources():
                     source_row = await self.db.fetchone(
@@ -260,9 +247,7 @@ class SyncService:
                         remote_id="self",
                         name=str(source_row["name"]),
                         sync_status=LibrarySyncStatus.RUNNING,
-                        last_full_scan_at=(
-                            scan_started_at if scan_all else previous_full_scan
-                        ),
+                        last_full_scan_at=(scan_started_at if scan_all else previous_full_scan),
                         last_incremental_scan_at=(
                             previous_incremental_scan if scan_all else scan_started_at
                         ),
@@ -296,7 +281,18 @@ class SyncService:
                                 item_type=item.item_type,
                                 published_at=item.published_at,
                                 creator_id=item.creator_id,
+                                cover_url=item.cover_url,
+                                duration_ms=item.duration_ms,
+                                statistics=item.statistics,
+                                source_url=item.source_url,
+                                metadata={
+                                    "hashtags": list(item.hashtags),
+                                    "music": item.music,
+                                    "width": item.width,
+                                    "height": item.height,
+                                },
                             )
+                            await self.remote_availability.record(item.remote_id, "OK")
                             await self.library.link_source_item(
                                 source.id,
                                 item.remote_id,
@@ -308,9 +304,7 @@ class SyncService:
                                 asdict(item),
                             )
                             if source_policy is not None and source_policy.enabled:
-                                existing = await self.jobs.get_by_key(
-                                    "download", item.remote_id
-                                )
+                                existing = await self.jobs.get_by_key("download", item.remote_id)
                                 await self.download_policy.record_intent(
                                     item.remote_id,
                                     "source",
@@ -347,9 +341,7 @@ class SyncService:
                             ),
                         )
                     if scan_all:
-                        await self.library.reconcile_source_items(
-                            source.id, source_seen_ids
-                        )
+                        await self.library.reconcile_source_items(source.id, source_seen_ids)
                     await self.library.upsert_source(
                         LibrarySource(
                             id=source.id,
@@ -393,9 +385,7 @@ class SyncService:
                         remote_id="self",
                         name=str(source_row["name"]),
                         sync_status=LibrarySyncStatus.RUNNING,
-                        last_full_scan_at=(
-                            scan_started_at if scan_all else previous_full_scan
-                        ),
+                        last_full_scan_at=(scan_started_at if scan_all else previous_full_scan),
                         last_incremental_scan_at=(
                             previous_incremental_scan if scan_all else scan_started_at
                         ),
@@ -449,9 +439,7 @@ class SyncService:
                             ),
                         )
                     if scan_all:
-                        await self.library.reconcile_source_entities(
-                            source.id, source_seen_ids
-                        )
+                        await self.library.reconcile_source_entities(source.id, source_seen_ids)
                     await self.library.upsert_source(
                         LibrarySource(
                             id=source.id,

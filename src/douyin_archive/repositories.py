@@ -45,9 +45,7 @@ class ArchiveRepository:
         return Collection.from_row(row)
 
     async def get_collection(self, remote_id: str) -> Collection | None:
-        row = await self.db.fetchone(
-            "SELECT * FROM collections WHERE remote_id=?", (remote_id,)
-        )
+        row = await self.db.fetchone("SELECT * FROM collections WHERE remote_id=?", (remote_id,))
         return Collection.from_row(row) if row is not None else None
 
     async def upsert_item(
@@ -60,18 +58,31 @@ class ArchiveRepository:
         published_at: int | None = None,
         metadata_digest: str | None = None,
         creator_id: str | None = None,
+        cover_url: str | None = None,
+        duration_ms: int | None = None,
+        statistics: dict[str, int] | None = None,
+        source_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         now = int(time.time())
         await self.db.execute(
             "INSERT INTO items "
             "(remote_id, author_name, description, item_type, published_at, "
-            "first_seen_at, last_seen_at, metadata_digest, creator_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "first_seen_at, last_seen_at, metadata_digest, creator_id, cover_url, "
+            "duration_ms, statistics_json, source_url, metadata_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(remote_id) DO UPDATE SET "
             "author_name=excluded.author_name, description=excluded.description, "
             "item_type=excluded.item_type, published_at=excluded.published_at, "
             "last_seen_at=excluded.last_seen_at, metadata_digest=excluded.metadata_digest, "
-            "creator_id=COALESCE(excluded.creator_id, items.creator_id)",
+            "creator_id=COALESCE(excluded.creator_id, items.creator_id), "
+            "cover_url=COALESCE(excluded.cover_url, items.cover_url), "
+            "duration_ms=COALESCE(excluded.duration_ms, items.duration_ms), "
+            "statistics_json=CASE WHEN excluded.statistics_json='{}' "
+            "THEN items.statistics_json ELSE excluded.statistics_json END, "
+            "source_url=COALESCE(excluded.source_url, items.source_url), "
+            "metadata_json=CASE WHEN excluded.metadata_json='{}' "
+            "THEN items.metadata_json ELSE excluded.metadata_json END",
             (
                 remote_id,
                 author_name,
@@ -82,6 +93,11 @@ class ArchiveRepository:
                 now,
                 metadata_digest,
                 creator_id,
+                cover_url,
+                duration_ms,
+                json.dumps(statistics or {}, ensure_ascii=False, separators=(",", ":")),
+                source_url,
+                json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":")),
             ),
         )
 
@@ -102,22 +118,28 @@ class ArchiveRepository:
         )
         return int(row["total"]) if row is not None else 0
 
-    async def save_discovery_page(
-        self, collection_id: str, items: tuple[RemoteItem, ...]
-    ) -> None:
+    async def save_discovery_page(self, collection_id: str, items: tuple[RemoteItem, ...]) -> None:
         now = int(time.time())
         async with self.db.transaction(immediate=True):
             for item in items:
                 await self.db.execute(
                     "INSERT INTO items "
                     "(remote_id, author_name, description, item_type, published_at, "
-                    "first_seen_at, last_seen_at, metadata_digest, creator_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?) "
+                    "first_seen_at, last_seen_at, metadata_digest, creator_id, cover_url, "
+                    "duration_ms, statistics_json, source_url, metadata_json) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(remote_id) DO UPDATE SET "
                     "author_name=excluded.author_name, description=excluded.description, "
                     "item_type=excluded.item_type, published_at=excluded.published_at, "
                     "last_seen_at=excluded.last_seen_at, "
-                    "creator_id=COALESCE(excluded.creator_id, items.creator_id)",
+                    "creator_id=COALESCE(excluded.creator_id, items.creator_id), "
+                    "cover_url=COALESCE(excluded.cover_url, items.cover_url), "
+                    "duration_ms=COALESCE(excluded.duration_ms, items.duration_ms), "
+                    "statistics_json=CASE WHEN excluded.statistics_json='{}' "
+                    "THEN items.statistics_json ELSE excluded.statistics_json END, "
+                    "source_url=COALESCE(excluded.source_url, items.source_url), "
+                    "metadata_json=CASE WHEN excluded.metadata_json='{}' "
+                    "THEN items.metadata_json ELSE excluded.metadata_json END",
                     (
                         item.remote_id,
                         item.author_name,
@@ -127,6 +149,20 @@ class ArchiveRepository:
                         now,
                         now,
                         item.creator_id,
+                        item.cover_url,
+                        item.duration_ms,
+                        json.dumps(item.statistics, ensure_ascii=False, separators=(",", ":")),
+                        item.source_url,
+                        json.dumps(
+                            {
+                                "hashtags": list(item.hashtags),
+                                "music": item.music,
+                                "width": item.width,
+                                "height": item.height,
+                            },
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
                     ),
                 )
                 await self.db.execute(
@@ -200,14 +236,11 @@ class JobRepository:
 
     async def complete(self, job_id: int) -> None:
         await self.db.execute(
-            "UPDATE download_jobs SET status='completed', claimed_by=NULL, "
-            "updated_at=? WHERE id=?",
+            "UPDATE download_jobs SET status='completed', claimed_by=NULL, updated_at=? WHERE id=?",
             (int(time.time()), job_id),
         )
 
-    async def fail(
-        self, job_id: int, error_code: str, *, retry_after_seconds: int
-    ) -> None:
+    async def fail(self, job_id: int, error_code: str, *, retry_after_seconds: int) -> None:
         now = int(time.time())
         await self.db.execute(
             "UPDATE download_jobs SET status='retry', claimed_by=NULL, "
@@ -245,9 +278,7 @@ class DownloadProgressRepository:
     def __init__(self, database: Database) -> None:
         self.db = database
 
-    async def prepare_asset(
-        self, asset: MediaAsset, *, downloaded_bytes: int = 0
-    ) -> MediaProgress:
+    async def prepare_asset(self, asset: MediaAsset, *, downloaded_bytes: int = 0) -> MediaProgress:
         now = int(time.time())
         row = await self.db.fetchone(
             "INSERT INTO media_files "
@@ -321,8 +352,7 @@ class DownloadProgressRepository:
     async def backfill_parts(self, store: ObjectStore) -> int:
         """Restore visible progress from durable files before workers resume."""
         rows = await self.db.fetchall(
-            "SELECT payload_json FROM download_jobs "
-            "WHERE kind='download' AND status != 'completed'"
+            "SELECT payload_json FROM download_jobs WHERE kind='download' AND status != 'completed'"
         )
         restored = 0
         for row in rows:
@@ -339,20 +369,12 @@ class DownloadProgressRepository:
                         asset_index=int(value["asset_index"]),
                         media_type=str(value["media_type"]),
                         url=str(value["url"]),
-                        mime_type=(
-                            str(value["mime_type"])
-                            if value.get("mime_type")
-                            else None
-                        ),
-                        expected_size=(
-                            int(expected_size) if expected_size is not None else None
-                        ),
+                        mime_type=(str(value["mime_type"]) if value.get("mime_type") else None),
+                        expected_size=(int(expected_size) if expected_size is not None else None),
                     )
                 except (AttributeError, KeyError, TypeError, ValueError):
                     continue
-                filename = asset_filename(
-                    asset.asset_index, asset.media_type, asset.mime_type
-                )
+                filename = asset_filename(asset.asset_index, asset.media_type, asset.mime_type)
                 object_file = store.object_path(asset.remote_id, filename)
                 part_file = store.part_path(asset.remote_id, filename)
                 downloaded_bytes = (

@@ -112,6 +112,23 @@ class RuntimeSyncCoordinator:
             raise RuntimeError("creator archive batch disappeared")
         return current
 
+    async def check_item_availability(self, remote_id: str) -> str:
+        async with self._lock:
+            cookies = await self.auth.load_cookies()
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated and cookies:
+                await self.browser_coordinator.add_cookies(cookies)
+                authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated:
+                return "DOUYIN_SESSION_EXPIRED"
+            source = self.source_factory()
+            try:
+                return await source.check_item_availability(remote_id)
+            except Exception:  # noqa: BLE001 - remote uncertainty must not imply deletion
+                return "NETWORK_TIMEOUT"
+            finally:
+                await source.close()
+
     async def _run_creator_archive(
         self,
         creator_id: str,
@@ -129,17 +146,13 @@ class RuntimeSyncCoordinator:
                 await self.browser_coordinator.add_cookies(cookies)
                 authenticated = await self.browser_coordinator.is_douyin_authenticated()
             if not authenticated:
-                await batches.set_status(
-                    batch_id, "failed", error_code="DOUYIN_SESSION_EXPIRED"
-                )
+                await batches.set_status(batch_id, "failed", error_code="DOUYIN_SESSION_EXPIRED")
                 return await batches.get_batch(batch_id)
             try:
                 source = self.source_factory()
                 known_ids = await self.archive.list_known_item_ids()
                 provider = DouyinProvider(source, known_ids=known_ids)
-                return await CreatorSyncService(
-                    provider, self.archive, self.jobs, batches
-                ).run(
+                return await CreatorSyncService(provider, self.archive, self.jobs, batches).run(
                     creator_id,
                     batch_id,
                     full_scan=full_scan,
@@ -179,9 +192,7 @@ class RuntimeSyncCoordinator:
             scanned += 1
         return scanned
 
-    async def _run(
-        self, *, full_scan: bool, run_id: int | None = None
-    ) -> SyncResult:
+    async def _run(self, *, full_scan: bool, run_id: int | None = None) -> SyncResult:
         async with self._lock:
             await self.account_health.record_checking()
             cookies = await self.auth.load_cookies()
@@ -189,9 +200,7 @@ class RuntimeSyncCoordinator:
             authenticated = await self.browser_coordinator.is_douyin_authenticated()
             if not authenticated and cookies:
                 await self.browser_coordinator.add_cookies(cookies)
-                authenticated = (
-                    await self.browser_coordinator.is_douyin_authenticated()
-                )
+                authenticated = await self.browser_coordinator.is_douyin_authenticated()
             if authenticated:
                 source = self.source_factory()
                 known_ids = await self.archive.list_known_item_ids()
@@ -207,8 +216,7 @@ class RuntimeSyncCoordinator:
                 )
                 if result.error_code == SessionExpired.code:
                     await self.database.execute(
-                        "UPDATE auth_sessions SET status='expired' "
-                        "WHERE provider='douyin'"
+                        "UPDATE auth_sessions SET status='expired' WHERE provider='douyin'"
                     )
                 checked_at = int(time.time())
                 if result.error_code is not None:
@@ -262,8 +270,7 @@ class ArchiveRuntime:
             timeout=httpx.Timeout(60, connect=20),
             headers={
                 "User-Agent": (
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                    "Chrome/136.0 Safari/537.36"
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/136.0 Safari/537.36"
                 ),
                 "Referer": "https://www.douyin.com/",
             },
@@ -278,8 +285,7 @@ class ArchiveRuntime:
         )
         worker_prefix = f"{socket.gethostname()}-{os.getpid()}"
         self.workers = [
-            Worker(self.jobs, handler, worker_id=f"{worker_prefix}-{index}")
-            for index in range(2)
+            Worker(self.jobs, handler, worker_id=f"{worker_prefix}-{index}") for index in range(2)
         ]
         self._worker_tasks: list[asyncio.Task[None]] = []
         self._scheduler: Any = None
@@ -292,9 +298,7 @@ class ArchiveRuntime:
         await DownloadProgressRepository(self.database).backfill_parts(self.store)
         await self.browser_coordinator.start()
         self.auth_service.on_authenticated = self._initial_sync
-        self._worker_tasks = [
-            asyncio.create_task(worker.run_forever()) for worker in self.workers
-        ]
+        self._worker_tasks = [asyncio.create_task(worker.run_forever()) for worker in self.workers]
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         configure_scheduler(
             self._scheduler,
@@ -325,6 +329,9 @@ class ArchiveRuntime:
 
     async def trigger_creator_archive(self, creator_id: str) -> ArchiveBatch:
         return await self.sync.trigger_creator_archive(creator_id)
+
+    async def check_item_availability(self, remote_id: str) -> str:
+        return await self.sync.check_item_availability(remote_id)
 
     async def _initial_sync(self) -> int:
         return await self.trigger_sync(full_scan=True)

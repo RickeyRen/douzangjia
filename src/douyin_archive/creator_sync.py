@@ -7,6 +7,7 @@ from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .download_policy import DownloadPolicyService
 from .library_models import CreatorRecord
 from .library_repository import LibraryRepository
+from .remote_availability import RemoteAvailabilityService
 from .repositories import ArchiveRepository, JobRepository
 
 
@@ -28,9 +29,8 @@ class CreatorSyncService:
         self.jobs = jobs
         self.batches = batches
         self.library = LibraryRepository(archive.db)
-        self.download_policy = download_policy or DownloadPolicyService(
-            archive.db, jobs
-        )
+        self.download_policy = download_policy or DownloadPolicyService(archive.db, jobs)
+        self.remote_availability = RemoteAvailabilityService(archive.db)
 
     async def run(
         self,
@@ -42,9 +42,7 @@ class CreatorSyncService:
     ) -> ArchiveBatch:
         await self.batches.set_status(batch_id, "discovering")
         try:
-            async for page in self.provider.iter_creator_pages(
-                creator_id, full_scan=full_scan
-            ):
+            async for page in self.provider.iter_creator_pages(creator_id, full_scan=full_scan):
                 for item in page.items:
                     if item.creator_id != creator_id:
                         continue
@@ -65,7 +63,18 @@ class CreatorSyncService:
                         item_type=item.item_type,
                         published_at=item.published_at,
                         creator_id=creator_id,
+                        cover_url=item.cover_url,
+                        duration_ms=item.duration_ms,
+                        statistics=item.statistics,
+                        source_url=item.source_url,
+                        metadata={
+                            "hashtags": list(item.hashtags),
+                            "music": item.music,
+                            "width": item.width,
+                            "height": item.height,
+                        },
                     )
+                    await self.remote_availability.record(item.remote_id, "OK")
                     job = await self.jobs.get_by_key("download", item.remote_id)
                     if archive_new_items:
                         job = await self.download_policy.record_intent(
@@ -86,9 +95,7 @@ class CreatorSyncService:
                         job_id=job.id if job is not None else None,
                     )
         except Exception:
-            await self.batches.set_status(
-                batch_id, "failed", error_code="CREATOR_SYNC_FAILED"
-            )
+            await self.batches.set_status(batch_id, "failed", error_code="CREATOR_SYNC_FAILED")
             raise
         batch = await self.batches.refresh_batch(batch_id)
         if batch is None:

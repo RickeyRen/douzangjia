@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
 from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
+from ..remote_availability import evidence_for_probe_response
 from .base import (
     ProviderChanged,
     RawPageSource,
@@ -37,9 +38,7 @@ def _parse_compact_count(raw: str) -> int | None:
         return None
 
 
-def _parse_collection_counts(
-    page_text: str, expected_names: tuple[str, ...]
-) -> dict[str, int]:
+def _parse_collection_counts(page_text: str, expected_names: tuple[str, ...]) -> dict[str, int]:
     """Extract folder counts from Douyin's visible collection view."""
 
     counts: dict[str, int] = {}
@@ -59,9 +58,7 @@ def _parse_collection_counts(
     return counts
 
 
-def _merge_collection_counts(
-    payload: dict[str, Any], counts: dict[str, int]
-) -> dict[str, Any]:
+def _merge_collection_counts(payload: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
     records = payload.get("collects_list")
     if not isinstance(records, list) or not counts:
         return payload
@@ -133,9 +130,7 @@ class DouyinProvider:
             return ()
         return PlaywrightDouyinSource.SUPPORTED_ACCOUNT_SOURCES
 
-    async def iter_account_pages(
-        self, kind: str, *, full_scan: bool
-    ) -> AsyncIterator[RemotePage]:
+    async def iter_account_pages(self, kind: str, *, full_scan: bool) -> AsyncIterator[RemotePage]:
         iterator = self.source.iter_account_raw_pages(
             kind,
             known_ids=self.known_ids,
@@ -171,19 +166,11 @@ class DouyinProvider:
                         entity_type=str(record.get("entity_type", "external")),
                         title=title,
                         subtitle=(
-                            str(record["subtitle"]).strip()
-                            if record.get("subtitle")
-                            else None
+                            str(record["subtitle"]).strip() if record.get("subtitle") else None
                         ),
-                        cover_url=(
-                            str(record["cover_url"])
-                            if record.get("cover_url")
-                            else None
-                        ),
+                        cover_url=(str(record["cover_url"]) if record.get("cover_url") else None),
                         source_url=(
-                            str(record["source_url"])
-                            if record.get("source_url")
-                            else None
+                            str(record["source_url"]) if record.get("source_url") else None
                         ),
                         remote_order=(
                             str(record["remote_order"])
@@ -250,9 +237,7 @@ class PlaywrightDouyinSource:
     )
     SELF_URL = "https://www.douyin.com/user/self?from_tab_name=main"
     FOLLOWING_URL = "https://www.douyin.com/follow?from_nav=1"
-    FAVORITE_MUSIC_URL = (
-        f"{SELF_URL}&showTab=favorite_collection&showSubTab=music"
-    )
+    FAVORITE_MUSIC_URL = f"{SELF_URL}&showTab=favorite_collection&showSubTab=music"
     SUPPORTED_ACCOUNT_ENTITY_SOURCES = ("favorite_music",)
     SUPPORTED_ACCOUNT_SOURCES = (
         "post",
@@ -277,12 +262,8 @@ class PlaywrightDouyinSource:
     }
     ACCOUNT_SOURCE_URLS: ClassVar[dict[str, str]] = {
         "following": FOLLOWING_URL,
-        "favorite_series": (
-            f"{SELF_URL}&showTab=favorite_collection&showSubTab=compilation"
-        ),
-        "favorite_drama": (
-            f"{SELF_URL}&showTab=favorite_collection&showSubTab=playlet"
-        ),
+        "favorite_series": (f"{SELF_URL}&showTab=favorite_collection&showSubTab=compilation"),
+        "favorite_drama": (f"{SELF_URL}&showTab=favorite_collection&showSubTab=playlet"),
     }
     ACCOUNT_SOURCE_CLICKS: ClassVar[dict[str, tuple[tuple[str, ...], ...]]] = {
         "post": (("作品",),),
@@ -328,6 +309,62 @@ class PlaywrightDouyinSource:
         self._collection_names.clear()
         self._direct_collections = False
 
+    async def check_item_availability(self, item_id: str) -> str:
+        """Probe one item without trusting cached discovery payloads."""
+        await self.open()
+        if "douyin.com" not in str(self._page.url):
+            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+        try:
+            result = await self._page.evaluate(
+                """
+                async ({itemId, path}) => { // __douzangjiaRemoteAvailability
+                  const url = new URL(path, window.location.origin);
+                  url.searchParams.set('aweme_id', itemId);
+                  url.searchParams.set('aid', '6383');
+                  url.searchParams.set('device_platform', 'webapp');
+                  const controller = new AbortController();
+                  const timeout = window.setTimeout(() => controller.abort(), 8_000);
+                  try {
+                    const response = await fetch(url.toString(), {
+                      credentials: 'include',
+                      cache: 'no-store',
+                      signal: controller.signal,
+                      headers: {Accept: 'application/json, text/plain, */*'},
+                    });
+                    let data = null;
+                    try { data = JSON.parse(await response.text()); } catch {}
+                    const item = data?.aweme_detail || data?.aweme_list?.[0] || null;
+                    return {
+                      httpStatus: response.status,
+                      statusCode: Number.isFinite(Number(data?.status_code))
+                        ? Number(data.status_code) : null,
+                      hasItem: Boolean(item),
+                    };
+                  } catch {
+                    return {httpStatus: 0, statusCode: null, hasItem: false};
+                  } finally {
+                    window.clearTimeout(timeout);
+                  }
+                }
+                """,
+                {"itemId": item_id, "path": self.DETAIL_PATH},
+            )
+        except Exception:  # noqa: BLE001 - browser failures are uncertain evidence
+            return "NETWORK_TIMEOUT"
+        if not isinstance(result, dict):
+            return "DOUYIN_RESPONSE_CHANGED"
+        try:
+            http_status = int(result.get("httpStatus", 0))
+            raw_status = result.get("statusCode")
+            status_code = int(raw_status) if raw_status is not None else None
+        except (TypeError, ValueError):
+            return "DOUYIN_RESPONSE_CHANGED"
+        return evidence_for_probe_response(
+            http_status=http_status,
+            status_code=status_code,
+            has_item=bool(result.get("hasItem")),
+        )
+
     async def _recycle_page(self) -> None:
         page = self._page
         lease = self._lease
@@ -343,9 +380,7 @@ class PlaywrightDouyinSource:
 
     async def fetch_collections(self) -> dict:
         await self.open()
-        await self._page.goto(
-            self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000
-        )
+        await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         direct_payload = await self._fetch_collections_api()
         signer_capabilities = await self._page.evaluate(
             """
@@ -371,16 +406,12 @@ class PlaywrightDouyinSource:
             collections = normalize_collections(direct_payload)
             counts = await self._read_collection_counts_from_page(
                 tuple(
-                    item.name
-                    for item in collections
-                    if item.remote_id != ALL_FAVORITES_REMOTE_ID
+                    item.name for item in collections if item.remote_id != ALL_FAVORITES_REMOTE_ID
                 )
             )
             direct_payload = _merge_collection_counts(direct_payload, counts)
             collections = normalize_collections(direct_payload)
-            self._collection_names = {
-                item.remote_id: item.name for item in collections
-            }
+            self._collection_names = {item.remote_id: item.name for item in collections}
             self._direct_collections = True
             return direct_payload
         await self._click_text_candidates(("收藏", "收藏夹"))
@@ -485,9 +516,7 @@ class PlaywrightDouyinSource:
         seen_ids: set[str] = set()
         for nested_link in nested_links:
             if nested_link is not None:
-                await self._page.goto(
-                    nested_link, wait_until="domcontentloaded", timeout=45_000
-                )
+                await self._page.goto(nested_link, wait_until="domcontentloaded", timeout=45_000)
                 await self._page.wait_for_timeout(800)
             async for batch in self._iter_visible_item_id_batches(
                 known_ids=known_ids, full_scan=full_scan
@@ -508,18 +537,14 @@ class PlaywrightDouyinSource:
         if previous_payload is not None:
             yield {**previous_payload, "has_more": False}
 
-    async def iter_account_raw_entity_pages(
-        self, kind: str
-    ) -> AsyncIterator[dict[str, object]]:
+    async def iter_account_raw_entity_pages(self, kind: str) -> AsyncIterator[dict[str, object]]:
         try:
             async for payload in self._iter_account_raw_entity_pages(kind):
                 yield payload
         finally:
             await self._recycle_page()
 
-    async def _iter_account_raw_entity_pages(
-        self, kind: str
-    ) -> AsyncIterator[dict[str, object]]:
+    async def _iter_account_raw_entity_pages(self, kind: str) -> AsyncIterator[dict[str, object]]:
         if kind not in self.SUPPORTED_ACCOUNT_ENTITY_SOURCES:
             raise ProviderChanged("unsupported Douyin account entity source")
         await self.open()
@@ -643,11 +668,7 @@ class PlaywrightDouyinSource:
         )
 
     async def _visible_nested_links(self, kind: str) -> list[str]:
-        patterns = (
-            ("/collection/",)
-            if kind == "favorite_series"
-            else ("/series/", "/collection/")
-        )
+        patterns = ("/collection/",) if kind == "favorite_series" else ("/series/", "/collection/")
         result = await self._page.evaluate(
             """
             ({patterns}) => { // __yingcangVisibleNestedLinks
@@ -736,9 +757,7 @@ class PlaywrightDouyinSource:
             }
 
     @staticmethod
-    def _trim_after_known_streak(
-        item_ids: list[str], known_ids: set[str]
-    ) -> list[str]:
+    def _trim_after_known_streak(item_ids: list[str], known_ids: set[str]) -> list[str]:
         consecutive_known = 0
         for index, item_id in enumerate(item_ids):
             if item_id in known_ids:
@@ -927,8 +946,7 @@ class PlaywrightDouyinSource:
                 if _has_collection_schema(last_payload):
                     records = list(last_payload.get("collects_list", []))
                     if not any(
-                        str(record.get("collects_id_str", ""))
-                        == ALL_FAVORITES_REMOTE_ID
+                        str(record.get("collects_id_str", "")) == ALL_FAVORITES_REMOTE_ID
                         for record in records
                         if isinstance(record, dict)
                     ):
@@ -953,9 +971,7 @@ class PlaywrightDouyinSource:
         )
         while True:
             collection_params = (
-                {}
-                if remote_id == ALL_FAVORITES_REMOTE_ID
-                else {"collects_id": remote_id}
+                {} if remote_id == ALL_FAVORITES_REMOTE_ID else {"collects_id": remote_id}
             )
             for attempt in range(3):
                 try:
@@ -1089,9 +1105,7 @@ class PlaywrightDouyinSource:
             if isinstance(payload, dict):
                 self._remember_item_records(payload)
                 if any(marker in url for marker in self.COLLECTION_PATH_MARKERS):
-                    logger.warning(
-                        "Douyin collection response shape=%s", _payload_shape(payload)
-                    )
+                    logger.warning("Douyin collection response shape=%s", _payload_shape(payload))
                 if tracked_response:
                     await self._responses.put((url, payload))
 
@@ -1121,8 +1135,7 @@ class PlaywrightDouyinSource:
                 return payload
         page_path = urlsplit(str(self._page.url)).path or "/"
         logger.warning(
-            "Douyin browser response changed: page_path=%s expected=%s "
-            "observed_paths=%s",
+            "Douyin browser response changed: page_path=%s expected=%s observed_paths=%s",
             page_path,
             markers,
             list(self._observed_paths),
@@ -1193,9 +1206,7 @@ class PlaywrightDouyinSource:
             if state == "active":
                 return
             await self._page.wait_for_timeout(500 if state == "clicked" else 250)
-        logger.warning(
-            "Douyin profile tab activation failed labels=%s state=%s", labels, state
-        )
+        logger.warning("Douyin profile tab activation failed labels=%s state=%s", labels, state)
         raise ProviderChanged("Douyin account source tab did not become active")
 
     async def _open_collection(self, remote_id: str) -> None:

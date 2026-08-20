@@ -70,8 +70,19 @@ class PointerRequest(BaseModel):
 
 class KeyRequest(BaseModel):
     key: Literal[
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-        "Backspace", "Enter", "Tab",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "Backspace",
+        "Enter",
+        "Tab",
     ]
 
 
@@ -254,11 +265,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             browser_profile_status = "ok"
         except OSError:
             browser_profile_status = "error"
-        status = (
-            "ok"
-            if archive_status == "ok" and browser_profile_status == "ok"
-            else "error"
-        )
+        status = "ok" if archive_status == "ok" and browser_profile_status == "ok" else "error"
         return {
             "status": status,
             "checks": {
@@ -283,16 +290,19 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     @app.get("/api/status")
     async def public_status(request: Request) -> dict[str, object]:
         douyin = await request.app.state.database.fetchone(
-            "SELECT 1 FROM auth_sessions "
-            "WHERE provider='douyin' AND status='authenticated'"
+            "SELECT 1 FROM auth_sessions WHERE provider='douyin' AND status='authenticated'"
         )
-        health = await AccountHealthService(request.app.state.database).snapshot()
-        return {
+        authenticated = decode_session(request)
+        result: dict[str, object] = {
             "configured": admin_store.configured,
-            "authenticated": decode_session(request),
+            "authenticated": authenticated,
             "douyinAuthenticated": douyin is not None,
-            "douyinHealth": health,
         }
+        if authenticated:
+            result["douyinHealth"] = await AccountHealthService(
+                request.app.state.database
+            ).snapshot()
+        return result
 
     @app.post("/api/session")
     async def login(payload: SessionRequest, response: Response):
@@ -419,9 +429,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return status.as_public_dict()
 
     @app.post("/api/douyin/login/{login_id}/drag")
-    async def drag_douyin_login(
-        login_id: str, payload: DragRequest, request: Request
-    ):
+    async def drag_douyin_login(login_id: str, payload: DragRequest, request: Request):
         points = [(point.x, point.y) for point in payload.points]
         try:
             status = await request.app.state.auth_service.drag(login_id, points)
@@ -438,9 +446,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return status.as_public_dict()
 
     @app.post("/api/douyin/login/{login_id}/pointer", status_code=202)
-    async def pointer_douyin_login(
-        login_id: str, payload: PointerRequest, request: Request
-    ):
+    async def pointer_douyin_login(login_id: str, payload: PointerRequest, request: Request):
         try:
             await request.app.state.auth_service.pointer(
                 login_id, payload.action, payload.x, payload.y
@@ -458,9 +464,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return {"accepted": True}
 
     @app.post("/api/douyin/login/{login_id}/key", status_code=202)
-    async def key_douyin_login(
-        login_id: str, payload: KeyRequest, request: Request
-    ):
+    async def key_douyin_login(login_id: str, payload: KeyRequest, request: Request):
         try:
             await request.app.state.auth_service.key(login_id, payload.key)
         except KeyError:

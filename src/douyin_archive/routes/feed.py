@@ -7,6 +7,8 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from ..remote_availability import RemoteAvailabilityService
+
 router = APIRouter(prefix="/api")
 
 
@@ -54,6 +56,14 @@ def _payload_asset_summary(payload_json: str | None) -> tuple[int, int | None]:
     return len(valid), total_bytes
 
 
+def _json_object(value: object) -> dict[str, Any]:
+    try:
+        parsed = json.loads(str(value or "{}"))
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 async def _serialize_item(database, row) -> dict[str, Any]:
     collections = await database.fetchall(
         "SELECT c.remote_id, c.name FROM collections c "
@@ -62,8 +72,21 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         (row["remote_id"],),
     )
     media = await database.fetchall(
-        "SELECT id, asset_index, media_type, byte_size, mime_type FROM media_files "
+        "SELECT id, asset_index, media_type, relative_path, byte_size, "
+        "checksum_sha256, mime_type, width, height, codec, fps, bit_rate, duration_ms, "
+        "probe_status, probed_at, completed_at FROM media_files "
         "WHERE item_id=? AND status='ready' ORDER BY asset_index",
+        (row["remote_id"],),
+    )
+    creator = None
+    if row["creator_id"]:
+        creator = await database.fetchone(
+            "SELECT remote_id, nickname, unique_id, avatar_url FROM creators WHERE remote_id=?",
+            (row["creator_id"],),
+        )
+    remote_check = await database.fetchone(
+        "SELECT status, checked_at, evidence_code, last_available_at "
+        "FROM remote_checks WHERE item_id=?",
         (row["remote_id"],),
     )
     job = await database.fetchone(
@@ -83,10 +106,10 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     payload_assets, payload_total_bytes = _payload_asset_summary(
         str(job["payload_json"]) if job is not None else None
     )
-    total_assets = max(
-        int(local["total_assets"]) if local is not None else 0, payload_assets
-    )
+    total_assets = max(int(local["total_assets"]) if local is not None else 0, payload_assets)
     ready_assets = int(local["ready_assets"]) if local is not None else 0
+    statistics = _json_object(row["statistics_json"])
+    metadata = _json_object(row["metadata_json"])
     return {
         "awemeId": row["remote_id"],
         "creatorId": row["creator_id"],
@@ -96,9 +119,25 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         "publishedAt": row["published_at"],
         "archivedAt": row["first_seen_at"],
         "sourceUrl": row["source_url"],
-        "collections": [
-            {"id": item["remote_id"], "name": item["name"]} for item in collections
-        ],
+        "coverUrl": row["cover_url"],
+        "creator": (
+            {
+                "id": creator["remote_id"],
+                "nickname": creator["nickname"],
+                "uniqueId": creator["unique_id"],
+                "avatarUrl": creator["avatar_url"],
+            }
+            if creator is not None
+            else None
+        ),
+        "douyin": {
+            "statistics": statistics,
+            "durationMs": row["duration_ms"],
+            "hashtags": metadata.get("hashtags", []),
+            "music": metadata.get("music"),
+            "visibility": row["visibility"],
+        },
+        "collections": [{"id": item["remote_id"], "name": item["name"]} for item in collections],
         "media": [
             {
                 "id": item["id"],
@@ -107,9 +146,37 @@ async def _serialize_item(database, row) -> dict[str, Any]:
                 "byteSize": item["byte_size"],
                 "mimeType": item["mime_type"],
                 "url": f"/api/media/{item['id']}",
+                "relativePath": item["relative_path"],
+                "checksumSha256": item["checksum_sha256"],
+                "completedAt": item["completed_at"],
+                "technical": {
+                    "width": item["width"],
+                    "height": item["height"],
+                    "codec": item["codec"],
+                    "fps": item["fps"],
+                    "bitRate": item["bit_rate"],
+                    "durationMs": item["duration_ms"],
+                    "probeStatus": item["probe_status"],
+                    "probedAt": item["probed_at"],
+                },
             }
             for item in media
         ],
+        "remoteAvailability": (
+            {
+                "status": remote_check["status"],
+                "checkedAt": remote_check["checked_at"],
+                "evidenceCode": remote_check["evidence_code"],
+                "lastAvailableAt": remote_check["last_available_at"],
+            }
+            if remote_check is not None
+            else {
+                "status": "unknown",
+                "checkedAt": None,
+                "evidenceCode": None,
+                "lastAvailableAt": None,
+            }
+        ),
         "local": {
             "state": _local_state(
                 str(job["status"]) if job is not None else None,
@@ -190,8 +257,7 @@ async def feed(
         parameters.extend((before_time, before_time, before_id))
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = await request.app.state.database.fetchall(
-        f"SELECT i.* FROM items i {where} "
-        "ORDER BY i.first_seen_at DESC, i.remote_id DESC LIMIT ?",
+        f"SELECT i.* FROM items i {where} ORDER BY i.first_seen_at DESC, i.remote_id DESC LIMIT ?",
         (*parameters, limit + 1),
     )
     has_more = len(rows) > limit
@@ -215,3 +281,23 @@ async def item_detail(remote_id: str, request: Request):
             content={"code": "ITEM_NOT_FOUND", "message": "归档作品不存在"},
         )
     return await _serialize_item(request.app.state.database, row)
+
+
+@router.post("/items/{remote_id}/remote-check")
+async def check_item_remote(remote_id: str, request: Request):
+    row = await request.app.state.database.fetchone(
+        "SELECT remote_id FROM items WHERE remote_id=?", (remote_id,)
+    )
+    if row is None:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "ITEM_NOT_FOUND", "message": "归档作品不存在"},
+        )
+    runtime = request.app.state.runtime
+    if runtime is None or not hasattr(runtime, "check_item_availability"):
+        return JSONResponse(
+            status_code=503,
+            content={"code": "REMOTE_CHECK_UNAVAILABLE", "message": "远端检查暂不可用"},
+        )
+    evidence = await runtime.check_item_availability(remote_id)
+    return await RemoteAvailabilityService(request.app.state.database).record(remote_id, evidence)

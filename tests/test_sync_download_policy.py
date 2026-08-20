@@ -21,9 +21,7 @@ def item(remote_id: str) -> RemoteItem:
         author_name="作者",
         description=remote_id,
         item_type="video",
-        assets=(
-            MediaAsset(remote_id, 0, "video", f"https://media.test/{remote_id}.mp4"),
-        ),
+        assets=(MediaAsset(remote_id, 0, "video", f"https://media.test/{remote_id}.mp4"),),
     )
 
 
@@ -70,6 +68,12 @@ async def test_disabled_collection_still_syncs_metadata_without_a_job(components
     assert result.enqueued == 0
     assert link is not None and "travel-1.mp4" in link["metadata_json"]
     assert await jobs.count() == 0
+    remote_check = await database.fetchone(
+        "SELECT status, evidence_code FROM remote_checks WHERE item_id='travel-1'"
+    )
+    assert remote_check is not None
+    assert remote_check["status"] == "available"
+    assert remote_check["evidence_code"] == "OK"
 
 
 async def test_enabled_account_category_downloads_newly_discovered_items(

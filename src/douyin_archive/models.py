@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from sqlite3 import Row
 from typing import Any
 
@@ -108,3 +108,11 @@ class RemoteItem:
     creator_avatar_url: str | None = None
     creator_follower_count: int | None = None
     creator_post_count: int | None = None
+    cover_url: str | None = None
+    duration_ms: int | None = None
+    width: int | None = None
+    height: int | None = None
+    statistics: dict[str, int] = field(default_factory=dict)
+    source_url: str | None = None
+    hashtags: tuple[str, ...] = ()
+    music: dict[str, object] | None = None

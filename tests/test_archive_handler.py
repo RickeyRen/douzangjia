@@ -5,6 +5,7 @@ import httpx
 from douyin_archive.archive_handler import ArchiveJobHandler
 from douyin_archive.db import Database
 from douyin_archive.downloader import MediaDownloader
+from douyin_archive.media_probe import MediaTechnical
 from douyin_archive.models import DownloadJob
 from douyin_archive.repositories import DownloadProgressRepository
 from douyin_archive.storage import CollectionProjector, ObjectStore
@@ -37,11 +38,25 @@ async def test_download_job_registers_media_and_projects_every_collection(
 
     store = ObjectStore(tmp_path)
     async with httpx.AsyncClient(transport=httpx.MockTransport(media)) as client:
+
+        class FakeProbe:
+            async def probe(self, _: Path) -> MediaTechnical:
+                return MediaTechnical(
+                    status="ready",
+                    width=1080,
+                    height=1920,
+                    codec="h264",
+                    fps=30.0,
+                    bit_rate=4_500_000,
+                    duration_ms=15_200,
+                )
+
         handler = ArchiveJobHandler(
             database,
             MediaDownloader(store, client),
             CollectionProjector(tmp_path),
             archive_root=tmp_path,
+            media_probe=FakeProbe(),
         )
         await handler(
             DownloadJob(
@@ -73,11 +88,22 @@ async def test_download_job_registers_media_and_projects_every_collection(
         )
 
     row = await database.fetchone(
-        "SELECT relative_path, byte_size, status FROM media_files WHERE item_id='734'"
+        "SELECT relative_path, byte_size, status, width, height, codec, fps, "
+        "bit_rate, duration_ms, probe_status, probed_at, completed_at "
+        "FROM media_files WHERE item_id='734'"
     )
     assert row is not None
     assert row["status"] == "ready"
     assert row["byte_size"] == len(b"original-media")
+    assert row["width"] == 1080
+    assert row["height"] == 1920
+    assert row["codec"] == "h264"
+    assert row["fps"] == 30.0
+    assert row["bit_rate"] == 4_500_000
+    assert row["duration_ms"] == 15_200
+    assert row["probe_status"] == "ready"
+    assert row["probed_at"] is not None
+    assert row["completed_at"] is not None
     progress = (await DownloadProgressRepository(database).get_for_item("734"))[0]
     assert progress.status == "ready"
     assert progress.downloaded_bytes == len(b"original-media")

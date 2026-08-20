@@ -44,9 +44,7 @@ def _first_list(payload: dict[str, Any], keys: Iterable[str]) -> list[dict[str, 
 def normalize_collections(payload: dict[str, Any]) -> list[RemoteCollection]:
     _check_status(payload)
     data = _envelope(payload)
-    records = _first_list(
-        data, ("collects_list", "mix_infos", "mix_list", "collections", "items")
-    )
+    records = _first_list(data, ("collects_list", "mix_infos", "mix_list", "collections", "items"))
     result: list[RemoteCollection] = []
     for record in records:
         remote_id = record.get(
@@ -119,6 +117,10 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
         published_at = None
 
     assets: list[MediaAsset] = []
+    cover_url: str | None = None
+    duration_ms: int | None = None
+    width: int | None = None
+    height: int | None = None
     images = record.get("images")
     if isinstance(images, list) and images:
         item_type = "gallery"
@@ -142,6 +144,44 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
         url, size = _asset_url(address)
         if url:
             assets.append(MediaAsset(remote_id, 0, "video", url, "video/mp4", size))
+        for cover_key in ("cover", "origin_cover", "originCover", "dynamic_cover"):
+            cover_url, _ = _asset_url(video.get(cover_key))
+            if cover_url:
+                break
+        duration_ms = optional_int(video.get("duration", record.get("duration")))
+        width = optional_int(video.get("width"))
+        height = optional_int(video.get("height"))
+
+    raw_statistics = record.get("statistics") if isinstance(record.get("statistics"), dict) else {}
+    statistics = {
+        public_key: value
+        for public_key, remote_key in (
+            ("playCount", "play_count"),
+            ("diggCount", "digg_count"),
+            ("commentCount", "comment_count"),
+            ("collectCount", "collect_count"),
+            ("shareCount", "share_count"),
+        )
+        if (value := optional_int(raw_statistics.get(remote_key))) is not None
+    }
+    text_extra = record.get("text_extra")
+    hashtags = (
+        tuple(
+            str(entry["hashtag_name"]).strip()
+            for entry in text_extra
+            if isinstance(entry, dict) and str(entry.get("hashtag_name", "")).strip()
+        )
+        if isinstance(text_extra, list)
+        else ()
+    )
+    raw_music = record.get("music") if isinstance(record.get("music"), dict) else None
+    music = None
+    if raw_music is not None:
+        music = {
+            "id": str(raw_music.get("mid", raw_music.get("id", ""))),
+            "title": str(raw_music.get("title", "")),
+            "author": str(raw_music.get("author", "")),
+        }
 
     return RemoteItem(
         remote_id=remote_id,
@@ -156,9 +196,15 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
         creator_follower_count=optional_int(
             author.get("follower_count", author.get("followerCount"))
         ),
-        creator_post_count=optional_int(
-            author.get("aweme_count", author.get("awemeCount"))
-        ),
+        creator_post_count=optional_int(author.get("aweme_count", author.get("awemeCount"))),
+        cover_url=cover_url,
+        duration_ms=duration_ms,
+        width=width,
+        height=height,
+        statistics=statistics,
+        source_url=f"https://www.douyin.com/{'note' if item_type == 'gallery' else 'video'}/{remote_id}",
+        hashtags=hashtags,
+        music=music,
     )
 
 

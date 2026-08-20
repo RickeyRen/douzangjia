@@ -9,6 +9,7 @@ import anyio
 
 from .db import Database
 from .downloader import DownloadProgressSnapshot, MediaDownloader
+from .media_probe import MediaProbe
 from .models import DownloadJob, MediaAsset
 from .paths import asset_filename
 from .repositories import DownloadProgressRepository
@@ -25,12 +26,14 @@ class ArchiveJobHandler:
         projector: CollectionProjector,
         *,
         archive_root: Path,
+        media_probe: MediaProbe | None = None,
     ) -> None:
         self.database = database
         self.downloader = downloader
         self.projector = projector
         self.archive_root = archive_root.resolve()
         self.progress = DownloadProgressRepository(database)
+        self.media_probe = media_probe or MediaProbe()
 
     async def __call__(self, job: DownloadJob) -> None:
         if job.kind != "download":
@@ -51,9 +54,7 @@ class ArchiveJobHandler:
         )
 
         for asset in assets:
-            filename = asset_filename(
-                asset.asset_index, asset.media_type, asset.mime_type
-            )
+            filename = asset_filename(asset.asset_index, asset.media_type, asset.mime_type)
             object_file = self.downloader.store.object_path(asset.remote_id, filename)
             part_file = self.downloader.store.part_path(asset.remote_id, filename)
             downloaded_bytes = (
@@ -63,9 +64,7 @@ class ArchiveJobHandler:
                 if part_file.is_file()
                 else 0
             )
-            await self.progress.prepare_asset(
-                asset, downloaded_bytes=downloaded_bytes
-            )
+            await self.progress.prepare_asset(asset, downloaded_bytes=downloaded_bytes)
 
         for asset in assets:
             object_file = await self.downloader.download(
@@ -74,11 +73,14 @@ class ArchiveJobHandler:
             relative_path = object_file.resolve().relative_to(self.archive_root).as_posix()
             byte_size = object_file.stat().st_size
             checksum = await anyio.to_thread.run_sync(self._sha256, object_file)
+            technical = await self.media_probe.probe(object_file)
             now = int(time.time())
             await self.database.execute(
                 "UPDATE media_files SET media_type=?, relative_path=?, byte_size=?, "
                 "checksum_sha256=?, mime_type=?, status='ready', downloaded_bytes=?, "
-                "total_bytes=?, speed_bps=0, progress_updated_at=?, updated_at=? "
+                "total_bytes=?, speed_bps=0, progress_updated_at=?, updated_at=?, "
+                "width=?, height=?, codec=?, fps=?, bit_rate=?, duration_ms=?, "
+                "probe_status=?, probed_at=?, completed_at=? "
                 "WHERE item_id=? AND asset_index=?",
                 (
                     asset.media_type,
@@ -88,6 +90,15 @@ class ArchiveJobHandler:
                     asset.mime_type,
                     byte_size,
                     byte_size,
+                    now,
+                    now,
+                    technical.width,
+                    technical.height,
+                    technical.codec,
+                    technical.fps,
+                    technical.bit_rate,
+                    technical.duration_ms,
+                    technical.status,
                     now,
                     now,
                     job.remote_id,
@@ -122,9 +133,7 @@ class ArchiveJobHandler:
             url=str(value["url"]),
             mime_type=str(value["mime_type"]) if value.get("mime_type") else None,
             expected_size=(
-                int(value["expected_size"])
-                if value.get("expected_size") is not None
-                else None
+                int(value["expected_size"]) if value.get("expected_size") is not None else None
             ),
         )
 
