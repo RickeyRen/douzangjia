@@ -4,6 +4,7 @@ import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
+import { RichItemDetails } from "./RichItemDetails";
 
 export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
   const { t } = useI18n();
@@ -21,6 +22,7 @@ export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedIt
           <DetailRow icon={<FolderSimple size={20} />} label={t("collectionLabel")} value={item.collections.map((entry) => entry.name).join("、") || t("allArchives")} />
           <DetailRow icon={<HardDrives size={20} />} label={t("source")} value={t("localOriginal")} />
         </dl>
+        <RichItemDetails item={item} />
         <LocalStateBadge local={item.local} detailed />
       </section>
     </div>

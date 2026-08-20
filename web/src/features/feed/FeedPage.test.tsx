@@ -25,6 +25,15 @@ vi.mock("../../app/api", () => ({
   updateCreatorSubscription: vi.fn(),
 }));
 
+vi.mock("../home/HomePage", () => ({
+  HomePage: ({ onOpenDownloads, onOpenSource }: { onOpenDownloads: () => void; onOpenSource: (sourceId: string) => void }) => (
+    <main aria-label="首页">
+      <button type="button" onClick={onOpenDownloads}>首页下载详情</button>
+      <button type="button" onClick={() => onOpenSource("favorite_collection:1001")}>首页打开类目</button>
+    </main>
+  ),
+}));
+
 const collections = [
   { id: "1001", name: "想去的地方", itemCount: 1, lastSeenAt: 1 },
   { id: "1002", name: "好看的美女", itemCount: 1, lastSeenAt: 1 },
@@ -180,6 +189,16 @@ describe("FeedPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("opens the full home by default and enters the archive from the rail", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    expect(screen.getByRole("main", { name: "首页" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
+
+    expect(await screen.findByTestId("desktop-content")).toBeVisible();
+  });
+
   it("switches collection and keeps exactly one active media card", async () => {
     const user = userEvent.setup();
     render(<FeedPage />);
@@ -235,8 +254,10 @@ describe("FeedPage", () => {
   });
 
   it("renders a useful empty state instead of a blank viewport", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.fetchFeed).mockResolvedValue({ items: [], nextCursor: null });
     render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
     expect(await screen.findByText("还没有归档作品")).toBeVisible();
   });
 
@@ -252,7 +273,9 @@ describe("FeedPage", () => {
   });
 
   it("keeps desktop navigation, media, and details in one flow grid", async () => {
+    const user = userEvent.setup();
     render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
 
     const workspace = await screen.findByTestId("desktop-workspace");
     const content = screen.getByTestId("desktop-content");
@@ -301,7 +324,7 @@ describe("FeedPage", () => {
     await user.click(screen.getByRole("button", { name: "关闭收藏夹" }));
 
     await user.click(within(navigation).getByRole("button", { name: "活动" }));
-    expect(await screen.findByRole("dialog", { name: "控制台" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "活动" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "关闭面板" }));
 
     await user.click(within(navigation).getByRole("button", { name: "设置" }));
@@ -330,6 +353,8 @@ describe("FeedPage", () => {
       .mockResolvedValueOnce({ items: [itemFor(collections[1])], nextCursor: null });
     const user = userEvent.setup();
     const view = render(<FeedPage />);
+
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
 
     await screen.findAllByText("来自 想去的地方");
     expect(screen.queryByRole("button", { name: "加载更多" })).not.toBeInTheDocument();
@@ -364,6 +389,7 @@ describe("FeedPage", () => {
   it("opens a stable creator profile with archive-all and follow controls", async () => {
     const user = userEvent.setup();
     render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
 
     await user.click((await screen.findAllByRole("button", { name: "查看旅行家的已收藏作品" }))[0]);
 
@@ -390,6 +416,7 @@ describe("FeedPage", () => {
     });
     const user = userEvent.setup();
     render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
 
     await user.click(await screen.findByRole("button", { name: "多作品视图" }));
 
@@ -405,6 +432,7 @@ describe("FeedPage", () => {
     });
     const user = userEvent.setup();
     render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
     await user.click(await screen.findByRole("button", { name: "多作品视图" }));
 
     await user.click(screen.getByRole("button", { name: "打开作品：来自 好看的美女" }));
@@ -417,6 +445,7 @@ describe("FeedPage", () => {
     window.localStorage.setItem("liuying.feedView.v1", "grid");
 
     render(<FeedPage />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "全部归档" }));
 
     expect(await screen.findByTestId("feed-grid")).toBeVisible();
     expect(screen.getByRole("button", { name: "多作品视图" })).toHaveAttribute("aria-pressed", "true");
@@ -456,6 +485,8 @@ describe("FeedPage", () => {
       .mockResolvedValueOnce({ items: [itemFor(thirdCollection)], nextCursor: "page-4" })
       .mockResolvedValueOnce({ items: [itemFor(fourthCollection)], nextCursor: null });
     const view = render(<FeedPage />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "全部归档" }));
 
     await screen.findByTestId("feed-grid");
     expect(screen.queryByRole("button", { name: "加载更多" })).not.toBeInTheDocument();

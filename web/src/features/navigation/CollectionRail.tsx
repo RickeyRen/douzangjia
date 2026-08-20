@@ -1,4 +1,4 @@
-import { Archive, BookmarkSimple, ChartDonut, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, Star, UserList } from "@phosphor-icons/react";
+import { Archive, BookmarkSimple, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, Star, UserList } from "@phosphor-icons/react";
 
 import type { Icon } from "@phosphor-icons/react";
 import type { LibrarySource } from "../../app/api";
@@ -17,7 +17,7 @@ const sourceIcons: Partial<Record<LibrarySource["kind"], Icon>> = {
   favorite_collection: FolderSimple,
 };
 
-export function CollectionRail({ sources, selected, onSelect, onOpenPanel }: { sources: LibrarySource[]; selected?: string; onSelect: (id?: string) => void; onOpenPanel: (panel: UtilityPanel) => void }) {
+export function CollectionRail({ sources, selected, homeActive, onSelect, onOpenHome, onOpenPanel }: { sources: LibrarySource[]; selected?: string; homeActive: boolean; onSelect: (id?: string) => void; onOpenHome: () => void; onOpenPanel: (panel: UtilityPanel) => void }) {
   const { t } = useI18n();
   const accountSources = sources.filter((source) => source.kind !== "favorite_collection");
   const favoriteFolders = sources.filter((source) => source.kind === "favorite_collection");
@@ -42,8 +42,12 @@ export function CollectionRail({ sources, selected, onSelect, onOpenPanel }: { s
         </div>
       </div>
       <nav className="collection-navigation" aria-label={t("openCollections")}>
-        <button type="button" onClick={() => onSelect(undefined)} className={`collection-nav-item${selected === undefined ? " is-active" : ""}`}>
-          <House size={21} weight={selected === undefined ? "fill" : "regular"} />
+        <button type="button" onClick={onOpenHome} className={`collection-nav-item${homeActive ? " is-active" : ""}`}>
+          <House size={21} weight={homeActive ? "fill" : "regular"} />
+          <span>{t("home")}</span>
+        </button>
+        <button type="button" onClick={() => onSelect(undefined)} className={`collection-nav-item${!homeActive && selected === undefined ? " is-active" : ""}`}>
+          <Archive size={21} weight={!homeActive && selected === undefined ? "fill" : "regular"} />
           <span>{t("allArchives")}</span>
         </button>
         <p className="collection-nav-heading">{t("accountSources")}</p>
@@ -52,7 +56,6 @@ export function CollectionRail({ sources, selected, onSelect, onOpenPanel }: { s
         {favoriteFolders.map(renderSource)}
       </nav>
       <div className="collection-utility-navigation">
-        <button type="button" onClick={() => onOpenPanel("dashboard")}><ChartDonut size={21} weight="duotone" /><span>{t("dashboard")}</span></button>
         <button type="button" onClick={() => onOpenPanel("downloads")}><DownloadSimple size={21} weight="duotone" /><span>{t("downloadJobs")}</span></button>
         <button type="button" onClick={() => onOpenPanel("sync")}><Pulse size={21} weight="duotone" /><span>{t("syncStatus")}</span></button>
       </div>

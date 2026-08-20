@@ -9,6 +9,7 @@ import { CollectionRail } from "../navigation/CollectionRail";
 import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
+import { HomePage } from "../home/HomePage";
 import { DesktopItemDetails } from "./DesktopItemDetails";
 import { CreatorProfile } from "./CreatorProfile";
 import { FeedCard } from "./FeedCard";
@@ -40,6 +41,7 @@ function savedFeedView(): FeedViewMode {
 export function FeedPage() {
   const { t } = useI18n();
   const [sources, setSources] = useState<LibrarySource[]>([]);
+  const [homeOpen, setHomeOpen] = useState(true);
   const [selected, setSelected] = useState<string | undefined>();
   const [selectedCreator, setSelectedCreator] = useState<{ id: string | null; name: string } | null>(null);
   const [creator, setCreator] = useState<Creator | null>(null);
@@ -95,6 +97,10 @@ export function FeedPage() {
 
   useEffect(() => {
     let cancelled = false;
+    if (homeOpen) {
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
     const requestId = ++feedRequestId.current;
     setLoading(true);
     setError(false);
@@ -128,7 +134,7 @@ export function FeedPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredSearch, entityMode, selected, selectedCreator]);
+  }, [deferredSearch, entityMode, homeOpen, selected, selectedCreator]);
 
   useEffect(() => {
     const root = viewport.current;
@@ -215,22 +221,28 @@ export function FeedPage() {
 
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
-    else if (destination === "search") setSearchOpen(true);
-    else if (destination === "activity") setUtilityPanel("dashboard");
+    else if (destination === "search") {
+      setHomeOpen(false);
+      setSearchOpen(true);
+    }
+    else if (destination === "activity") setUtilityPanel("activity");
     else if (destination === "settings") setUtilityPanel(destination);
     else if (destination === "feed") {
       setDrawerOpen(false);
       setUtilityPanel(null);
+      setHomeOpen(true);
     }
   }
 
   function openAuthor(creatorId: string | null, author: string) {
+    setHomeOpen(false);
     setSelectedCreator({ id: creatorId, name: author });
     setSearch("");
     setDetailItem(null);
   }
 
   function selectCollection(id?: string) {
+    setHomeOpen(false);
     setSelectedCreator(null);
     setSelected(id);
   }
@@ -275,8 +287,22 @@ export function FeedPage() {
 
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
-      <div data-testid="desktop-workspace" className={`archive-desktop-grid${viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
-        <CollectionRail sources={sources} selected={selectedCreator ? undefined : selected} onSelect={selectCollection} onOpenPanel={setUtilityPanel} />
+      <div data-testid="desktop-workspace" className={`archive-desktop-grid${homeOpen || viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
+        <CollectionRail
+          sources={sources}
+          selected={selectedCreator ? undefined : selected}
+          homeActive={homeOpen}
+          onSelect={selectCollection}
+          onOpenHome={() => setHomeOpen(true)}
+          onOpenPanel={setUtilityPanel}
+        />
+        {homeOpen ? (
+          <HomePage
+            onOpenDownloads={() => setUtilityPanel("downloads")}
+            onOpenSource={selectCollection}
+          />
+        ) : (
+          <>
         <section data-testid="desktop-content" className="archive-content-column friendly-panel">
           <header className="archive-topbar">
             {selectedCreator ? (
@@ -355,6 +381,8 @@ export function FeedPage() {
           ) : null}
         </section>
         {!entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
+          </>
+        )}
       </div>
 
       {drawerOpen ? <CollectionDrawer sources={sources} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}

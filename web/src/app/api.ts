@@ -19,6 +19,8 @@ export type LibrarySource = {
   lastFullScanAt: number | null;
   lastIncrementalScanAt: number | null;
   errorCode: string | null;
+  autoDownloadEnabled?: boolean;
+  downloadPolicyUpdatedAt?: number | null;
 };
 
 export type MediaFile = {
@@ -28,6 +30,28 @@ export type MediaFile = {
   byteSize: number | null;
   mimeType: string | null;
   url: string;
+  relativePath?: string | null;
+  checksumSha256?: string | null;
+  completedAt?: number | null;
+  technical?: MediaTechnical;
+};
+
+export type MediaTechnical = {
+  width: number | null;
+  height: number | null;
+  codec: string | null;
+  fps: number | null;
+  bitRate: number | null;
+  durationMs: number | null;
+  probeStatus: "pending" | "ready" | "unavailable" | "failed";
+  probedAt: number | null;
+};
+
+export type RemoteAvailability = {
+  status: "available" | "deleted" | "private" | "restricted" | "auth_required" | "rate_limited" | "unknown";
+  checkedAt: number | null;
+  evidenceCode: string | null;
+  lastAvailableAt: number | null;
 };
 
 export type FeedItem = {
@@ -39,6 +63,16 @@ export type FeedItem = {
   publishedAt: number | null;
   archivedAt: number;
   sourceUrl: string | null;
+  coverUrl?: string | null;
+  creator?: { id: string; nickname: string; uniqueId: string | null; avatarUrl: string | null } | null;
+  douyin?: {
+    statistics: Record<string, number>;
+    durationMs: number | null;
+    hashtags: string[];
+    music: Record<string, unknown> | null;
+    visibility: string;
+  };
+  remoteAvailability?: RemoteAvailability;
   collections: Array<{ id: string; name: string }>;
   media: MediaFile[];
   local: LocalArchiveState;
@@ -93,10 +127,57 @@ export type ArchiveBatch = {
 export type DashboardSnapshot = {
   storage: { totalBytes: number; usedBytes: number; freeBytes: number; archiveBytes: number; usedPercent: number };
   system: { cpuCount: number; cpuLoadPercent: number; loadAverage1m: number; loadAverage5m: number; loadAverage15m: number; memoryTotalBytes: number; memoryUsedBytes: number; processMemoryBytes: number };
-  library: { items: number; archivedItems: number; creators: number; sources: number; completeSources: number; incompleteSources: number; neverSyncedSources: number; discoveredLinks: number; archivedBytes: number };
+  library: { items: number; archivedItems: number; mediaFiles: number; creators: number; sources: number; completeSources: number; incompleteSources: number; neverSyncedSources: number; discoveredLinks: number; archivedBytes: number };
   queue: DownloadSummary;
   health: { recentErrors: number; uptimeSeconds: number; latestSync: SyncRun | null };
+  account: DouyinHealth;
+  sources: SourceProgress[];
   generatedAt: number;
+};
+
+export type DouyinHealth = {
+  sessionStored: boolean;
+  status: "healthy" | "degraded" | "expired" | "checking" | "unknown";
+  lastVerifiedAt: number | null;
+  lastSyncAt: number | null;
+  lastFailureAt: number | null;
+  errorCode: string | null;
+  consecutiveFailures: number;
+  account: { id: string | null; nickname: string | null; uniqueId: string | null; avatarUrl: string | null } | null;
+};
+
+export type SourceProgress = {
+  id: string;
+  kind: LibrarySource["kind"];
+  name: string;
+  autoDownloadEnabled: boolean;
+  downloadPolicyUpdatedAt: number | null;
+  discovered: number;
+  archived: number;
+  pending: number;
+  running: number;
+  retry: number;
+  failed: number;
+  archivedBytes: number;
+  knownTotalBytes: number;
+  remoteTotal: number | null;
+  remoteComplete: boolean;
+  coveragePercent: number;
+  syncStatus: string;
+  lastSyncAt: number | null;
+  errorCode: string | null;
+};
+
+export type MetricPoint = {
+  sampledAt: number;
+  downloadSpeedBps: number;
+  downloadedBytes: number;
+  cpuLoadPercent: number;
+  memoryUsedBytes: number;
+  processMemoryBytes: number;
+  diskUsedBytes: number;
+  diskFreeBytes: number;
+  archiveBytes: number;
 };
 
 export type LocalArchiveState = {
@@ -122,6 +203,7 @@ export type BootstrapStatus = {
   configured: boolean;
   authenticated: boolean;
   douyinAuthenticated: boolean;
+  douyinHealth?: DouyinHealth;
 };
 
 export type DownloadJob = {
@@ -242,6 +324,15 @@ export const fetchSourceEntities = ({ sourceId, cursor }: { sourceId: string; cu
 export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
 export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
 export const fetchDashboard = () => request<DashboardSnapshot>("/api/dashboard");
+export const fetchDashboardSeries = (window: "15m" | "24h" | "7d" = "24h") =>
+  request<{ window: string; items: MetricPoint[] }>(`/api/dashboard/series?window=${window}`);
+export const updateSourceDownloadPolicy = (sourceId: string, enabled: boolean) =>
+  request<SourceProgress>(`/api/library/sources/${encodeURIComponent(sourceId)}/download-policy`, {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+export const checkRemoteAvailability = (remoteId: string) =>
+  request<RemoteAvailability>(`/api/items/${encodeURIComponent(remoteId)}/remote-check`, { method: "POST" });
 export const fetchArchiveBatches = () => request<{ items: ArchiveBatch[] }>("/api/archive/batches?limit=20");
 export const controlArchiveBatch = (batchId: number, action: "pause" | "resume" | "cancel") =>
   request<ArchiveBatch>(`/api/archive/batches/${batchId}/${action}`, { method: "POST" });

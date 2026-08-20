@@ -11,6 +11,7 @@ import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
 import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
+import { RichItemDetails } from "./RichItemDetails";
 
 export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
   const { t } = useI18n();
@@ -65,6 +66,7 @@ export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onO
           </div>
         ))}
       </dl>
+      <RichItemDetails item={item} />
       <div className="desktop-local-state">
         <HardDrives size={22} weight="duotone" />
         <div>

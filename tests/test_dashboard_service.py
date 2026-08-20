@@ -152,6 +152,35 @@ async def test_empty_metric_history_returns_an_empty_series(
     assert await service.series("24h") == []
 
 
+async def test_live_snapshot_matches_full_home_contract(dashboard_components) -> None:
+    """Catches SSE replacing the REST snapshot with a reduced data shape."""
+    _database, _dashboard_module, _telemetry_module, service, _telemetry = (
+        dashboard_components
+    )
+
+    snapshot = await service.snapshot()
+
+    assert set(snapshot["library"]) == {
+        "items",
+        "archivedItems",
+        "mediaFiles",
+        "creators",
+        "sources",
+        "completeSources",
+        "incompleteSources",
+        "neverSyncedSources",
+        "discoveredLinks",
+        "archivedBytes",
+    }
+    assert set(snapshot["health"]) == {
+        "recentErrors",
+        "uptimeSeconds",
+        "latestSync",
+    }
+    assert "account" in snapshot
+    assert "sources" in snapshot
+
+
 async def test_prune_compacts_old_raw_samples_before_deleting_them(
     dashboard_components,
 ) -> None:

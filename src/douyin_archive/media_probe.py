@@ -3,9 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .db import Database
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,3 +111,43 @@ class MediaProbe:
             return parse_ffprobe(payload)
         except (TimeoutError, OSError, json.JSONDecodeError):
             return MediaTechnical(status="failed")
+
+
+class MediaProbeBackfill:
+    def __init__(self, database: Database, archive_root: Path, probe: Any) -> None:
+        self.db = database
+        self.archive_root = archive_root.resolve()
+        self.probe = probe
+
+    async def run_batch(self, *, limit: int = 25) -> int:
+        rows = await self.db.fetchall(
+            "SELECT id, relative_path FROM media_files "
+            "WHERE status='ready' AND probe_status='pending' "
+            "AND relative_path IS NOT NULL ORDER BY id LIMIT ?",
+            (max(1, limit),),
+        )
+        for row in rows:
+            path = (self.archive_root / str(row["relative_path"])).resolve()
+            technical = (
+                await self.probe.probe(path)
+                if path.is_relative_to(self.archive_root) and path.is_file()
+                else MediaTechnical(status="failed")
+            )
+            now = int(time.time())
+            await self.db.execute(
+                "UPDATE media_files SET width=?, height=?, codec=?, fps=?, bit_rate=?, "
+                "duration_ms=?, probe_status=?, probed_at=?, updated_at=? WHERE id=?",
+                (
+                    technical.width,
+                    technical.height,
+                    technical.codec,
+                    technical.fps,
+                    technical.bit_rate,
+                    technical.duration_ms,
+                    technical.status,
+                    now,
+                    now,
+                    row["id"],
+                ),
+            )
+        return len(rows)

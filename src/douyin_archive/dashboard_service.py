@@ -20,10 +20,12 @@ class DashboardService:
         archive_root: Path,
         *,
         clock: Callable[[], int | float] = time.time,
+        started_at: int | None = None,
     ) -> None:
         self.db = database
         self.archive_root = archive_root
         self.clock = clock
+        self.started_at = int(clock()) if started_at is None else started_at
 
     async def source_progress(self) -> list[dict[str, object]]:
         rows = await self.db.fetchall(
@@ -101,10 +103,30 @@ class DashboardService:
             "AS archived_items, (SELECT COUNT(*) FROM media_files WHERE status='ready') "
             "AS media_files, (SELECT COUNT(*) FROM creators) AS creators, "
             "(SELECT COUNT(*) FROM library_sources) AS sources, "
+            "(SELECT COUNT(*) FROM library_sources WHERE sync_status='complete') "
+            "AS complete_sources, "
+            "(SELECT COUNT(*) FROM library_sources WHERE sync_status IN "
+            "('incomplete', 'failed')) AS incomplete_sources, "
+            "(SELECT COUNT(*) FROM library_sources WHERE sync_status='never') "
+            "AS never_sources, "
+            "(SELECT COUNT(*) FROM source_items) + "
+            "(SELECT COUNT(*) FROM source_entities) AS discovered_links, "
             "(SELECT COALESCE(SUM(byte_size), 0) FROM media_files WHERE status='ready') "
             "AS archived_bytes"
         )
         queue = (await DownloadMonitor(self.db).snapshot(limit=0))["summary"]
+        recent_errors = await self.db.fetchone(
+            "SELECT "
+            "(SELECT COUNT(*) FROM download_jobs WHERE status IN ('failed', 'retry') "
+            "AND last_error_code IS NOT NULL) + "
+            "(SELECT COUNT(*) FROM sync_runs WHERE status='failed' "
+            "AND started_at >= ?) AS total",
+            (int(self.clock()) - 86_400,),
+        )
+        latest_sync = await self.db.fetchone(
+            "SELECT id, mode, phase, status, discovered_count, enqueued_count, "
+            "error_code, started_at, finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
+        )
         archive_bytes = int(library["archived_bytes"]) if library is not None else 0
         generated_at = int(self.clock())
         return {
@@ -124,9 +146,40 @@ class DashboardService:
                 "mediaFiles": int(library["media_files"]) if library is not None else 0,
                 "creators": int(library["creators"]) if library is not None else 0,
                 "sources": int(library["sources"]) if library is not None else 0,
+                "completeSources": (
+                    int(library["complete_sources"]) if library is not None else 0
+                ),
+                "incompleteSources": (
+                    int(library["incomplete_sources"]) if library is not None else 0
+                ),
+                "neverSyncedSources": (
+                    int(library["never_sources"]) if library is not None else 0
+                ),
+                "discoveredLinks": (
+                    int(library["discovered_links"]) if library is not None else 0
+                ),
                 "archivedBytes": archive_bytes,
             },
             "queue": queue,
+            "health": {
+                "recentErrors": int(recent_errors["total"]) if recent_errors else 0,
+                "uptimeSeconds": max(generated_at - self.started_at, 0),
+                "latestSync": (
+                    {
+                        "id": latest_sync["id"],
+                        "mode": latest_sync["mode"],
+                        "phase": latest_sync["phase"],
+                        "status": latest_sync["status"],
+                        "discovered": latest_sync["discovered_count"],
+                        "enqueued": latest_sync["enqueued_count"],
+                        "errorCode": latest_sync["error_code"],
+                        "startedAt": latest_sync["started_at"],
+                        "finishedAt": latest_sync["finished_at"],
+                    }
+                    if latest_sync is not None
+                    else None
+                ),
+            },
             "account": await AccountHealthService(self.db).snapshot(),
             "sources": await self.source_progress(),
             "generatedAt": generated_at,

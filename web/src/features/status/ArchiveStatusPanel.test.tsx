@@ -71,9 +71,11 @@ beforeEach(() => {
   vi.mocked(api.fetchDashboard).mockResolvedValue({
     storage: { totalBytes: 1_000_000_000, usedBytes: 420_000_000, freeBytes: 580_000_000, archiveBytes: 120_000_000, usedPercent: 42 },
     system: { cpuCount: 4, cpuLoadPercent: 18.5, loadAverage1m: 0.74, loadAverage5m: 0.62, loadAverage15m: 0.58, memoryTotalBytes: 8_000_000_000, memoryUsedBytes: 3_000_000_000, processMemoryBytes: 180_000_000 },
-    library: { items: 1600, archivedItems: 1569, creators: 328, sources: 14, completeSources: 3, incompleteSources: 6, neverSyncedSources: 5, discoveredLinks: 2300, archivedBytes: 120_000_000 },
+    library: { items: 1600, archivedItems: 1569, mediaFiles: 3717, creators: 328, sources: 14, completeSources: 3, incompleteSources: 6, neverSyncedSources: 5, discoveredLinks: 2300, archivedBytes: 120_000_000 },
     queue: snapshot.summary,
     health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
+    account: { sessionStored: true, status: "healthy", lastVerifiedAt: 1, lastSyncAt: 1, lastFailureAt: null, errorCode: null, consecutiveFailures: 0, account: null },
+    sources: [],
     generatedAt: 1_780_000,
   });
   vi.mocked(api.fetchArchiveBatches).mockResolvedValue({

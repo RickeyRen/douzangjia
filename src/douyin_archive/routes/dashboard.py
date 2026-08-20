@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import resource
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -10,10 +9,8 @@ from pathlib import Path
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
-from ..account_health import AccountHealthService
 from ..dashboard_events import dashboard_event_stream
 from ..dashboard_service import DashboardService
-from ..download_monitor import DownloadMonitor
 
 router = APIRouter(prefix="/api")
 
@@ -74,93 +71,11 @@ def _system_snapshot() -> dict[str, object]:
 
 @router.get("/dashboard")
 async def dashboard(request: Request) -> dict[str, object]:
-    database = request.app.state.database
-    settings = request.app.state.settings
-    disk = shutil.disk_usage(settings.archive_root)
-    library = await database.fetchone(
-        "SELECT "
-        "(SELECT COUNT(*) FROM items) AS items, "
-        "(SELECT COUNT(DISTINCT item_id) FROM media_files WHERE status='ready') "
-        "AS archived_items, "
-        "(SELECT COUNT(*) FROM creators) AS creators, "
-        "(SELECT COUNT(*) FROM media_files WHERE status='ready') AS media_files, "
-        "(SELECT COUNT(*) FROM library_sources) AS sources, "
-        "(SELECT COUNT(*) FROM library_sources WHERE sync_status='complete') "
-        "AS complete_sources, "
-        "(SELECT COUNT(*) FROM library_sources WHERE sync_status IN ('incomplete', 'failed')) "
-        "AS incomplete_sources, "
-        "(SELECT COUNT(*) FROM library_sources WHERE sync_status='never') "
-        "AS never_sources, "
-        "(SELECT COUNT(*) FROM source_items) + "
-        "(SELECT COUNT(*) FROM source_entities) AS discovered_links, "
-        "(SELECT COALESCE(SUM(byte_size), 0) FROM media_files WHERE status='ready') "
-        "AS archived_bytes"
-    )
-    queue = (await DownloadMonitor(database).snapshot(limit=0))["summary"]
-    recent_errors = await database.fetchone(
-        "SELECT "
-        "(SELECT COUNT(*) FROM download_jobs WHERE status IN ('failed', 'retry') "
-        "AND last_error_code IS NOT NULL) + "
-        "(SELECT COUNT(*) FROM sync_runs WHERE status='failed' "
-        "AND started_at >= ?) AS total",
-        (int(time.time()) - 86_400,),
-    )
-    latest_sync = await database.fetchone(
-        "SELECT id, mode, phase, status, discovered_count, enqueued_count, "
-        "error_code, started_at, finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
-    )
-    archived_bytes = int(library["archived_bytes"]) if library is not None else 0
-    generated_at = int(time.time())
-    return {
-        "storage": {
-            "totalBytes": disk.total,
-            "usedBytes": disk.used,
-            "freeBytes": disk.free,
-            "archiveBytes": archived_bytes,
-            "usedPercent": round(disk.used / disk.total * 100, 1) if disk.total else 0,
-        },
-        "system": _system_snapshot(),
-        "library": {
-            "items": int(library["items"]) if library is not None else 0,
-            "archivedItems": int(library["archived_items"]) if library is not None else 0,
-            "mediaFiles": int(library["media_files"]) if library is not None else 0,
-            "creators": int(library["creators"]) if library is not None else 0,
-            "sources": int(library["sources"]) if library is not None else 0,
-            "completeSources": int(library["complete_sources"]) if library is not None else 0,
-            "incompleteSources": int(library["incomplete_sources"]) if library is not None else 0,
-            "neverSyncedSources": int(library["never_sources"]) if library is not None else 0,
-            "discoveredLinks": int(library["discovered_links"]) if library is not None else 0,
-            "archivedBytes": archived_bytes,
-        },
-        "queue": queue,
-        "health": {
-            "recentErrors": int(recent_errors["total"]) if recent_errors else 0,
-            "uptimeSeconds": max(
-                generated_at - int(getattr(request.app.state, "started_at", generated_at)),
-                0,
-            ),
-            "latestSync": (
-                {
-                    "id": latest_sync["id"],
-                    "mode": latest_sync["mode"],
-                    "phase": latest_sync["phase"],
-                    "status": latest_sync["status"],
-                    "discovered": latest_sync["discovered_count"],
-                    "enqueued": latest_sync["enqueued_count"],
-                    "errorCode": latest_sync["error_code"],
-                    "startedAt": latest_sync["started_at"],
-                    "finishedAt": latest_sync["finished_at"],
-                }
-                if latest_sync is not None
-                else None
-            ),
-        },
-        "account": await AccountHealthService(database).snapshot(),
-        "sources": await DashboardService(
-            database, settings.archive_root
-        ).source_progress(),
-        "generatedAt": generated_at,
-    }
+    return await DashboardService(
+        request.app.state.database,
+        request.app.state.settings.archive_root,
+        started_at=int(getattr(request.app.state, "started_at", time.time())),
+    ).snapshot()
 
 
 @router.get("/dashboard/series")
@@ -169,7 +84,9 @@ async def dashboard_series(
     window: str = Query(default="24h", pattern="^(15m|24h|7d)$"),
 ) -> dict[str, object]:
     service = DashboardService(
-        request.app.state.database, request.app.state.settings.archive_root
+        request.app.state.database,
+        request.app.state.settings.archive_root,
+        started_at=int(getattr(request.app.state, "started_at", time.time())),
     )
     return {"window": window, "items": await service.series(window)}
 
@@ -177,7 +94,9 @@ async def dashboard_series(
 @router.get("/events")
 async def dashboard_events(request: Request) -> StreamingResponse:
     service = DashboardService(
-        request.app.state.database, request.app.state.settings.archive_root
+        request.app.state.database,
+        request.app.state.settings.archive_root,
+        started_at=int(getattr(request.app.state, "started_at", time.time())),
     )
 
     async def load_snapshot() -> dict[str, object]:

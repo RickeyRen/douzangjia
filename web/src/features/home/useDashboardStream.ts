@@ -1,0 +1,61 @@
+import { useEffect, useState } from "react";
+
+import {
+  fetchDashboard,
+  fetchDashboardSeries,
+  type DashboardSnapshot,
+  type MetricPoint,
+} from "../../app/api";
+
+export function useDashboardStream() {
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [series, setSeries] = useState<MetricPoint[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const eventSource = new EventSource("/api/events");
+    void Promise.all([fetchDashboard(), fetchDashboardSeries("24h")])
+      .then(([nextSnapshot, nextSeries]) => {
+        if (!active) return;
+        setSnapshot(nextSnapshot);
+        setSeries(nextSeries.items);
+        setError(false);
+      })
+      .catch(() => {
+        if (active) setError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    const onSnapshot = (event: MessageEvent<string>) => {
+      try {
+        const next = JSON.parse(event.data) as DashboardSnapshot;
+        if (!active) return;
+        setSnapshot(next);
+        setConnected(true);
+        setError(false);
+      } catch {
+        if (active) setError(true);
+      }
+    };
+    eventSource.addEventListener("snapshot", onSnapshot as EventListener);
+    eventSource.onopen = () => {
+      if (active) setConnected(true);
+    };
+    eventSource.onerror = () => {
+      if (active) setConnected(false);
+    };
+
+    return () => {
+      active = false;
+      eventSource.removeEventListener("snapshot", onSnapshot as EventListener);
+      eventSource.close();
+    };
+  }, []);
+
+  return { snapshot, series, connected, loading, error };
+}

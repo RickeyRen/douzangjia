@@ -19,6 +19,7 @@ from .config import Settings
 from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
+from .media_probe import MediaProbe, MediaProbeBackfill
 from .provider.base import SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
@@ -277,17 +278,23 @@ class ArchiveRuntime:
         )
         self.store = ObjectStore(settings.archive_root)
         self.telemetry = TelemetrySampler(database, settings.archive_root)
+        self.media_probe = MediaProbe()
+        self.media_probe_backfill = MediaProbeBackfill(
+            database, settings.archive_root, self.media_probe
+        )
         handler = ArchiveJobHandler(
             database,
             MediaDownloader(self.store, self.http),
             CollectionProjector(settings.archive_root),
             archive_root=settings.archive_root,
+            media_probe=self.media_probe,
         )
         worker_prefix = f"{socket.gethostname()}-{os.getpid()}"
         self.workers = [
             Worker(self.jobs, handler, worker_id=f"{worker_prefix}-{index}") for index in range(2)
         ]
         self._worker_tasks: list[asyncio.Task[None]] = []
+        self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
 
     async def start(self) -> None:
@@ -299,6 +306,7 @@ class ArchiveRuntime:
         await self.browser_coordinator.start()
         self.auth_service.on_authenticated = self._initial_sync
         self._worker_tasks = [asyncio.create_task(worker.run_forever()) for worker in self.workers]
+        self._probe_task = asyncio.create_task(self._probe_existing_media())
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         configure_scheduler(
             self._scheduler,
@@ -321,6 +329,11 @@ class ArchiveRuntime:
             with suppress(asyncio.CancelledError):
                 await task
         self._worker_tasks.clear()
+        if self._probe_task is not None:
+            self._probe_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._probe_task
+            self._probe_task = None
         await self.sync.close()
         await self.http.aclose()
 
@@ -332,6 +345,10 @@ class ArchiveRuntime:
 
     async def check_item_availability(self, remote_id: str) -> str:
         return await self.sync.check_item_availability(remote_id)
+
+    async def _probe_existing_media(self) -> None:
+        while await self.media_probe_backfill.run_batch(limit=25):
+            await asyncio.sleep(0.25)
 
     async def _initial_sync(self) -> int:
         return await self.trigger_sync(full_scan=True)
