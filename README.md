@@ -1,6 +1,6 @@
-# 影仓 · 私人短视频媒体库
+# 抖藏家 · 抖音私人收藏库
 
-一个只运行在 NAS 上的私人短视频媒体库：使用抖音扫码登录，按原收藏夹名称下载原文件，并提供沉浸式和多作品本地浏览。产品名为“影仓”，Python 导入包为了升级兼容仍保留 `douyin_archive`。
+一个只运行在 NAS 上的抖音私人收藏库：使用抖音扫码登录，按原收藏夹名称下载原文件，并提供沉浸式和多作品本地浏览。产品名为“抖藏家”，Python 导入包为了升级兼容仍保留 `douyin_archive`。
 
 ## 保留规则
 
@@ -47,4 +47,4 @@ docker compose up -d archive
 
 ## English
 
-Yingcang is a NAS-only private short-video media library. It keeps canonical media in `objects/`, projects collection folders under `library/`, retains a private Chromium profile across restarts, encrypts its cookie backup, and serves a responsive local web viewer with a latest-frame WebSocket transport.
+DouZangJia is a NAS-only private Douyin collection library. It keeps canonical media in `objects/`, projects collection folders under `library/`, retains a private Chromium profile across restarts, encrypts its cookie backup, and serves a responsive local web viewer with a latest-frame WebSocket transport.

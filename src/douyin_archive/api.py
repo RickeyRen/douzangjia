@@ -166,7 +166,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             await browser_coordinator.close()
             await owned_database.close()
 
-    app = FastAPI(title="Yingcang", lifespan=lifespan)
+    app = FastAPI(title="DouZangJia", lifespan=lifespan)
     app.state.settings = settings
     app.state.admin_store = admin_store
     app.state.started_at = int(time.time())

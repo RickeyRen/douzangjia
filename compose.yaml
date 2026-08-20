@@ -1,11 +1,11 @@
-name: yingcang
+name: douzangjia
 
 services:
   archive:
     build:
       context: .
-    image: yingcang:local
-    container_name: yingcang
+    image: douzangjia:local
+    container_name: douzangjia
     restart: unless-stopped
     init: true
     user: "${PUID:-1000}:${PGID:-1000}"

@@ -7,6 +7,14 @@ from douyin_archive.api import create_app
 from douyin_archive.config import Settings
 
 
+def test_application_uses_douzangjia_product_name(
+    tmp_path: Path, master_key: str
+) -> None:
+    app = create_app(Settings(archive_root=tmp_path, master_key=master_key))
+
+    assert app.title == "DouZangJia"
+
+
 def test_liveness_is_independent_of_setup(tmp_path: Path, master_key: str) -> None:
     app = create_app(Settings(archive_root=tmp_path, master_key=master_key))
     with TestClient(app) as client:
