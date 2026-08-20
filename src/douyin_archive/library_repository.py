@@ -39,9 +39,9 @@ class LibraryRepository:
         await self.db.execute(
             "INSERT INTO library_sources "
             "(id, kind, remote_id, name, declared_count, sync_status, "
-            "first_seen_at, last_seen_at) "
+            "first_seen_at, last_seen_at, auto_download_enabled) "
             "SELECT 'favorite_collection:' || remote_id, 'favorite_collection', "
-            "remote_id, name, NULL, 'incomplete', first_seen_at, last_seen_at "
+            "remote_id, name, NULL, 'incomplete', first_seen_at, last_seen_at, 1 "
             "FROM collections WHERE true "
             "ON CONFLICT(id) DO UPDATE SET "
             "name=excluded.name, last_seen_at=MAX(library_sources.last_seen_at, excluded.last_seen_at)"
@@ -74,8 +74,8 @@ class LibraryRepository:
             "INSERT INTO library_sources "
             "(id, kind, remote_id, name, declared_count, sync_cursor, sync_status, "
             "last_full_scan_at, last_incremental_scan_at, error_code, "
-            "first_seen_at, last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "first_seen_at, last_seen_at, auto_download_enabled) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET "
             "kind=excluded.kind, remote_id=excluded.remote_id, name=excluded.name, "
             "declared_count=excluded.declared_count, sync_cursor=excluded.sync_cursor, "
@@ -95,6 +95,7 @@ class LibraryRepository:
                 source.error_code,
                 now,
                 now,
+                int(source.kind.value == "favorite_collection"),
             ),
         )
 

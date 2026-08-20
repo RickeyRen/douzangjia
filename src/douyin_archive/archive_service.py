@@ -5,6 +5,7 @@ from collections.abc import Iterable
 
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .db import Database
+from .download_policy import DownloadPolicyService
 from .repositories import JobRepository
 
 
@@ -22,10 +23,12 @@ class ArchiveService:
         database: Database,
         jobs: JobRepository,
         batches: ArchiveBatchRepository | None = None,
+        download_policy: DownloadPolicyService | None = None,
     ) -> None:
         self.db = database
         self.jobs = jobs
         self.batches = batches or ArchiveBatchRepository(database)
+        self.download_policy = download_policy or DownloadPolicyService(database, jobs)
 
     async def archive_item(self, remote_id: str) -> ArchiveBatch:
         item = await self.db.fetchone("SELECT remote_id FROM items WHERE remote_id=?", (remote_id,))
@@ -81,9 +84,11 @@ class ArchiveService:
                         batch.id, "failed", error_code="ITEM_PAYLOAD_UNAVAILABLE"
                     )
                     raise ArchivePayloadUnavailable(item_id)
-                job = await self.jobs.enqueue_unique("download", item_id, payload)
-            if job.status == "failed":
-                job = await self.jobs.enqueue_unique("download", item_id, job.payload)
+            else:
+                payload = job.payload
+            job = await self.download_policy.record_intent(
+                item_id, "manual", f"{kind}:{target_id}", payload
+            )
             await self.db.execute(
                 "UPDATE download_jobs SET batch_id=?, priority=MAX(priority, 100) "
                 "WHERE id=?",
