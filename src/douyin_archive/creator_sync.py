@@ -4,6 +4,7 @@ from dataclasses import asdict
 from typing import Protocol
 
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
+from .download_policy import DownloadPolicyService
 from .library_models import CreatorRecord
 from .library_repository import LibraryRepository
 from .repositories import ArchiveRepository, JobRepository
@@ -20,12 +21,16 @@ class CreatorSyncService:
         archive: ArchiveRepository,
         jobs: JobRepository,
         batches: ArchiveBatchRepository,
+        download_policy: DownloadPolicyService | None = None,
     ) -> None:
         self.provider = provider
         self.archive = archive
         self.jobs = jobs
         self.batches = batches
         self.library = LibraryRepository(archive.db)
+        self.download_policy = download_policy or DownloadPolicyService(
+            archive.db, jobs
+        )
 
     async def run(
         self,
@@ -62,11 +67,12 @@ class CreatorSyncService:
                         creator_id=creator_id,
                     )
                     job = await self.jobs.get_by_key("download", item.remote_id)
-                    if archive_new_items and (
-                        job is None or job.status == "failed"
-                    ):
-                        job = await self.jobs.enqueue_unique(
-                            "download", item.remote_id, asdict(item)
+                    if archive_new_items:
+                        job = await self.download_policy.record_intent(
+                            item.remote_id,
+                            "creator",
+                            creator_id,
+                            asdict(item),
                         )
                     if job is not None:
                         await self.archive.db.execute(

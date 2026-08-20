@@ -6,6 +6,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
+from .download_policy import DownloadPolicyService
 from .library_models import (
     CreatorRecord,
     LibrarySource,
@@ -42,12 +43,16 @@ class SyncService:
         provider: DiscoveryProvider,
         archive: ArchiveRepository,
         jobs: JobRepository,
+        download_policy: DownloadPolicyService | None = None,
     ) -> None:
         self.provider = provider
         self.archive = archive
         self.jobs = jobs
         self.db = archive.db
         self.library = LibraryRepository(self.db)
+        self.download_policy = download_policy or DownloadPolicyService(
+            self.db, jobs
+        )
 
     async def create_run(self, *, full_scan: bool, status: str = "running") -> int:
         now = int(time.time())
@@ -129,6 +134,7 @@ class SyncService:
                     ),
                 )
                 await self.library.upsert_source(source)
+                source_policy = await self.download_policy.get_source(source_id)
                 page_index = 0
                 last_cursor: str | None = None
                 async for page in self.provider.iter_collection_pages(
@@ -157,17 +163,17 @@ class SyncService:
                                 if item.published_at is not None
                                 else f"{int(time.time()):020d}"
                             ),
+                            asdict(item),
                         )
-                        existing = await self.jobs.get_by_key("download", item.remote_id)
-                        if existing is None:
-                            await self.jobs.enqueue_unique(
-                                "download", item.remote_id, asdict(item)
+                        if source_policy is not None and source_policy.enabled:
+                            existing = await self.jobs.get_by_key(
+                                "download", item.remote_id
                             )
-                            enqueued += 1
-                        elif existing.status != "completed":
-                            await self.jobs.enqueue_unique(
-                                "download", item.remote_id, asdict(item)
+                            await self.download_policy.record_intent(
+                                item.remote_id, "source", source_id, asdict(item)
                             )
+                            if existing is None:
+                                enqueued += 1
                     last_cursor = page.next_cursor
                     await self.library.save_checkpoint(
                         source_id,
@@ -262,6 +268,7 @@ class SyncService:
                         ),
                     )
                     await self.library.upsert_source(source)
+                    source_policy = await self.download_policy.get_source(source.id)
                     source_discovered = 0
                     source_seen_ids: set[str] = set()
                     page_index = 0
@@ -300,6 +307,18 @@ class SyncService:
                                 ),
                                 asdict(item),
                             )
+                            if source_policy is not None and source_policy.enabled:
+                                existing = await self.jobs.get_by_key(
+                                    "download", item.remote_id
+                                )
+                                await self.download_policy.record_intent(
+                                    item.remote_id,
+                                    "source",
+                                    source.id,
+                                    asdict(item),
+                                )
+                                if existing is None:
+                                    enqueued += 1
                         source_discovered += len(page.items)
                         discovered += len(page.items)
                         last_cursor = page.next_cursor
