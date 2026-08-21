@@ -147,6 +147,26 @@ it("renders a full live home with account, charts, storage, and source progress"
   expect(within(home).getByRole("region", { name: "类目下载进度" })).toBeVisible();
 });
 
+it("uses distinct semantic icon tones instead of one accent everywhere", () => {
+  render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
+
+  const home = screen.getByRole("main", { name: "首页" });
+  const tones = [...home.querySelectorAll<HTMLElement>("[data-icon-tone]")]
+    .map((element) => element.dataset.iconTone);
+
+  expect(new Set(tones).size).toBeGreaterThanOrEqual(5);
+  expect(
+    home.querySelector(".home-storage-panel .home-section-title")
+      ?.querySelector("[data-icon-tone]")
+      ?.getAttribute("data-icon-tone"),
+  ).toBe("cyan");
+  expect(
+    home.querySelector(".home-health-panel .home-section-title")
+      ?.querySelector("[data-icon-tone]")
+      ?.getAttribute("data-icon-tone"),
+  ).toBe("rose");
+});
+
 it("changes one category download policy without changing another source", async () => {
   const user = userEvent.setup();
   vi.mocked(api.updateSourceDownloadPolicy).mockResolvedValue({

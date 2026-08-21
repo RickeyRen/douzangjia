@@ -2,51 +2,63 @@
 
 @theme {
   --font-sans: "Geist", "SF Pro Display", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
-  --color-archive-bg: #0b0d10;
-  --color-archive-surface: #12161b;
-  --color-archive-accent: #59b98a;
+  --color-archive-bg: #080a0e;
+  --color-archive-surface: #0f1319;
+  --color-archive-accent: #3bc9db;
 }
 
 :root,
 :root[data-theme="dark"] {
-  --app-bg: #0b0d10;
-  --app-surface: #12161b;
-  --app-surface-raised: #171b21;
-  --app-stage: #0e1216;
-  --app-text: #f2f3f5;
-  --app-muted: #8d949e;
-  --app-faint: #626a74;
-  --app-line: #252a31;
-  --app-line-strong: #343a43;
-  --app-accent: #59b98a;
-  --app-accent-contrast: #07130d;
-  --app-accent-soft: rgb(89 185 138 / 11%);
-  --app-warning: #d9a354;
-  --app-warning-soft: rgb(217 163 84 / 12%);
-  --app-danger: #d76b6b;
-  --app-danger-soft: rgb(215 107 107 / 12%);
-  --app-overlay: rgb(4 6 8 / 72%);
+  --app-bg: #080a0e;
+  --app-surface: #0f1319;
+  --app-surface-raised: #151a21;
+  --app-stage: #0b0e13;
+  --app-text: #f4f7fb;
+  --app-muted: #a3adb9;
+  --app-faint: #6f7a88;
+  --app-line: rgb(255 255 255 / 8%);
+  --app-line-strong: rgb(255 255 255 / 14%);
+  --app-accent: #3bc9db;
+  --app-accent-contrast: #061014;
+  --app-accent-soft: rgb(59 201 219 / 10%);
+  --app-success: #38d9a9;
+  --app-success-soft: rgb(56 217 169 / 10%);
+  --app-info: #4dabf7;
+  --app-info-soft: rgb(77 171 247 / 10%);
+  --app-violet: #748ffc;
+  --app-violet-soft: rgb(116 143 252 / 10%);
+  --app-warning: #ffa94d;
+  --app-warning-soft: rgb(255 169 77 / 10%);
+  --app-danger: #ff6b6b;
+  --app-danger-soft: rgb(255 107 107 / 10%);
+  --app-overlay: rgb(3 5 8 / 76%);
   --app-media-overlay: rgb(8 10 12 / 78%);
   --app-control-hover: rgb(255 255 255 / 5%);
 }
 
 :root[data-theme="light"] {
-  --app-bg: #f4f5f6;
+  --app-bg: #f5f7f9;
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
-  --app-stage: #171b20;
-  --app-text: #272a2e;
-  --app-muted: #717780;
-  --app-faint: #9ba0a7;
-  --app-line: #dee1e5;
-  --app-line-strong: #c9cdd2;
-  --app-accent: #4e9e78;
+  --app-stage: #11161d;
+  --app-text: #20262e;
+  --app-muted: #687381;
+  --app-faint: #98a1ac;
+  --app-line: rgb(25 34 44 / 10%);
+  --app-line-strong: rgb(25 34 44 / 18%);
+  --app-accent: #1594a6;
   --app-accent-contrast: #ffffff;
-  --app-accent-soft: rgb(78 158 120 / 10%);
-  --app-warning: #b97d2e;
-  --app-warning-soft: rgb(185 125 46 / 10%);
-  --app-danger: #c45656;
-  --app-danger-soft: rgb(196 86 86 / 10%);
+  --app-accent-soft: rgb(21 148 166 / 10%);
+  --app-success: #138a68;
+  --app-success-soft: rgb(19 138 104 / 10%);
+  --app-info: #287fc2;
+  --app-info-soft: rgb(40 127 194 / 10%);
+  --app-violet: #596fc7;
+  --app-violet-soft: rgb(89 111 199 / 10%);
+  --app-warning: #b96a18;
+  --app-warning-soft: rgb(185 106 24 / 10%);
+  --app-danger: #c84f5a;
+  --app-danger-soft: rgb(200 79 90 / 10%);
   --app-overlay: rgb(25 29 34 / 48%);
   --app-media-overlay: rgb(8 10 12 / 78%);
   --app-control-hover: rgb(39 42 46 / 5%);

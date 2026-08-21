@@ -199,6 +199,21 @@ describe("FeedPage", () => {
     expect(await screen.findByTestId("desktop-content")).toBeVisible();
   });
 
+  it("uses varied semantic icon tones throughout the navigation rail", async () => {
+    render(<FeedPage />);
+
+    const rail = (await screen.findByRole("navigation", { name: "打开收藏夹" })).closest("aside")!;
+    const tones = [...rail.querySelectorAll<HTMLElement>("[data-icon-tone]")]
+      .map((element) => element.dataset.iconTone);
+
+    expect(new Set(tones).size).toBeGreaterThanOrEqual(4);
+    expect(
+      within(rail).getByRole("button", { name: "首页" })
+        .querySelector("[data-icon-tone]")
+        ?.getAttribute("data-icon-tone"),
+    ).toBe("cyan");
+  });
+
   it("switches collection and keeps exactly one active media card", async () => {
     const user = userEvent.setup();
     render(<FeedPage />);

@@ -25,6 +25,7 @@ import { formatBytes, formatSpeed } from "../status/downloadFormat";
 import { useDashboardStream } from "./useDashboardStream";
 
 const numberFormat = new Intl.NumberFormat("zh-CN");
+const sourceProgressTones = ["blue", "cyan", "green", "amber", "violet", "rose"] as const;
 
 function formatTimestamp(value: number | null): string {
   if (value === null) return "—";
@@ -63,22 +64,24 @@ function TrendChart({
   points,
   value,
   formatValue,
+  tone,
 }: {
   label: string;
   points: MetricPoint[];
   value: (point: MetricPoint) => number;
   formatValue: (value: number) => string;
+  tone: "blue" | "violet";
 }) {
   const values = points.map(value);
   const latest = values.at(-1) ?? 0;
   return (
-    <section className="home-chart-panel">
+    <section className="home-chart-panel" data-chart-tone={tone}>
       <div className="home-section-title">
         <div>
           <span>{label}</span>
           <strong>{formatValue(latest)}</strong>
         </div>
-        <Pulse size={20} weight="duotone" />
+        <span className="app-icon-well home-section-icon" data-icon-tone={tone}><Pulse size={20} weight="duotone" /></span>
       </div>
       {values.length === 0 ? (
         <p className="home-chart-empty">—</p>
@@ -158,10 +161,12 @@ function SourceProgressTable({
         </div>
       </header>
       <div className="home-source-list">
-        {localSources.map((source) => (
-          <article key={source.id} className="home-source-row">
+        {localSources.map((source, index) => {
+          const tone = sourceProgressTones[index % sourceProgressTones.length];
+          return (
+          <article key={source.id} className="home-source-row" data-icon-tone={tone}>
             <button className="home-source-identity" type="button" onClick={() => onOpenSource(source.id)}>
-              <span><Database size={18} weight="duotone" /></span>
+              <span className="app-icon-well" data-icon-tone={tone}><Database size={18} weight="duotone" /></span>
               <div>
                 <strong>{source.name}</strong>
                 <small>{numberFormat.format(source.archived)} / {numberFormat.format(source.discovered)} {t("archivedWorks")}</small>
@@ -191,7 +196,8 @@ function SourceProgressTable({
             </button>
             {error === source.id ? <p className="home-source-error">{t("policyUpdateFailed")}</p> : null}
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -235,7 +241,7 @@ export function HomePage({
           <article className="home-storage-panel">
             <div className="home-section-title">
               <div><span>{t("archiveStorage")}</span><strong>{formatBytes(snapshot.storage.archiveBytes)}</strong></div>
-              <HardDrives size={22} weight="duotone" />
+              <span className="app-icon-well home-section-icon" data-icon-tone="cyan"><HardDrives size={22} weight="duotone" /></span>
             </div>
             <div className="home-storage-visual">
               <div className="home-storage-ring" style={{ "--storage-progress": `${snapshot.storage.usedPercent * 3.6}deg` } as React.CSSProperties}>
@@ -252,7 +258,7 @@ export function HomePage({
           <article className="home-health-panel">
             <div className="home-section-title">
               <div><span>{t("douyinHealthTitle")}</span><strong>{accountName}</strong></div>
-              <Heartbeat size={22} weight="duotone" />
+              <span className="app-icon-well home-section-icon" data-icon-tone="rose"><Heartbeat size={22} weight="duotone" /></span>
             </div>
             <HealthState status={snapshot.account.status} />
             <dl className="home-health-details">
@@ -263,21 +269,21 @@ export function HomePage({
         </section>
 
         <section className="home-metric-strip">
-          <article><VideoCamera size={19} weight="duotone" /><span>{t("downloadedPosts")}</span><strong>{numberFormat.format(snapshot.library.archivedItems)}</strong><small>/ {numberFormat.format(snapshot.library.items)}</small></article>
-          <article><Database size={19} weight="duotone" /><span>{t("mediaFiles")}</span><strong>{numberFormat.format(snapshot.library.mediaFiles)}</strong></article>
-          <article><UsersThree size={19} weight="duotone" /><span>{t("creatorsCount")}</span><strong>{numberFormat.format(snapshot.library.creators)}</strong></article>
-          <button type="button" onClick={onOpenDownloads}><DownloadSimple size={19} weight="duotone" /><span>{t("currentSpeed")}</span><strong>{formatSpeed(snapshot.queue.speedBps)}</strong><ArrowRight size={16} /></button>
+          <article><span className="app-icon-well home-metric-icon" data-icon-tone="blue"><VideoCamera size={19} weight="duotone" /></span><span>{t("downloadedPosts")}</span><strong>{numberFormat.format(snapshot.library.archivedItems)}</strong><small>/ {numberFormat.format(snapshot.library.items)}</small></article>
+          <article><span className="app-icon-well home-metric-icon" data-icon-tone="cyan"><Database size={19} weight="duotone" /></span><span>{t("mediaFiles")}</span><strong>{numberFormat.format(snapshot.library.mediaFiles)}</strong></article>
+          <article><span className="app-icon-well home-metric-icon" data-icon-tone="violet"><UsersThree size={19} weight="duotone" /></span><span>{t("creatorsCount")}</span><strong>{numberFormat.format(snapshot.library.creators)}</strong></article>
+          <button type="button" onClick={onOpenDownloads}><span className="app-icon-well home-metric-icon" data-icon-tone="green"><DownloadSimple size={19} weight="duotone" /></span><span>{t("currentSpeed")}</span><strong>{formatSpeed(snapshot.queue.speedBps)}</strong><ArrowRight size={16} /></button>
         </section>
 
         <section className="home-chart-grid">
-          <TrendChart label={t("downloadSpeedTrend")} points={series} value={(point) => point.downloadSpeedBps} formatValue={formatSpeed} />
-          <TrendChart label={t("systemLoadTrend")} points={series} value={(point) => point.cpuLoadPercent} formatValue={(value) => `${value.toFixed(1)}%`} />
+          <TrendChart label={t("downloadSpeedTrend")} points={series} value={(point) => point.downloadSpeedBps} formatValue={formatSpeed} tone="blue" />
+          <TrendChart label={t("systemLoadTrend")} points={series} value={(point) => point.cpuLoadPercent} formatValue={(value) => `${value.toFixed(1)}%`} tone="violet" />
         </section>
 
         <section className="home-system-strip">
-          <article><Memory size={19} weight="duotone" /><div><span>{t("memoryUsage")}</span><strong>{memoryPercent}</strong><small>{formatBytes(snapshot.system.memoryUsedBytes)} / {formatBytes(snapshot.system.memoryTotalBytes)}</small></div></article>
-          <article><Cpu size={19} weight="duotone" /><div><span>{t("cpuUsage")}</span><strong>{snapshot.system.cpuLoadPercent.toFixed(1)}%</strong><small>{snapshot.system.cpuCount} CPU</small></div></article>
-          <article><CheckCircle size={19} weight="duotone" /><div><span>{t("serviceUptime")}</span><strong>{formatUptime(snapshot.health.uptimeSeconds)}</strong><small>{snapshot.health.recentErrors} {t("recentErrors")}</small></div></article>
+          <article><span className="app-icon-well home-system-icon" data-icon-tone="amber"><Memory size={19} weight="duotone" /></span><div><span>{t("memoryUsage")}</span><strong>{memoryPercent}</strong><small>{formatBytes(snapshot.system.memoryUsedBytes)} / {formatBytes(snapshot.system.memoryTotalBytes)}</small></div></article>
+          <article><span className="app-icon-well home-system-icon" data-icon-tone="violet"><Cpu size={19} weight="duotone" /></span><div><span>{t("cpuUsage")}</span><strong>{snapshot.system.cpuLoadPercent.toFixed(1)}%</strong><small>{snapshot.system.cpuCount} CPU</small></div></article>
+          <article><span className="app-icon-well home-system-icon" data-icon-tone="green"><CheckCircle size={19} weight="duotone" /></span><div><span>{t("serviceUptime")}</span><strong>{formatUptime(snapshot.health.uptimeSeconds)}</strong><small>{snapshot.health.recentErrors} {t("recentErrors")}</small></div></article>
         </section>
 
         <SourceProgressTable sources={snapshot.sources} onOpenSource={onOpenSource} />
