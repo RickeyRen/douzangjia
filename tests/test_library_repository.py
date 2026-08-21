@@ -207,6 +207,36 @@ async def test_creator_upsert_preserves_first_seen_and_refreshes_counts(
     assert after["post_count"] == 11
 
 
+async def test_creator_upsert_does_not_erase_known_identity_with_sparse_item_data(
+    database: Database,
+) -> None:
+    """Catches later Douyin item payloads clearing a previously known Douyin ID."""
+    library = LibraryRepository(database)
+    await library.upsert_creator(
+        CreatorRecord(
+            remote_id="creator-1",
+            nickname="旅行作者",
+            unique_id="travel-account",
+            avatar_url="https://media.test/avatar.jpg",
+            follower_count=321,
+            post_count=17,
+        )
+    )
+
+    await library.upsert_creator(
+        CreatorRecord(remote_id="creator-1", nickname="旅行作者", unique_id=None)
+    )
+    creator = await database.fetchone(
+        "SELECT * FROM creators WHERE remote_id='creator-1'"
+    )
+
+    assert creator is not None
+    assert creator["unique_id"] == "travel-account"
+    assert creator["avatar_url"] == "https://media.test/avatar.jpg"
+    assert creator["follower_count"] == 321
+    assert creator["post_count"] == 17
+
+
 async def test_non_video_source_entities_are_persisted_and_reconciled(
     database: Database,
 ) -> None:

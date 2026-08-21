@@ -362,6 +362,8 @@ export const fetchFeed = ({
   return request<{ items: FeedItem[]; nextCursor: string | null }>(`${path}?${query}`);
 };
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
+export const refreshCreator = (creatorId: string) =>
+  request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/refresh`, { method: "POST" });
 export const archiveItem = (remoteId: string) =>
   request<ArchiveBatch>(`/api/archive/items/${encodeURIComponent(remoteId)}`, { method: "POST" });
 export const archiveCreator = (creatorId: string) =>

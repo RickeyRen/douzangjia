@@ -1,7 +1,7 @@
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, fetchSourceEntities, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource, type SourceEntity } from "../../app/api";
+import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, fetchSourceEntities, refreshCreator, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource, type SourceEntity } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -45,6 +45,7 @@ export function FeedPage() {
   const [selected, setSelected] = useState<string | undefined>();
   const [selectedCreator, setSelectedCreator] = useState<{ id: string | null; name: string } | null>(null);
   const [creator, setCreator] = useState<Creator | null>(null);
+  const [creatorIdentityRefreshing, setCreatorIdentityRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<FeedViewMode>(savedFeedView);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [entities, setEntities] = useState<SourceEntity[]>([]);
@@ -89,10 +90,24 @@ export function FeedPage() {
       setCreator(null);
       return () => { cancelled = true; };
     }
-    void fetchCreator(selectedCreator.id)
-      .then((value) => { if (!cancelled) setCreator(value); })
+    const creatorId = selectedCreator.id;
+    void fetchCreator(creatorId)
+      .then(async (value) => {
+        if (cancelled) return;
+        setCreator(value);
+        if (value.uniqueId) return;
+        setCreatorIdentityRefreshing(true);
+        try {
+          const refreshed = await refreshCreator(creatorId);
+          if (!cancelled) setCreator(refreshed);
+        } catch {
+          // Sparse or private profiles can remain without a public Douyin ID.
+        } finally {
+          if (!cancelled) setCreatorIdentityRefreshing(false);
+        }
+      })
       .catch(() => { if (!cancelled) setCreator(null); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; setCreatorIdentityRefreshing(false); };
   }, [selectedCreator]);
 
   useEffect(() => {
@@ -207,7 +222,7 @@ export function FeedPage() {
     if (!target || !root || !nextCursor || loadMoreError || !("IntersectionObserver" in window)) return;
     const observer = new IntersectionObserver((entries) => {
       if (
-        (entityMode || viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
+        (selectedCreator !== null || entityMode || viewMode === "grid" || shouldAutoPaginate(activeIndex, items.length))
         && autoPaginatedCursor.current !== nextCursor
         && entries.some((entry) => entry.isIntersecting)
       ) {
@@ -217,7 +232,7 @@ export function FeedPage() {
     }, { root, rootMargin: "0px 0px 100% 0px", threshold: 0.01 });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [activeIndex, entities.length, entityMode, items.length, loadMore, loadMoreError, nextCursor, viewMode]);
+  }, [activeIndex, entities.length, entityMode, items.length, loadMore, loadMoreError, nextCursor, selectedCreator, viewMode]);
 
   function openMobileDestination(destination: MobileDestination) {
     if (destination === "collections") setDrawerOpen(true);
@@ -262,6 +277,11 @@ export function FeedPage() {
     changeViewMode("focus", index);
   }
 
+  function openCreatorGridItem(index: number) {
+    setActiveIndex(index);
+    setDetailItem(items[index] ?? null);
+  }
+
   async function archivePost(item: FeedItem) {
     await archiveItem(item.awemeId);
     setUtilityPanel("downloads");
@@ -287,7 +307,7 @@ export function FeedPage() {
 
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
-      <div data-testid="desktop-workspace" className={`archive-desktop-grid${homeOpen || viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
+      <div data-testid="desktop-workspace" className={`archive-desktop-grid${homeOpen || selectedCreator || viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
         <CollectionRail
           sources={sources}
           selected={selectedCreator ? undefined : selected}
@@ -308,7 +328,7 @@ export function FeedPage() {
             {selectedCreator ? (
               <div className="creator-archive-heading">
                 <FriendlyIconButton label={t("backToArchive")} onClick={() => setSelectedCreator(null)}><CaretLeft size={20} weight="bold" /></FriendlyIconButton>
-                <div><span>{t("creatorArchive")}</span><h1>@{selectedCreator.name}</h1></div>
+                <div><span>{t("creatorArchive")}</span><strong>{selectedCreator.name}</strong></div>
               </div>
             ) : (
               <button className="archive-collection-trigger" type="button" onClick={() => setDrawerOpen(true)}>
@@ -322,20 +342,33 @@ export function FeedPage() {
                 <DownloadSimple size={20} weight="bold" />
               </FriendlyIconButton>
             ) : null}
-            <label className="archive-search-field">
+            {!selectedCreator ? <label className="archive-search-field">
               <MagnifyingGlass size={20} weight="bold" />
               <input aria-label={t("searchArchive")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("searchArchive")} />
-            </label>
-            {!entityMode ? <FeedViewToggle mode={viewMode} onChange={changeViewMode} /> : null}
+            </label> : <span className="creator-topbar-spacer" />}
+            {!selectedCreator && !entityMode ? <FeedViewToggle mode={viewMode} onChange={changeViewMode} /> : null}
             <ThemeToggle />
             <FriendlyIconButton label={t("searchArchive")} onClick={() => setSearchOpen(true)} className="archive-mobile-search">
               <MagnifyingGlass size={21} weight="bold" />
             </FriendlyIconButton>
           </header>
 
-          <div className="archive-feed-region">
-            {creator ? <CreatorProfile creator={creator} onArchiveAll={archiveAllCreatorPosts} onToggleSubscription={toggleCreatorSubscription} /> : null}
-            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : entityMode ? entities.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
+          <div data-testid={selectedCreator ? "creator-page" : undefined} className={`archive-feed-region${selectedCreator ? " creator-page" : ""}`}>
+            {selectedCreator && creator ? <CreatorProfile creator={creator} refreshingIdentity={creatorIdentityRefreshing} onArchiveAll={archiveAllCreatorPosts} onToggleSubscription={toggleCreatorSubscription} /> : null}
+            {loading ? <FeedSkeleton label={t("loadingArchive")} /> : error ? <ErrorState label={t("feedError")} retry={t("retry")} /> : selectedCreator ? items.length === 0 ? <EmptyState title={t("creatorEmptyTitle")} body={t("creatorEmptyBody")} /> : (
+              <div ref={viewport} className="archive-grid-viewport creator-works-viewport">
+                <FeedGrid items={items} activeIndex={activeIndex} onOpen={openCreatorGridItem} />
+                {nextCursor || loadMoreError ? (
+                  <div ref={paginationSentinel} className="pagination-sentinel flex min-h-20 items-center justify-center py-4">
+                    {loadMoreError ? (
+                      <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="friendly-button friendly-button-secondary touch-target">
+                        {loadingMore ? t("loadingMore") : t("retryLoadMore")}
+                      </button>
+                    ) : <span role="status" aria-live="polite">{loadingMore ? t("loadingMore") : ""}</span>}
+                  </div>
+                ) : null}
+              </div>
+            ) : entityMode ? entities.length === 0 ? <EmptyState title={t("emptyTitle")} body={t("emptyBody")} /> : (
               <div ref={viewport} className="archive-grid-viewport source-entity-viewport">
                 <SourceEntityGrid entities={deferredSearch ? entities.filter((entry) => `${entry.title} ${entry.subtitle || ""}`.toLowerCase().includes(deferredSearch.toLowerCase())) : entities} />
                 {nextCursor || loadMoreError ? (
@@ -372,7 +405,7 @@ export function FeedPage() {
             )}
           </div>
 
-          {active && viewMode === "focus" ? (
+          {!selectedCreator && active && viewMode === "focus" ? (
             <footer className="archive-desktop-pager">
               <FriendlyIconButton label={t("previousItem")} disabled={activeIndex === 0} onClick={() => move(-1)}><CaretLeft size={21} weight="bold" /></FriendlyIconButton>
               <span>{activeIndex + 1} / {items.length}</span>
@@ -380,7 +413,7 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {!entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
+        {!selectedCreator && !entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
           </>
         )}
       </div>

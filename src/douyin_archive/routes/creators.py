@@ -6,6 +6,9 @@ import json
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from ..library_repository import LibraryRepository
+from ..provider.base import ProviderError
+
 router = APIRouter(prefix="/api/creators")
 
 
@@ -114,4 +117,34 @@ async def creator_detail(creator_id: str, request: Request):
             status_code=404,
             content={"code": "CREATOR_NOT_FOUND", "message": "创作者不存在"},
         )
+    return _serialize_creator(row)
+
+
+@router.post("/{creator_id}/refresh")
+async def refresh_creator_detail(creator_id: str, request: Request):
+    existing = await request.app.state.database.fetchone(
+        "SELECT remote_id FROM creators WHERE remote_id=?", (creator_id,)
+    )
+    if existing is None:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "CREATOR_NOT_FOUND", "message": "创作者不存在"},
+        )
+    runtime = request.app.state.runtime
+    if runtime is None or not hasattr(runtime, "refresh_creator_profile"):
+        return JSONResponse(
+            status_code=503,
+            content={"code": "RUNTIME_UNAVAILABLE", "message": "抖音资料服务未启动"},
+        )
+    try:
+        profile = await runtime.refresh_creator_profile(creator_id)
+    except ProviderError as error:
+        return JSONResponse(
+            status_code=409,
+            content={"code": error.code, "message": "暂时无法从抖音更新博主资料"},
+        )
+    await LibraryRepository(request.app.state.database).upsert_creator(profile)
+    row = await request.app.state.database.fetchone(
+        _select_sql("WHERE c.remote_id=?"), (creator_id,)
+    )
     return _serialize_creator(row)

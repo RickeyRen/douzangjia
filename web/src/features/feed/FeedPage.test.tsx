@@ -19,6 +19,7 @@ vi.mock("../../app/api", () => ({
   fetchSyncRuns: vi.fn(),
   triggerSync: vi.fn(),
   fetchCreator: vi.fn(),
+  refreshCreator: vi.fn(),
   archiveItem: vi.fn(),
   archiveCreator: vi.fn(),
   archiveSource: vi.fn(),
@@ -161,6 +162,18 @@ describe("FeedPage", () => {
     });
     vi.mocked(api.triggerSync).mockResolvedValue({ runId: 10 });
     vi.mocked(api.fetchCreator).mockResolvedValue({
+      id: "creator-1",
+      nickname: "旅行家",
+      uniqueId: "travel-id",
+      avatarUrl: null,
+      followerCount: 321,
+      postCount: 17,
+      knownItemCount: 1,
+      archivedItemCount: 1,
+      lastSeenAt: 1,
+      subscription: null,
+    });
+    vi.mocked(api.refreshCreator).mockResolvedValue({
       id: "creator-1",
       nickname: "旅行家",
       uniqueId: "travel-id",
@@ -401,8 +414,12 @@ describe("FeedPage", () => {
     expect(input).toHaveValue("");
   });
 
-  it("opens a stable creator profile with archive-all and follow controls", async () => {
+  it("opens a Douyin-style creator profile grid with identity and archive controls", async () => {
     const user = userEvent.setup();
+    vi.mocked(api.fetchFeed).mockResolvedValue({
+      items: [itemFor(collections[0]), itemFor(collections[1])],
+      nextCursor: null,
+    });
     render(<FeedPage />);
     await user.click(screen.getByRole("button", { name: "全部归档" }));
 
@@ -412,8 +429,14 @@ describe("FeedPage", () => {
       creatorId: "creator-1",
       sourceId: undefined,
     })));
-    expect(screen.getByRole("heading", { name: "@旅行家" })).toBeVisible();
+    expect(screen.getByTestId("creator-page")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "旅行家" })).toBeVisible();
+    expect(await screen.findByText("抖音号：travel-id")).toBeVisible();
     expect(await screen.findByText("本地已归档 1 / 已发现 1")).toBeVisible();
+    expect(screen.getByTestId("feed-grid")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /打开作品/ })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "单个作品视图" })).not.toBeInTheDocument();
+    expect(screen.queryByText("1 / 2")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "保存该博主全部作品" }));
     expect(api.archiveCreator).toHaveBeenCalledWith("creator-1");
@@ -422,6 +445,44 @@ describe("FeedPage", () => {
 
     await user.click(screen.getByRole("button", { name: "返回全部归档" }));
     await waitFor(() => expect(api.fetchFeed).toHaveBeenLastCalledWith(expect.objectContaining({ creatorId: undefined })));
+  });
+
+  it("automatically enriches a missing Douyin ID when a creator profile opens", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchCreator).mockResolvedValueOnce({
+      id: "creator-1",
+      nickname: "旅行家",
+      uniqueId: null,
+      avatarUrl: null,
+      followerCount: null,
+      postCount: null,
+      knownItemCount: 1,
+      archivedItemCount: 1,
+      lastSeenAt: 1,
+      subscription: null,
+    });
+    vi.mocked(api.refreshCreator).mockImplementationOnce(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 40));
+      return {
+        id: "creator-1",
+        nickname: "旅行家",
+        uniqueId: "travel-id",
+        avatarUrl: null,
+        followerCount: 321,
+        postCount: 17,
+        knownItemCount: 1,
+        archivedItemCount: 1,
+        lastSeenAt: 1,
+        subscription: null,
+      };
+    });
+    render(<FeedPage />);
+    await user.click(screen.getByRole("button", { name: "全部归档" }));
+    await user.click((await screen.findAllByRole("button", { name: "查看旅行家的已收藏作品" }))[0]);
+
+    expect(await screen.findByText("正在从抖音获取抖音号…")).toBeVisible();
+    await waitFor(() => expect(api.refreshCreator).toHaveBeenCalledWith("creator-1"));
+    expect(await screen.findByText("抖音号：travel-id")).toBeVisible();
   });
 
   it("switches to the multi-post grid and remembers the preference", async () => {

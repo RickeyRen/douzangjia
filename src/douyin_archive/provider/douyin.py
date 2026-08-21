@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
 from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
+from ..library_models import CreatorRecord
 from ..remote_availability import evidence_for_probe_response
 from .base import (
     ProviderChanged,
@@ -36,6 +37,27 @@ def _parse_compact_count(raw: str) -> int | None:
         return int(float(cleaned) * multiplier)
     except (TypeError, ValueError):
         return None
+
+
+def _creator_record_from_profile_snapshot(
+    creator_id: str, snapshot: dict[str, object]
+) -> CreatorRecord:
+    nickname = str(snapshot.get("nickname", "")).strip()
+    if not nickname:
+        raise ProviderChanged("Douyin creator profile did not expose a nickname")
+
+    def optional_text(key: str) -> str | None:
+        value = str(snapshot.get(key, "")).strip()
+        return value or None
+
+    return CreatorRecord(
+        remote_id=creator_id,
+        nickname=nickname,
+        unique_id=optional_text("uniqueId"),
+        avatar_url=optional_text("avatarUrl"),
+        follower_count=_parse_compact_count(optional_text("followerCount") or ""),
+        post_count=_parse_compact_count(optional_text("postCount") or ""),
+    )
 
 
 def _parse_collection_counts(page_text: str, expected_names: tuple[str, ...]) -> dict[str, int]:
@@ -308,6 +330,52 @@ class PlaywrightDouyinSource:
         await self._recycle_page()
         self._collection_names.clear()
         self._direct_collections = False
+
+    async def fetch_creator_profile(self, creator_id: str) -> CreatorRecord:
+        """Read the creator identity rendered by Douyin's logged-in profile page."""
+        await self.open()
+        await self._page.goto(
+            f"https://www.douyin.com/user/{creator_id}",
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        with suppress(Exception):
+            await self._page.wait_for_selector("h1", state="visible", timeout=15_000)
+        snapshot = await self._page.evaluate(
+            r"""
+            () => { // __douzangjiaCreatorProfile
+              const visible = (element) => {
+                if (!element) return false;
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const bodyText = document.body?.innerText || '';
+              const lines = bodyText.split(/\n+/).map((value) => value.trim()).filter(Boolean);
+              const afterLabel = (label) => {
+                const index = lines.findIndex((value) => value === label);
+                return index >= 0 ? (lines[index + 1] || '') : '';
+              };
+              const heading = [...document.querySelectorAll('h1')].find(visible);
+              const avatar = [...document.querySelectorAll('img')].find((image) =>
+                visible(image) && /头像$/.test(image.alt || '')
+              );
+              const uniqueMatch = bodyText.match(/抖音号[：:]\s*([^\s\n]+)/);
+              const postMatch = bodyText.match(/(?:^|\n)作品\s*(?:\n\s*)?([\d,.]+(?:万)?)/m);
+              return {
+                nickname: heading?.textContent?.trim() || '',
+                uniqueId: uniqueMatch?.[1]?.trim() || '',
+                avatarUrl: avatar?.currentSrc || avatar?.src || '',
+                followerCount: afterLabel('粉丝'),
+                postCount: postMatch?.[1] || '',
+              };
+            }
+            """
+        )
+        if not isinstance(snapshot, dict):
+            raise ProviderChanged("Douyin creator profile returned invalid identity data")
+        return _creator_record_from_profile_snapshot(creator_id, snapshot)
 
     async def check_item_availability(self, item_id: str) -> str:
         """Probe one item without trusting cached discovery payloads."""

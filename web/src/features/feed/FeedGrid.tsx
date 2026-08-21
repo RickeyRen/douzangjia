@@ -10,11 +10,14 @@ export function FeedGrid({ items, activeIndex, onOpen }: { items: FeedItem[]; ac
     <div data-testid="feed-grid" className="archive-feed-grid">
       {items.map((item, index) => {
         const media = item.media[0];
+        const coverUrl = item.coverUrl || (media?.type === "image" ? media.url : null);
         const title = item.description || `@${item.author}`;
         return (
           <article key={item.awemeId} className={`archive-grid-card${index === activeIndex ? " is-current" : ""}`}>
             <button type="button" aria-label={`${t("openPostPrefix")}${title}`} onClick={() => onOpen(index)}>
-              {media ? item.type === "gallery" || media.type === "image" ? (
+              {coverUrl ? (
+                <img src={coverUrl} alt="" loading="lazy" draggable={false} />
+              ) : media ? item.type === "gallery" || media.type === "image" ? (
                 <img src={media.url} alt="" loading="lazy" draggable={false} />
               ) : (
                 <video src={media.url} muted playsInline preload="metadata" />

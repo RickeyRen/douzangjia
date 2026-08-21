@@ -106,9 +106,12 @@ class LibraryRepository:
             "(remote_id, nickname, unique_id, avatar_url, follower_count, post_count, "
             "first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(remote_id) DO UPDATE SET "
-            "nickname=excluded.nickname, unique_id=excluded.unique_id, "
-            "avatar_url=excluded.avatar_url, follower_count=excluded.follower_count, "
-            "post_count=excluded.post_count, last_seen_at=excluded.last_seen_at",
+            "nickname=excluded.nickname, "
+            "unique_id=COALESCE(excluded.unique_id, creators.unique_id), "
+            "avatar_url=COALESCE(excluded.avatar_url, creators.avatar_url), "
+            "follower_count=COALESCE(excluded.follower_count, creators.follower_count), "
+            "post_count=COALESCE(excluded.post_count, creators.post_count), "
+            "last_seen_at=excluded.last_seen_at",
             (
                 creator.remote_id,
                 creator.nickname,

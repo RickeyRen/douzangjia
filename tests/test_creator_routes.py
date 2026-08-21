@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 
@@ -6,6 +8,7 @@ from fastapi.testclient import TestClient
 from douyin_archive.api import create_app
 from douyin_archive.config import Settings
 from douyin_archive.db import Database
+from douyin_archive.library_models import CreatorRecord
 
 
 async def seed_creators(root: Path) -> None:
@@ -77,3 +80,35 @@ def test_creator_detail_returns_a_stable_not_found_error(
 
     assert response.status_code == 404
     assert response.json()["code"] == "CREATOR_NOT_FOUND"
+
+
+def test_creator_refresh_persists_the_douyin_id_from_the_logged_in_profile(
+    tmp_path: Path, master_key: str
+) -> None:
+    class Runtime:
+        async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
+            assert creator_id == "creator-1"
+            return CreatorRecord(
+                remote_id=creator_id,
+                nickname="旅行作者",
+                unique_id="travel-account",
+                avatar_url="https://media.test/avatar-new.jpg",
+                follower_count=456,
+                post_count=18,
+            )
+
+    client = build_client(tmp_path, master_key)
+    client.app.state.runtime = Runtime()
+    try:
+        response = client.post(
+            "/api/creators/creator-1/refresh",
+            headers={"X-CSRF-Token": client.cookies.get("archive_csrf") or ""},
+        )
+        stored = client.get("/api/creators/creator-1")
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 200
+    assert response.json()["uniqueId"] == "travel-account"
+    assert response.json()["followerCount"] == 456
+    assert stored.json()["uniqueId"] == "travel-account"

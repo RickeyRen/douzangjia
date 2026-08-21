@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from douyin_archive.provider.base import RateLimited, SessionExpired
+from douyin_archive.provider.douyin import _creator_record_from_profile_snapshot
 from douyin_archive.provider.normalizers import normalize_collections, normalize_page
 
 FIXTURES = Path(__file__).parent / "fixtures" / "douyin"
@@ -101,6 +102,24 @@ def test_creator_identity_and_profile_metadata_are_normalized() -> None:
     assert item.creator_avatar_url == "https://media.test/avatar.jpg"
     assert item.creator_follower_count == 321
     assert item.creator_post_count == 17
+
+
+def test_visible_creator_profile_snapshot_exposes_the_douyin_id() -> None:
+    creator = _creator_record_from_profile_snapshot(
+        "stable-creator-1",
+        {
+            "nickname": "旅行作者",
+            "uniqueId": "travel-account",
+            "avatarUrl": "https://media.test/avatar.jpg",
+            "followerCount": "1.2万",
+            "postCount": "17",
+        },
+    )
+
+    assert creator.remote_id == "stable-creator-1"
+    assert creator.unique_id == "travel-account"
+    assert creator.follower_count == 12_000
+    assert creator.post_count == 17
 
 
 @pytest.mark.parametrize("payload", [{"status_code": 8}, {"status_code": 1009}])

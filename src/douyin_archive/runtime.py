@@ -19,6 +19,7 @@ from .config import Settings
 from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
+from .library_models import CreatorRecord
 from .media_probe import MediaProbe, MediaProbeBackfill
 from .provider.base import SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
@@ -127,6 +128,21 @@ class RuntimeSyncCoordinator:
                 return await source.check_item_availability(remote_id)
             except Exception:  # noqa: BLE001 - remote uncertainty must not imply deletion
                 return "NETWORK_TIMEOUT"
+            finally:
+                await source.close()
+
+    async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
+        async with self._lock:
+            cookies = await self.auth.load_cookies()
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated and cookies:
+                await self.browser_coordinator.add_cookies(cookies)
+                authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if not authenticated:
+                raise SessionExpired("Douyin login is required")
+            source = self.source_factory()
+            try:
+                return await source.fetch_creator_profile(creator_id)
             finally:
                 await source.close()
 
@@ -345,6 +361,9 @@ class ArchiveRuntime:
 
     async def check_item_availability(self, remote_id: str) -> str:
         return await self.sync.check_item_availability(remote_id)
+
+    async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
+        return await self.sync.refresh_creator_profile(creator_id)
 
     async def _probe_existing_media(self) -> None:
         while await self.media_probe_backfill.run_batch(limit=25):
