@@ -1,7 +1,7 @@
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Folders, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
-import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, fetchSourceEntities, refreshCreator, updateCreatorSubscription, type Creator, type FeedItem, type LibrarySource, type SourceEntity } from "../../app/api";
+import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fetchLibrarySources, fetchSourceEntities, refreshCreator, updateCreatorSubscription, type Creator, type DashboardSnapshot, type FeedItem, type LibrarySource, type SourceEntity } from "../../app/api";
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
@@ -10,6 +10,9 @@ import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { HomePage } from "../home/HomePage";
+import { useDashboardStream } from "../home/useDashboardStream";
+import { sourceDownloadProgress } from "../navigation/navigationProgress";
+import { ProgressRing } from "../../components/ProgressRing";
 import { DesktopItemDetails } from "./DesktopItemDetails";
 import { CreatorProfile } from "./CreatorProfile";
 import { FeedCard } from "./FeedCard";
@@ -40,6 +43,7 @@ function savedFeedView(): FeedViewMode {
 
 export function FeedPage() {
   const { t } = useI18n();
+  const dashboardStream = useDashboardStream();
   const [sources, setSources] = useState<LibrarySource[]>([]);
   const [homeOpen, setHomeOpen] = useState(true);
   const [selected, setSelected] = useState<string | undefined>();
@@ -345,6 +349,7 @@ export function FeedPage() {
       <div data-testid="desktop-workspace" className={`archive-desktop-grid${homeOpen || selectedCreator || viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
         <CollectionRail
           sources={sources}
+          dashboard={dashboardStream.snapshot}
           selected={selectedCreator ? undefined : selected}
           homeActive={homeOpen}
           onSelect={selectCollection}
@@ -355,6 +360,7 @@ export function FeedPage() {
           <HomePage
             onOpenDownloads={() => setUtilityPanel("downloads")}
             onOpenSource={selectCollection}
+            stream={dashboardStream}
           />
         ) : (
           <>
@@ -453,7 +459,7 @@ export function FeedPage() {
         )}
       </div>
 
-      {drawerOpen ? <CollectionDrawer sources={sources} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
+      {drawerOpen ? <CollectionDrawer sources={sources} dashboard={dashboardStream.snapshot} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
       {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
       {detailItem ? <ItemDetailsSheet item={detailItem} refreshingIdentity={creatorIdentityRefreshing} onClose={() => setDetailItem(null)} onOpenAuthor={openAuthor} /> : null}
@@ -462,7 +468,7 @@ export function FeedPage() {
   );
 }
 
-function CollectionDrawer({ sources, selected, onSelect, onClose }: { sources: LibrarySource[]; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
+function CollectionDrawer({ sources, dashboard, selected, onSelect, onClose }: { sources: LibrarySource[]; dashboard: DashboardSnapshot | null; selected?: string; onSelect: (id?: string) => void; onClose: () => void }) {
   const { t } = useI18n();
   return (
     <div className="collection-drawer-overlay" onClick={onClose}>
@@ -470,8 +476,13 @@ function CollectionDrawer({ sources, selected, onSelect, onClose }: { sources: L
         <div className="drawer-handle" />
         <div className="collection-drawer-header"><h2>{t("switchCollection")}</h2><button aria-label={t("closeDrawer")} className="utility-close-button" onClick={onClose}><X size={20} /></button></div>
         <div className="collection-drawer-list">
-          {[{ id: undefined, name: t("allArchives") }, ...sources].map((item) => (
-            <button key={item.id ?? "all"} onClick={() => onSelect(item.id)} className={`collection-drawer-item${item.id === selected ? " is-active" : ""}`}><Folders size={19} />{item.name}</button>
+          <button aria-label={t("allArchives")} onClick={() => onSelect(undefined)} className={`collection-drawer-item${selected === undefined ? " is-active" : ""}`}><Folders size={19} /><span>{t("allArchives")}</span></button>
+          {sources.map((source) => (
+            <button key={source.id} aria-label={source.name} onClick={() => onSelect(source.id)} className={`collection-drawer-item${source.id === selected ? " is-active" : ""}`}>
+              <Folders size={19} />
+              <span>{source.name}</span>
+              <ProgressRing value={sourceDownloadProgress(source, dashboard)} compact label={`${source.name} ${t("sourceDownloadProgress")}`} />
+            </button>
           ))}
         </div>
         <p className="collection-drawer-footer">{t("autoSync")}</p>

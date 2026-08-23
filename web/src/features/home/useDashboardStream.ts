@@ -7,14 +7,26 @@ import {
   type MetricPoint,
 } from "../../app/api";
 
-export function useDashboardStream() {
+export type DashboardStreamState = {
+  snapshot: DashboardSnapshot | null;
+  series: MetricPoint[];
+  connected: boolean;
+  loading: boolean;
+  error: boolean;
+};
+
+export function useDashboardStream(enabled = true): DashboardStreamState {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [series, setSeries] = useState<MetricPoint[]>([]);
   const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     const eventSource = new EventSource("/api/events");
     void Promise.all([fetchDashboard(), fetchDashboardSeries("24h")])
@@ -55,7 +67,7 @@ export function useDashboardStream() {
       eventSource.removeEventListener("snapshot", onSnapshot as EventListener);
       eventSource.close();
     };
-  }, []);
+  }, [enabled]);
 
   return { snapshot, series, connected, loading, error };
 }

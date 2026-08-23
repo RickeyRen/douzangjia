@@ -1,8 +1,10 @@
 import { Archive, BookmarkSimple, ClockCounterClockwise, DownloadSimple, FilmSlate, FolderSimple, Gear, Heart, House, Playlist, Pulse, Star, UserList } from "@phosphor-icons/react";
 
 import type { Icon } from "@phosphor-icons/react";
-import type { LibrarySource } from "../../app/api";
+import type { DashboardSnapshot, LibrarySource } from "../../app/api";
+import { ProgressRing } from "../../components/ProgressRing";
 import { useI18n } from "../../i18n/context";
+import { sourceDownloadProgress, syncProgressState, totalDownloadProgress } from "./navigationProgress";
 
 export type UtilityPanel = "dashboard" | "downloads" | "sync" | "activity" | "settings";
 
@@ -28,18 +30,21 @@ const sourceTones: Partial<Record<LibrarySource["kind"], string>> = {
   favorite_collection: "blue",
 };
 
-export function CollectionRail({ sources, selected, homeActive, onSelect, onOpenHome, onOpenPanel }: { sources: LibrarySource[]; selected?: string; homeActive: boolean; onSelect: (id?: string) => void; onOpenHome: () => void; onOpenPanel: (panel: UtilityPanel) => void }) {
+export function CollectionRail({ sources, dashboard, selected, homeActive, onSelect, onOpenHome, onOpenPanel }: { sources: LibrarySource[]; dashboard: DashboardSnapshot | null; selected?: string; homeActive: boolean; onSelect: (id?: string) => void; onOpenHome: () => void; onOpenPanel: (panel: UtilityPanel) => void }) {
   const { t } = useI18n();
   const accountSources = sources.filter((source) => source.kind !== "favorite_collection");
   const favoriteFolders = sources.filter((source) => source.kind === "favorite_collection");
+  const syncState = syncProgressState(dashboard?.health.latestSync);
+  const syncLabel = t(syncState === "running" ? "syncInProgress" : syncState === "complete" ? "syncComplete" : syncState === "failed" ? "syncFailed" : "syncIdle");
   const renderSource = (source: LibrarySource) => {
     const active = source.id === selected;
     const Icon = sourceIcons[source.kind] ?? BookmarkSimple;
+    const progress = sourceDownloadProgress(source, dashboard);
     return (
-      <button key={source.id} type="button" onClick={() => onSelect(source.id)} className={`collection-nav-item${active ? " is-active" : ""}`}>
+      <button key={source.id} type="button" aria-label={`${source.name}${source.discoveredCount}`} onClick={() => onSelect(source.id)} className={`collection-nav-item${active ? " is-active" : ""}`}>
         <span className="app-icon-well collection-nav-icon" data-icon-tone={sourceTones[source.kind] ?? "cyan"}><Icon size={18} weight="duotone" /></span>
         <span>{source.name}</span>
-        <small>{source.discoveredCount}</small>
+        <ProgressRing value={progress} compact label={`${source.name} ${t("sourceDownloadProgress")}`} />
       </button>
     );
   };
@@ -67,8 +72,8 @@ export function CollectionRail({ sources, selected, homeActive, onSelect, onOpen
         {favoriteFolders.map(renderSource)}
       </nav>
       <div className="collection-utility-navigation">
-        <button type="button" onClick={() => onOpenPanel("downloads")}><span className="app-icon-well collection-nav-icon" data-icon-tone="blue"><DownloadSimple size={18} weight="duotone" /></span><span>{t("downloadJobs")}</span></button>
-        <button type="button" onClick={() => onOpenPanel("sync")}><span className="app-icon-well collection-nav-icon" data-icon-tone="green"><Pulse size={18} weight="duotone" /></span><span>{t("syncStatus")}</span></button>
+        <button type="button" aria-label={t("downloadJobs")} onClick={() => onOpenPanel("downloads")}><span className="app-icon-well collection-nav-icon" data-icon-tone="blue"><DownloadSimple size={18} weight="duotone" /></span><span>{t("downloadJobs")}</span><ProgressRing value={totalDownloadProgress(dashboard?.queue)} label={`${t("downloadJobs")} ${t("totalProgress")}`} /></button>
+        <button type="button" aria-label={t("syncStatus")} onClick={() => onOpenPanel("sync")}><span className="app-icon-well collection-nav-icon" data-icon-tone="green"><Pulse size={18} weight="duotone" /></span><span>{t("syncStatus")}</span><ProgressRing state={syncState} label={`${t("syncStatus")} ${syncLabel}`} /></button>
       </div>
       <button type="button" onClick={() => onOpenPanel("settings")} className="collection-settings"><span className="app-icon-well collection-nav-icon" data-icon-tone="amber"><Gear size={18} weight="duotone" /></span><span>{t("settings")}</span></button>
       <div className="collection-connection"><span className="app-icon-well collection-connection-icon" data-icon-tone="green"><Archive size={15} weight="duotone" /></span><span>{t("connected")} · {t("autoSync")}</span></div>

@@ -22,7 +22,7 @@ import {
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
 import { formatBytes, formatSpeed } from "../status/downloadFormat";
-import { useDashboardStream } from "./useDashboardStream";
+import { useDashboardStream, type DashboardStreamState } from "./useDashboardStream";
 
 const numberFormat = new Intl.NumberFormat("zh-CN");
 const sourceProgressTones = ["blue", "cyan", "green", "amber", "violet", "rose"] as const;
@@ -206,12 +206,15 @@ function SourceProgressTable({
 export function HomePage({
   onOpenDownloads,
   onOpenSource,
+  stream,
 }: {
   onOpenDownloads: () => void;
   onOpenSource: (sourceId: string) => void;
+  stream?: DashboardStreamState;
 }) {
   const { t } = useI18n();
-  const { snapshot, series, connected, loading, error } = useDashboardStream();
+  const localStream = useDashboardStream(stream === undefined);
+  const { snapshot, series, connected, loading, error } = stream ?? localStream;
   const memoryPercent = useMemo(
     () => snapshot ? percentage(snapshot.system.memoryUsedBytes, snapshot.system.memoryTotalBytes) : "0%",
     [snapshot],

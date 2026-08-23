@@ -135,12 +135,29 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .collection-nav-item::before { content: ""; position: absolute; inset: 8px auto 8px 0; width: 2px; border-radius: 2px; background: transparent; }
 .collection-nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collection-nav-item small { color: var(--app-faint); font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.progress-ring { --progress-ring-size: 34px; --progress-ring-stroke: 3.2; position: relative; display: grid; width: var(--progress-ring-size); height: var(--progress-ring-size); flex: 0 0 var(--progress-ring-size); place-items: center; color: #55a9ff; font-variant-numeric: tabular-nums; }
+.progress-ring.is-compact { --progress-ring-size: 30px; --progress-ring-stroke: 3; }
+.progress-ring-graphic { position: absolute; inset: 0; display: block; }
+.progress-ring-graphic svg { display: block; width: 100%; height: 100%; }
+.progress-ring-track, .progress-ring-meter { fill: none; stroke-width: var(--progress-ring-stroke); }
+.progress-ring-track { stroke: color-mix(in srgb, currentColor 16%, var(--app-line)); }
+.progress-ring-meter { stroke: currentColor; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--progress-ring-value)); transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 260ms ease, color 180ms ease; }
+.progress-ring-value { position: relative; z-index: 1; color: currentColor; font-family: "Geist Mono", ui-monospace, monospace; font-size: 8px; font-weight: 700; line-height: 1; letter-spacing: -.04em; }
+.progress-ring-complete { color: #42c9bf; }
+.progress-ring-failed { color: var(--app-danger); }
+.progress-ring-idle { color: var(--app-faint); }
+.progress-ring-running .progress-ring-meter { stroke-dasharray: 27 73; stroke-dashoffset: 0; }
+.progress-ring-running .progress-ring-value { display: none; }
+.progress-ring-running .progress-ring-graphic { animation: progress-ring-spin .9s linear infinite; }
+@keyframes progress-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .progress-ring-running .progress-ring-graphic { animation-duration: 2.4s; } }
 .collection-nav-item.is-active { color: var(--app-text); background: rgb(59 201 219 / 7%); }
 .collection-nav-item.is-active::before { background: var(--app-accent); }
 .collection-nav-item.is-active .collection-nav-icon { border-color: color-mix(in srgb, var(--icon-color) 34%, transparent); background: color-mix(in srgb, var(--icon-color) 15%, transparent); }
 .collection-nav-item:active { transform: scale(.985); }
 .collection-utility-navigation { display: grid; gap: 2px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--app-line); }
 .collection-utility-navigation button, .collection-settings { display: flex; min-height: 48px; align-items: center; gap: 10px; border: 0; border-radius: 8px; padding: 0 9px; color: var(--app-muted); background: transparent; font-size: 13px; font-weight: 520; text-align: left; }
+.collection-utility-navigation button > .progress-ring { margin-left: auto; }
 .collection-settings { margin-top: auto; border-top: 1px solid var(--app-line); border-radius: 0; padding-top: 9px; }
 .collection-connection { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 9px; border: 1px solid var(--app-line); border-radius: 8px; color: var(--app-muted); background: rgb(255 255 255 / 2%); font-size: 9px; font-weight: 560; }
 .collection-connection-icon { width: 25px; height: 25px; flex-basis: 25px; border-radius: 7px; }
@@ -414,7 +431,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .collection-drawer-header, .item-details-header { display: flex; min-height: 58px; align-items: center; justify-content: space-between; margin-top: 7px; border-bottom: 1px solid var(--app-line); }
 .collection-drawer-header h2, .item-details-header h2 { margin: 0; font-size: 16px; font-weight: 650; }
 .collection-drawer-list { display: grid; gap: 2px; margin-top: 10px; }
-.collection-drawer-item { display: flex; min-height: 48px; align-items: center; gap: 10px; border: 0; border-radius: 8px; padding: 0 12px; color: var(--app-muted); background: transparent; text-align: left; font-size: 13px; }
+.collection-drawer-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; min-height: 52px; align-items: center; gap: 10px; border: 0; border-radius: 8px; padding: 0 12px; color: var(--app-muted); background: transparent; text-align: left; font-size: 13px; }
+.collection-drawer-item > span:not(.progress-ring) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collection-drawer-item.is-active { color: var(--app-text); background: var(--app-accent-soft); box-shadow: inset 2px 0 0 var(--app-accent); }
 .collection-drawer-item.is-active svg { color: var(--app-accent); }
 .collection-drawer-footer { margin: 15px 0 0; color: var(--app-faint); text-align: center; font-size: 10px; }

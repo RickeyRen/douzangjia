@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../app/api";
 import { ThemeProvider } from "../../theme/ThemeProvider";
+import { useDashboardStream } from "../home/useDashboardStream";
 import { FeedPage, feedIndexFromTarget, shouldAutoPaginate } from "./FeedPage";
 
 vi.mock("../../app/api", () => ({
@@ -35,6 +36,10 @@ vi.mock("../home/HomePage", () => ({
   ),
 }));
 
+vi.mock("../home/useDashboardStream", () => ({
+  useDashboardStream: vi.fn(),
+}));
+
 const collections = [
   { id: "1001", name: "想去的地方", itemCount: 1, lastSeenAt: 1 },
   { id: "1002", name: "好看的美女", itemCount: 1, lastSeenAt: 1 },
@@ -61,6 +66,33 @@ const sources: api.LibrarySource[] = [
     lastFullScanAt: 1, lastIncrementalScanAt: null, errorCode: null,
   })),
 ];
+
+const dashboardSnapshot: api.DashboardSnapshot = {
+  storage: { totalBytes: 1_000, usedBytes: 400, freeBytes: 600, archiveBytes: 250, usedPercent: 40 },
+  system: { cpuCount: 4, cpuLoadPercent: 12, loadAverage1m: 0.2, loadAverage5m: 0.18, loadAverage15m: 0.16, memoryTotalBytes: 1_000, memoryUsedBytes: 300, processMemoryBytes: 80 },
+  library: { items: 10, archivedItems: 6, mediaFiles: 6, creators: 3, sources: 4, completeSources: 1, incompleteSources: 3, neverSyncedSources: 0, discoveredLinks: 10, archivedBytes: 250 },
+  queue: { pending: 2, running: 1, retry: 0, failed: 0, completed: 4, downloadedBytes: 25, totalBytes: 100, speedBps: 10, etaSeconds: 8 },
+  health: {
+    recentErrors: 0,
+    uptimeSeconds: 600,
+    latestSync: { id: 8, mode: "full", phase: "collecting", status: "running", discovered: 6, enqueued: 4, errorCode: null, startedAt: 100, finishedAt: null },
+  },
+  account: {
+    sessionStored: true,
+    status: "healthy",
+    lastVerifiedAt: 100,
+    lastSyncAt: 90,
+    lastFailureAt: null,
+    errorCode: null,
+    consecutiveFailures: 0,
+    account: { id: "self-id", nickname: "天鹰座裂缝之外", uniqueId: "sky-gap", avatarUrl: null },
+  },
+  sources: [
+    { id: "account:posts", kind: "post", name: "作品", autoDownloadEnabled: true, downloadPolicyUpdatedAt: 90, discovered: 5, archived: 2, pending: 2, running: 1, retry: 0, failed: 0, archivedBytes: 100, knownTotalBytes: 250, remoteTotal: 5, remoteComplete: true, coveragePercent: 40, syncStatus: "complete", lastSyncAt: 90, errorCode: null },
+    { id: "favorite_collection:1002", kind: "favorite_collection", name: "好看的美女", autoDownloadEnabled: true, downloadPolicyUpdatedAt: 90, discovered: 4, archived: 2, pending: 1, running: 0, retry: 0, failed: 0, archivedBytes: 100, knownTotalBytes: 200, remoteTotal: 4, remoteComplete: true, coveragePercent: 50, syncStatus: "complete", lastSyncAt: 90, errorCode: null },
+  ],
+  generatedAt: 100,
+};
 
 const itemFor = (collection: (typeof collections)[number]) => ({
   awemeId: collection.id,
@@ -94,6 +126,13 @@ describe("FeedPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    vi.mocked(useDashboardStream).mockReturnValue({
+      snapshot: dashboardSnapshot,
+      series: [],
+      connected: true,
+      loading: false,
+      error: false,
+    });
     vi.mocked(api.fetchLibrarySources).mockResolvedValue({ items: sources });
     vi.mocked(api.fetchFeed).mockImplementation(async ({ sourceId }) => ({
       items: [itemFor(collections.find((item) => `favorite_collection:${item.id}` === sourceId) ?? collections[0])],
@@ -226,6 +265,25 @@ describe("FeedPage", () => {
         .querySelector("[data-icon-tone]")
         ?.getAttribute("data-icon-tone"),
     ).toBe("cyan");
+  });
+
+  it("shows live category, download, and sync progress rings in the desktop rail", async () => {
+    render(<FeedPage />);
+
+    const rail = within((await screen.findByRole("navigation", { name: "打开收藏夹" })).closest("aside")!);
+    expect(rail.getByRole("progressbar", { name: "作品 类目下载进度" })).toHaveAttribute("aria-valuenow", "40");
+    expect(rail.getByRole("progressbar", { name: "下载任务 总进度" })).toHaveAttribute("aria-valuenow", "25");
+    expect(rail.getByRole("progressbar", { name: "同步状态 同步中" })).not.toHaveAttribute("aria-valuenow");
+  });
+
+  it("shows each category progress ring in the mobile collection drawer", async () => {
+    const user = userEvent.setup();
+    render(<FeedPage />);
+
+    await user.click(within(await screen.findByRole("navigation", { name: "移动导航" })).getByRole("button", { name: "收藏夹" }));
+
+    const drawer = within(screen.getByRole("dialog", { name: "切换收藏夹" }));
+    expect(drawer.getByRole("progressbar", { name: "好看的美女 类目下载进度" })).toHaveAttribute("aria-valuenow", "50");
   });
 
   it("switches collection and keeps exactly one active media card", async () => {

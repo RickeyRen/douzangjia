@@ -22,6 +22,7 @@ const snapshot = {
 
 class FakeEventSource {
   static latest: FakeEventSource;
+  static openings = 0;
   onopen: (() => void) | null = null;
   onerror: (() => void) | null = null;
   closed = false;
@@ -29,6 +30,7 @@ class FakeEventSource {
 
   constructor(readonly url: string) {
     FakeEventSource.latest = this;
+    FakeEventSource.openings += 1;
   }
 
   addEventListener(type: string, listener: EventListener) {
@@ -49,9 +51,19 @@ class FakeEventSource {
 }
 
 beforeEach(() => {
+  FakeEventSource.openings = 0;
   vi.stubGlobal("EventSource", FakeEventSource);
   vi.mocked(api.fetchDashboard).mockResolvedValue(snapshot);
   vi.mocked(api.fetchDashboardSeries).mockResolvedValue({ window: "24h", items: [] });
+});
+
+it("stays dormant when a parent already owns the dashboard stream", () => {
+  const view = renderHook(() => useDashboardStream(false));
+
+  expect(view.result.current.loading).toBe(false);
+  expect(FakeEventSource.openings).toBe(0);
+  expect(api.fetchDashboard).not.toHaveBeenCalled();
+  expect(api.fetchDashboardSeries).not.toHaveBeenCalled();
 });
 
 afterEach(() => {
