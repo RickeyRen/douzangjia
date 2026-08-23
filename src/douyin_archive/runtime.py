@@ -20,8 +20,9 @@ from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
 from .library_models import CreatorRecord
+from .library_repository import LibraryRepository
 from .media_probe import MediaProbe, MediaProbeBackfill
-from .provider.base import SessionExpired
+from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
 from .scheduler import configure_scheduler
@@ -145,6 +146,32 @@ class RuntimeSyncCoordinator:
                 return await source.fetch_creator_profile(creator_id)
             finally:
                 await source.close()
+
+    async def run_creator_identity_backfill(self) -> bool:
+        """Refresh at most one missing public identity per scheduled tick."""
+        if self._lock.locked():
+            return False
+        library = LibraryRepository(self.database)
+        creator_id = await library.next_creator_missing_identity(
+            retry_after_seconds=86400
+        )
+        if creator_id is None:
+            return False
+        try:
+            profile = await self.refresh_creator_profile(creator_id)
+            await library.upsert_creator(profile)
+        except ProviderError as error:
+            await library.record_creator_identity_attempt(
+                creator_id, error_code=error.code
+            )
+            return False
+        except Exception:  # noqa: BLE001 - scheduler boundary must stay alive
+            await library.record_creator_identity_attempt(
+                creator_id, error_code="CREATOR_PROFILE_REFRESH_FAILED"
+            )
+            return False
+        await library.record_creator_identity_attempt(creator_id, error_code=None)
+        return bool(profile.unique_id)
 
     async def _run_creator_archive(
         self,

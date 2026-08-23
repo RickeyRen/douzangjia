@@ -30,6 +30,9 @@ class FakeSyncService:
     async def run_creator_subscriptions(self) -> None:
         pass
 
+    async def run_creator_identity_backfill(self) -> None:
+        pass
+
 
 class FakeTelemetry:
     async def sample(self) -> None:
@@ -57,6 +60,12 @@ def test_scheduler_runs_every_five_minutes_without_overlap(
     assert creator_updates[1] == "interval"
     assert creator_updates[2]["seconds"] == 300
     assert creator_updates[2]["max_instances"] == 1
+    identity_backfill = next(
+        job for job in scheduler.jobs if job[2]["id"] == "creator-identity-backfill"
+    )
+    assert identity_backfill[1] == "interval"
+    assert identity_backfill[2]["seconds"] == 120
+    assert identity_backfill[2]["max_instances"] == 1
 
 
 def test_scheduler_samples_dashboard_metrics_without_blocking_sync(

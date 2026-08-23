@@ -6,7 +6,6 @@ import pytest
 from douyin_archive.provider import douyin as douyin_module
 from douyin_archive.provider.base import ProviderChanged
 from douyin_archive.provider.douyin import (
-    ALL_FAVORITES_REMOTE_ID,
     PlaywrightDouyinSource,
     _merge_collection_counts,
     _parse_collection_counts,
@@ -151,10 +150,7 @@ async def test_direct_collects_api_uses_browser_session_and_paginates() -> None:
     pages = [page async for page in source._iter_collection_api("2001")]
 
     assert collections["collects_list"][0]["collects_id_str"] == "2001"
-    assert collections["collects_list"][-1] == {
-        "collects_id_str": ALL_FAVORITES_REMOTE_ID,
-        "collects_name": "抖音全部收藏",
-    }
+    assert len(collections["collects_list"]) == 1
     assert [page["aweme_list"][0]["aweme_id"] for page in pages] == [
         "item-0",
         "item-20",
@@ -245,30 +241,6 @@ async def test_collection_count_fallback_waits_for_the_folder_view_to_render() -
     assert counts == {"想去的地方": 19}
     assert click_attempts == 2
     assert page.waits == [800, 800]
-
-
-async def test_all_favorites_use_the_flat_favorites_endpoint() -> None:
-    class FlatFavoritesPage(FakePage):
-        def __init__(self) -> None:
-            super().__init__()
-            self.paths: list[str] = []
-
-        async def evaluate(self, script: str, arguments: dict) -> dict:
-            self.paths.append(arguments["path"])
-            return {
-                "status_code": 0,
-                "aweme_list": [{"aweme_id": "all-1"}],
-                "cursor": 20,
-                "has_more": 0,
-            }
-
-    source = PlaywrightDouyinSource(FakeCoordinator())
-    source._page = FlatFavoritesPage()
-
-    pages = [page async for page in source._iter_collection_api(ALL_FAVORITES_REMOTE_ID)]
-
-    assert pages[0]["aweme_list"][0]["aweme_id"] == "all-1"
-    assert source._page.paths == ["/aweme/v1/web/aweme/listcollection/"]
 
 
 async def test_account_source_uses_visible_tab_ids_and_fetches_item_details() -> None:

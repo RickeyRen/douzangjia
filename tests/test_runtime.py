@@ -35,6 +35,15 @@ class FakeSource:
     async def close(self) -> None:
         self.closed = True
 
+    async def fetch_creator_profile(self, creator_id: str):
+        from douyin_archive.library_models import CreatorRecord
+
+        return CreatorRecord(
+            remote_id=creator_id,
+            nickname="旅行博主",
+            unique_id="travel-account",
+        )
+
     async def iter_creator_raw_pages(
         self,
         creator_id: str,
@@ -186,6 +195,40 @@ async def test_due_creator_subscriptions_archive_new_remote_posts(
     assert subscription.next_scan_at >= subscription.last_scan_at + 3600
     assert subscription.last_error_code is None
     assert await JobRepository(database).count() == 1
+    await coordinator.close()
+    await database.close()
+
+
+async def test_creator_identity_backfill_updates_one_missing_creator(
+    tmp_path: Path,
+) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO creators (remote_id, nickname, first_seen_at, last_seen_at) "
+        "VALUES ('creator-sec-uid', '旅行博主', 1, 1)"
+    )
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(),
+        source_factory=FakeSource,
+    )
+
+    updated = await coordinator.run_creator_identity_backfill()
+    creator = await database.fetchone(
+        "SELECT unique_id FROM creators WHERE remote_id='creator-sec-uid'"
+    )
+    attempt = await database.fetchone(
+        "SELECT error_code FROM creator_identity_refresh "
+        "WHERE creator_id='creator-sec-uid'"
+    )
+
+    assert updated is True
+    assert creator is not None and creator["unique_id"] == "travel-account"
+    assert attempt is not None and attempt["error_code"] is None
     await coordinator.close()
     await database.close()
 

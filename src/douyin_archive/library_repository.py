@@ -18,7 +18,7 @@ class LibraryRepository:
         ("account:posts", "post", "作品"),
         ("account:recommendations", "recommend", "推荐"),
         ("account:likes", "like", "喜欢"),
-        ("account:favorite_videos", "favorite_video", "收藏视频"),
+        ("account:favorite_videos", "favorite_video", "抖音全部收藏"),
         ("account:favorite_music", "favorite_music", "收藏音乐"),
         ("account:favorite_series", "favorite_series", "收藏合集"),
         ("account:favorite_drama", "favorite_drama", "收藏短剧"),
@@ -122,6 +122,30 @@ class LibraryRepository:
                 now,
                 now,
             ),
+        )
+
+    async def next_creator_missing_identity(
+        self, *, retry_after_seconds: int
+    ) -> str | None:
+        cutoff = int(time.time()) - retry_after_seconds
+        row = await self.db.fetchone(
+            "SELECT c.remote_id FROM creators c "
+            "LEFT JOIN creator_identity_refresh r ON r.creator_id=c.remote_id "
+            "WHERE (c.unique_id IS NULL OR TRIM(c.unique_id)='') "
+            "AND (r.attempted_at IS NULL OR r.attempted_at<=?) "
+            "ORDER BY c.last_seen_at DESC, c.remote_id LIMIT 1",
+            (cutoff,),
+        )
+        return str(row["remote_id"]) if row is not None else None
+
+    async def record_creator_identity_attempt(
+        self, creator_id: str, *, error_code: str | None
+    ) -> None:
+        await self.db.execute(
+            "INSERT INTO creator_identity_refresh (creator_id, attempted_at, error_code) "
+            "VALUES (?, ?, ?) ON CONFLICT(creator_id) DO UPDATE SET "
+            "attempted_at=excluded.attempted_at, error_code=excluded.error_code",
+            (creator_id, int(time.time()), error_code),
         )
 
     async def link_source_item(

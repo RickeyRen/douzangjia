@@ -71,6 +71,7 @@ const itemFor = (collection: (typeof collections)[number]) => ({
   publishedAt: null,
   archivedAt: 1,
   sourceUrl: `https://www.douyin.com/video/${collection.id}`,
+  creator: { id: "creator-1", nickname: "旅行家", uniqueId: "travel-id", avatarUrl: null },
   collections: [{ id: collection.id, name: collection.name }],
   media: [
     {
@@ -483,6 +484,31 @@ describe("FeedPage", () => {
     expect(await screen.findByText("正在从抖音获取抖音号…")).toBeVisible();
     await waitFor(() => expect(api.refreshCreator).toHaveBeenCalledWith("creator-1"));
     expect(await screen.findByText("抖音号：travel-id")).toBeVisible();
+  });
+
+  it("automatically enriches the missing Douyin ID beside the active video", async () => {
+    vi.mocked(api.fetchFeed).mockResolvedValue({
+      items: [{ ...itemFor(collections[0]), creator: null }],
+      nextCursor: null,
+    });
+    vi.mocked(api.fetchCreator).mockResolvedValueOnce({
+      id: "creator-1",
+      nickname: "旅行家",
+      uniqueId: null,
+      avatarUrl: null,
+      followerCount: null,
+      postCount: null,
+      knownItemCount: 1,
+      archivedItemCount: 1,
+      lastSeenAt: 1,
+      subscription: null,
+    });
+    render(<FeedPage />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "全部归档" }));
+
+    await waitFor(() => expect(api.refreshCreator).toHaveBeenCalledWith("creator-1"));
+    expect(await screen.findByText("travel-id")).toBeVisible();
+    expect(screen.queryByText("暂未获取")).not.toBeInTheDocument();
   });
 
   it("switches to the multi-post grid and remembers the preference", async () => {

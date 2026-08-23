@@ -24,8 +24,6 @@ from .base import (
 from .normalizers import normalize_collections, normalize_page
 
 logger = logging.getLogger(__name__)
-ALL_FAVORITES_REMOTE_ID = "__douyin_all_favorites__"
-ALL_FAVORITES_NAME = "抖音全部收藏"
 
 
 def _parse_compact_count(raw: str) -> int | None:
@@ -306,7 +304,6 @@ class PlaywrightDouyinSource:
     ITEM_PATH_MARKERS = ("mix/aweme", "collection/aweme", "aweme/favorite")
     COLLECTS_LIST_PATH = "/aweme/v1/web/collects/list/"
     COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
-    ALL_FAVORITES_PATH = "/aweme/v1/web/aweme/listcollection/"
     DETAIL_PATH = "/aweme/v1/web/aweme/detail/"
 
     def __init__(self, coordinator: BrowserCoordinator) -> None:
@@ -473,9 +470,7 @@ class PlaywrightDouyinSource:
         if _has_collection_schema(direct_payload):
             collections = normalize_collections(direct_payload)
             counts = await self._read_collection_counts_from_page(
-                tuple(
-                    item.name for item in collections if item.remote_id != ALL_FAVORITES_REMOTE_ID
-                )
+                tuple(item.name for item in collections)
             )
             direct_payload = _merge_collection_counts(direct_payload, counts)
             collections = normalize_collections(direct_payload)
@@ -1012,19 +1007,7 @@ class PlaywrightDouyinSource:
                     raise
             else:
                 if _has_collection_schema(last_payload):
-                    records = list(last_payload.get("collects_list", []))
-                    if not any(
-                        str(record.get("collects_id_str", "")) == ALL_FAVORITES_REMOTE_ID
-                        for record in records
-                        if isinstance(record, dict)
-                    ):
-                        records.append(
-                            {
-                                "collects_id_str": ALL_FAVORITES_REMOTE_ID,
-                                "collects_name": ALL_FAVORITES_NAME,
-                            }
-                        )
-                    return {**last_payload, "collects_list": records}
+                    return last_payload
             if attempt < 2:
                 await asyncio.sleep(1)
         return last_payload
@@ -1032,20 +1015,13 @@ class PlaywrightDouyinSource:
     async def _iter_collection_api(self, remote_id: str) -> AsyncIterator[dict]:
         cursor: int | str = 0
         seen: set[str] = set()
-        path = (
-            self.ALL_FAVORITES_PATH
-            if remote_id == ALL_FAVORITES_REMOTE_ID
-            else self.COLLECTS_ITEMS_PATH
-        )
+        path = self.COLLECTS_ITEMS_PATH
         while True:
-            collection_params = (
-                {} if remote_id == ALL_FAVORITES_REMOTE_ID else {"collects_id": remote_id}
-            )
             for attempt in range(3):
                 try:
                     payload = await self._browser_json(
                         path,
-                        {**collection_params, "cursor": cursor, "count": 20},
+                        {"collects_id": remote_id, "cursor": cursor, "count": 20},
                     )
                 except ProviderChanged:
                     if attempt == 2:

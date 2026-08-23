@@ -67,6 +67,7 @@ export function FeedPage() {
   const loadingMoreRef = useRef(false);
   const autoPaginatedCursor = useRef<string | null>(null);
   const pendingFocusIndex = useRef<number | null>(null);
+  const creatorIdentityRequests = useRef(new Set<string>());
   const selectedSource = sources.find((item) => item.id === selected);
   const entityMode = selectedSource?.kind === "favorite_music";
 
@@ -174,6 +175,37 @@ export function FeedPage() {
 
   const active = items[activeIndex];
   const selectedName = sources.find((item) => item.id === selected)?.name ?? t("allArchives");
+
+  useEffect(() => {
+    const creatorId = active?.creatorId;
+    if (!creatorId || active.creator?.uniqueId || creatorIdentityRequests.current.has(creatorId)) return;
+    creatorIdentityRequests.current.add(creatorId);
+    let cancelled = false;
+    setCreatorIdentityRefreshing(true);
+    void fetchCreator(creatorId)
+      .then((known) => known.uniqueId ? known : refreshCreator(creatorId))
+      .then((profile) => {
+        if (cancelled) return;
+        const identity = {
+          id: profile.id,
+          nickname: profile.nickname,
+          uniqueId: profile.uniqueId,
+          avatarUrl: profile.avatarUrl,
+        };
+        setItems((current) => current.map((item) => (
+          item.creatorId === creatorId ? { ...item, creator: identity } : item
+        )));
+      })
+      .catch(() => {
+        // The scheduled low-rate server backfill will retry sparse/private profiles later.
+      })
+      .finally(() => {
+        if (!cancelled) setCreatorIdentityRefreshing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.creator?.uniqueId, active?.creatorId]);
 
   function move(direction: -1 | 1) {
     const next = Math.max(0, Math.min(items.length - 1, activeIndex + direction));

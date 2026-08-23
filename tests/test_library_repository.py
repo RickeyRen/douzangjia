@@ -94,7 +94,7 @@ async def test_default_account_sources_are_created_idempotently(
         ("account:favorite_drama", "favorite_drama", "收藏短剧"),
         ("account:favorite_music", "favorite_music", "收藏音乐"),
         ("account:favorite_series", "favorite_series", "收藏合集"),
-        ("account:favorite_videos", "favorite_video", "收藏视频"),
+        ("account:favorite_videos", "favorite_video", "抖音全部收藏"),
         ("account:following", "following", "关注"),
         ("account:likes", "like", "喜欢"),
         ("account:posts", "post", "作品"),
@@ -235,6 +235,32 @@ async def test_creator_upsert_does_not_erase_known_identity_with_sparse_item_dat
     assert creator["avatar_url"] == "https://media.test/avatar.jpg"
     assert creator["follower_count"] == 321
     assert creator["post_count"] == 17
+
+
+async def test_missing_creator_identity_queue_obeys_retry_cooldown(
+    database: Database,
+) -> None:
+    library = LibraryRepository(database)
+    await library.upsert_creator(
+        CreatorRecord(remote_id="creator-old", nickname="旧作品作者", unique_id=None)
+    )
+    await library.upsert_creator(
+        CreatorRecord(remote_id="creator-recent", nickname="最近作者", unique_id=None)
+    )
+    await database.execute(
+        "UPDATE creators SET last_seen_at=1 WHERE remote_id='creator-old'"
+    )
+
+    candidate = await library.next_creator_missing_identity(retry_after_seconds=86400)
+    assert candidate == "creator-recent"
+
+    await library.record_creator_identity_attempt("creator-recent", error_code="RATE_LIMITED")
+    candidate = await library.next_creator_missing_identity(retry_after_seconds=86400)
+    assert candidate == "creator-old"
+
+    await library.record_creator_identity_attempt("creator-old", error_code=None)
+    candidate = await library.next_creator_missing_identity(retry_after_seconds=86400)
+    assert candidate is None
 
 
 async def test_non_video_source_entities_are_persisted_and_reconciled(

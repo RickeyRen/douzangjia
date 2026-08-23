@@ -31,6 +31,15 @@ def configure_scheduler(
         replace_existing=True,
     )
     scheduler.add_job(
+        sync_service.run_creator_identity_backfill,
+        "interval",
+        seconds=120,
+        id="creator-identity-backfill",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
         sync_service.run_incremental,
         "cron",
         hour=3,
