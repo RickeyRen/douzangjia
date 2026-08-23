@@ -6,7 +6,7 @@ import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
 import { RichItemDetails } from "./RichItemDetails";
 
-export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
+export function ItemDetailsSheet({ item, onClose, onOpenAuthor, refreshingIdentity = false }: { item: FeedItem; onClose: () => void; onOpenAuthor?: (creatorId: string | null, author: string) => void; refreshingIdentity?: boolean }) {
   const { t } = useI18n();
   return (
     <div className="collection-drawer-overlay" onClick={onClose}>
@@ -18,7 +18,7 @@ export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedIt
         </header>
         <p className="item-details-description">{item.description}</p>
         <dl className="item-details-list">
-          <DetailRow icon={<IdentificationCard size={20} />} label={t("itemCreatorDouyinId")} value={item.creator?.uniqueId || t("creatorIdUnavailable")} />
+          <DetailRow icon={<IdentificationCard size={20} />} label={t("itemCreatorDouyinId")} value={item.creator?.uniqueId || (refreshingIdentity ? t("creatorIdRefreshing") : t("creatorIdUnavailable"))} />
           <DetailRow icon={<Archive size={20} />} label={t("archived")} value={new Date(item.archivedAt * 1000).toLocaleDateString()} />
           <DetailRow icon={<FolderSimple size={20} />} label={t("collectionLabel")} value={item.collections.map((entry) => entry.name).join("、") || t("allArchives")} />
           <DetailRow icon={<HardDrives size={20} />} label={t("source")} value={t("localOriginal")} />

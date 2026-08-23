@@ -491,6 +491,14 @@ describe("FeedPage", () => {
       items: [{ ...itemFor(collections[0]), creator: null }],
       nextCursor: null,
     });
+    vi.mocked(api.refreshCreator).mockImplementationOnce(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 40));
+      return {
+        id: "creator-1", nickname: "旅行家", uniqueId: "travel-id", avatarUrl: null,
+        followerCount: 321, postCount: 17, knownItemCount: 1, archivedItemCount: 1,
+        lastSeenAt: 1, subscription: null,
+      };
+    });
     vi.mocked(api.fetchCreator).mockResolvedValueOnce({
       id: "creator-1",
       nickname: "旅行家",
@@ -506,6 +514,7 @@ describe("FeedPage", () => {
     render(<FeedPage />);
     await userEvent.setup().click(screen.getByRole("button", { name: "全部归档" }));
 
+    expect(await screen.findByText("正在从抖音获取抖音号…")).toBeVisible();
     await waitFor(() => expect(api.refreshCreator).toHaveBeenCalledWith("creator-1"));
     expect(await screen.findByText("travel-id")).toBeVisible();
     expect(screen.queryByText("暂未获取")).not.toBeInTheDocument();

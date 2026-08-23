@@ -195,6 +195,9 @@ export function FeedPage() {
         setItems((current) => current.map((item) => (
           item.creatorId === creatorId ? { ...item, creator: identity } : item
         )));
+        setDetailItem((current) => current?.creatorId === creatorId
+          ? { ...current, creator: identity }
+          : current);
       })
       .catch(() => {
         // The scheduled low-rate server backfill will retry sparse/private profiles later.
@@ -445,7 +448,7 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {!selectedCreator && !entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
+        {!selectedCreator && !entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} refreshingIdentity={creatorIdentityRefreshing} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
           </>
         )}
       </div>
@@ -453,7 +456,7 @@ export function FeedPage() {
       {drawerOpen ? <CollectionDrawer sources={sources} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
       {utilityPanel ? <ArchiveStatusPanel kind={utilityPanel} onClose={() => setUtilityPanel(null)} /> : null}
       {searchOpen ? <MobileSearchSheet value={search} onChange={setSearch} onClose={() => setSearchOpen(false)} /> : null}
-      {detailItem ? <ItemDetailsSheet item={detailItem} onClose={() => setDetailItem(null)} onOpenAuthor={openAuthor} /> : null}
+      {detailItem ? <ItemDetailsSheet item={detailItem} refreshingIdentity={creatorIdentityRefreshing} onClose={() => setDetailItem(null)} onOpenAuthor={openAuthor} /> : null}
       <MobileNavigation onOpen={openMobileDestination} />
     </main>
   );

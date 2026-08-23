@@ -14,7 +14,7 @@ import { AuthorButton } from "./AuthorButton";
 import { LocalStateBadge } from "./LocalStateBadge";
 import { RichItemDetails } from "./RichItemDetails";
 
-export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onOpenAuthor?: (creatorId: string | null, author: string) => void }) {
+export function DesktopItemDetails({ item, onOpenAuthor, refreshingIdentity = false }: { item: FeedItem; onOpenAuthor?: (creatorId: string | null, author: string) => void; refreshingIdentity?: boolean }) {
   const { t } = useI18n();
   const rows = [
     {
@@ -25,7 +25,7 @@ export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onO
     {
       icon: <IdentificationCard size={20} weight="duotone" />,
       label: t("itemCreatorDouyinId"),
-      value: item.creator?.uniqueId || t("creatorIdUnavailable"),
+      value: item.creator?.uniqueId || (refreshingIdentity ? t("creatorIdRefreshing") : t("creatorIdUnavailable")),
     },
     {
       icon: <NotePencil size={20} weight="duotone" />,
