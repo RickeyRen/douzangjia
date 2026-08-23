@@ -28,6 +28,7 @@ class CoordinatorPageLease:
     coordinator: BrowserCoordinator
     page: Any
     context: Any
+    serialized: bool = True
     _released: bool = False
 
     async def __aenter__(self) -> Any:
@@ -44,7 +45,8 @@ class CoordinatorPageLease:
             with suppress(Exception):
                 await self.page.close()
         finally:
-            self.coordinator._release_lease()
+            if self.serialized:
+                self.coordinator._release_lease()
 
 
 class BrowserCoordinator:
@@ -101,19 +103,34 @@ class BrowserCoordinator:
                 raise
 
     async def acquire_page(
-        self, *, viewport: tuple[int, int] = LOGIN_VIEWPORT
+        self,
+        *,
+        viewport: tuple[int, int] = LOGIN_VIEWPORT,
+        serialized: bool = True,
     ) -> CoordinatorPageLease:
-        await self._lease_lock.acquire()
+        if serialized:
+            await self._lease_lock.acquire()
         try:
             await self.start()
             page = await self.context.new_page()
             await page.set_viewport_size(
                 {"width": viewport[0], "height": viewport[1]}
             )
-            return CoordinatorPageLease(self, page, self.context)
+            return CoordinatorPageLease(
+                self, page, self.context, serialized=serialized
+            )
         except BaseException:
-            self._release_lease()
+            if serialized:
+                self._release_lease()
             raise
+
+    async def has_douyin_session_cookie(self) -> bool:
+        cookies = await self.cookies()
+        return any(
+            str(cookie.get("name", "")) in DOUYIN_SESSION_COOKIES
+            and str(cookie.get("domain", "")).lstrip(".").lower().endswith("douyin.com")
+            for cookie in cookies
+        )
 
     async def cookies(self) -> list[dict[str, object]]:
         await self.start()
@@ -124,13 +141,7 @@ class BrowserCoordinator:
         await self.context.add_cookies(cookies)
 
     async def is_douyin_authenticated(self) -> bool:
-        cookies = await self.cookies()
-        has_session = any(
-            str(cookie.get("name", "")) in DOUYIN_SESSION_COOKIES
-            and str(cookie.get("domain", "")).lstrip(".").lower().endswith("douyin.com")
-            for cookie in cookies
-        )
-        if not has_session:
+        if not await self.has_douyin_session_cookie():
             return False
 
         lease = await self.acquire_page(viewport=FAVORITES_VIEWPORT)

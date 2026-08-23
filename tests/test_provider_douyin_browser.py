@@ -41,7 +41,10 @@ class FakeCoordinator:
         self.requested_viewports: list[tuple[int, int]] = []
         self.closed = False
 
-    async def acquire_page(self, *, viewport: tuple[int, int]) -> FakeLease:
+    async def acquire_page(
+        self, *, viewport: tuple[int, int], serialized: bool = True
+    ) -> FakeLease:
+        assert isinstance(serialized, bool)
         self.requested_viewports.append(viewport)
         return self.lease
 

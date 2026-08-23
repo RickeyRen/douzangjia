@@ -68,6 +68,7 @@ class RuntimeSyncCoordinator:
         browser_coordinator: BrowserCoordinator,
         *,
         source_factory: Callable[[], Any] | None = None,
+        profile_source_factory: Callable[[], Any] | None = None,
         account_health: AccountHealthService | None = None,
     ) -> None:
         self.database = database
@@ -78,8 +79,16 @@ class RuntimeSyncCoordinator:
         self.source_factory = source_factory or (
             lambda: PlaywrightDouyinSource(browser_coordinator)
         )
+        self.profile_source_factory = profile_source_factory or (
+            source_factory
+            if source_factory is not None
+            else lambda: PlaywrightDouyinSource(
+                browser_coordinator, serialized_page=False
+            )
+        )
         self.account_health = account_health or AccountHealthService(database)
         self._lock = asyncio.Lock()
+        self._profile_lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[Any]] = set()
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
@@ -133,15 +142,31 @@ class RuntimeSyncCoordinator:
                 await source.close()
 
     async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
-        async with self._lock:
+        async with self._profile_lock:
             cookies = await self.auth.load_cookies()
-            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+            if self._lock.locked() and hasattr(
+                self.browser_coordinator, "has_douyin_session_cookie"
+            ):
+                authenticated = (
+                    await self.browser_coordinator.has_douyin_session_cookie()
+                )
+            else:
+                authenticated = await self.browser_coordinator.is_douyin_authenticated()
             if not authenticated and cookies:
                 await self.browser_coordinator.add_cookies(cookies)
-                authenticated = await self.browser_coordinator.is_douyin_authenticated()
+                if self._lock.locked() and hasattr(
+                    self.browser_coordinator, "has_douyin_session_cookie"
+                ):
+                    authenticated = (
+                        await self.browser_coordinator.has_douyin_session_cookie()
+                    )
+                else:
+                    authenticated = (
+                        await self.browser_coordinator.is_douyin_authenticated()
+                    )
             if not authenticated:
                 raise SessionExpired("Douyin login is required")
-            source = self.source_factory()
+            source = self.profile_source_factory()
             try:
                 return await source.fetch_creator_profile(creator_id)
             finally:
@@ -149,8 +174,6 @@ class RuntimeSyncCoordinator:
 
     async def run_creator_identity_backfill(self) -> bool:
         """Refresh at most one missing public identity per scheduled tick."""
-        if self._lock.locked():
-            return False
         library = LibraryRepository(self.database)
         creator_id = await library.next_creator_missing_identity(
             retry_after_seconds=86400

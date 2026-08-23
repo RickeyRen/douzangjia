@@ -129,6 +129,24 @@ async def test_page_leases_are_serialized_and_close_only_their_page(
     await coordinator.close()
 
 
+async def test_auxiliary_page_can_open_while_discovery_page_is_leased(
+    tmp_path: Path,
+) -> None:
+    coordinator, _playwright, context = make_coordinator(tmp_path)
+    discovery = await coordinator.acquire_page(viewport=(1440, 1000))
+
+    auxiliary = await asyncio.wait_for(
+        coordinator.acquire_page(viewport=(1440, 1000), serialized=False),
+        timeout=0.1,
+    )
+
+    assert len(context.pages) == 2
+    await auxiliary.release()
+    assert discovery.page.closed is False
+    await discovery.release()
+    await coordinator.close()
+
+
 async def test_authenticated_session_requires_douyin_cookie_and_no_login_redirect(
     tmp_path: Path,
 ) -> None:

@@ -306,8 +306,11 @@ class PlaywrightDouyinSource:
     COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
     DETAIL_PATH = "/aweme/v1/web/aweme/detail/"
 
-    def __init__(self, coordinator: BrowserCoordinator) -> None:
+    def __init__(
+        self, coordinator: BrowserCoordinator, *, serialized_page: bool = True
+    ) -> None:
         self.coordinator = coordinator
+        self.serialized_page = serialized_page
         self._lease: CoordinatorPageLease | None = None
         self._page: Any = None
         self._responses: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
@@ -319,7 +322,9 @@ class PlaywrightDouyinSource:
     async def open(self) -> None:
         if self._page is not None:
             return
-        self._lease = await self.coordinator.acquire_page(viewport=(1440, 1000))
+        self._lease = await self.coordinator.acquire_page(
+            viewport=(1440, 1000), serialized=self.serialized_page
+        )
         self._page = self._lease.page
         self._page.on("response", self._capture_response)
 

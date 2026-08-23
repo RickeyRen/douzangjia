@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -88,6 +89,9 @@ class FakeBrowserCoordinator:
         self.authentication_checks += 1
         if len(self.authentication_results) > 1:
             return self.authentication_results.pop(0)
+        return self.authentication_results[0]
+
+    async def has_douyin_session_cookie(self) -> bool:
         return self.authentication_results[0]
 
 
@@ -217,7 +221,13 @@ async def test_creator_identity_backfill_updates_one_missing_creator(
         source_factory=FakeSource,
     )
 
-    updated = await coordinator.run_creator_identity_backfill()
+    await coordinator._lock.acquire()
+    try:
+        updated = await asyncio.wait_for(
+            coordinator.run_creator_identity_backfill(), timeout=0.1
+        )
+    finally:
+        coordinator._lock.release()
     creator = await database.fetchone(
         "SELECT unique_id FROM creators WHERE remote_id='creator-sec-uid'"
     )
