@@ -145,6 +145,7 @@ export const zhCN = {
   muteVideo: "静音",
   showCollections: "查看收藏夹",
   itemInformation: "作品信息",
+  itemCreatorDouyinId: "抖音号",
   saveToNas: "保存到 NAS",
   archiveCurrentSource: "保存当前来源全部作品",
   viewCreatorArchivePrefix: "查看",

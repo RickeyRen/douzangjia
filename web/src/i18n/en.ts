@@ -145,6 +145,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   muteVideo: "Mute",
   showCollections: "View collections",
   itemInformation: "Post information",
+  itemCreatorDouyinId: "Douyin ID",
   saveToNas: "Save to NAS",
   archiveCurrentSource: "Save every post in this source",
   viewCreatorArchivePrefix: "View ",

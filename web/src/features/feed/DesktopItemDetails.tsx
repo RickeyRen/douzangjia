@@ -3,6 +3,7 @@ import {
   CalendarBlank,
   FolderSimple,
   HardDrives,
+  IdentificationCard,
   NotePencil,
   UserCircle,
 } from "@phosphor-icons/react";
@@ -20,6 +21,11 @@ export function DesktopItemDetails({ item, onOpenAuthor }: { item: FeedItem; onO
       icon: <UserCircle size={20} weight="duotone" />,
       label: t("source"),
       value: <AuthorButton creatorId={item.creatorId} author={item.author} onOpen={onOpenAuthor} />,
+    },
+    {
+      icon: <IdentificationCard size={20} weight="duotone" />,
+      label: t("itemCreatorDouyinId"),
+      value: item.creator?.uniqueId || t("creatorIdUnavailable"),
     },
     {
       icon: <NotePencil size={20} weight="duotone" />,

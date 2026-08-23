@@ -63,6 +63,25 @@ it("shows Douyin statistics, remote state, and local technical file details", ()
   expect(screen.getByText("#旅行")).toBeVisible();
 });
 
+it("shows the creator Douyin ID directly in every item details sidebar", () => {
+  const { rerender } = render(<DesktopItemDetails item={item} />);
+
+  expect(screen.getByText("抖音号")).toBeVisible();
+  expect(screen.getByText("travel")).toBeVisible();
+
+  rerender(<ItemDetailsSheet item={item} onClose={vi.fn()} />);
+
+  expect(screen.getByText("抖音号")).toBeVisible();
+  expect(screen.getByText("travel")).toBeVisible();
+});
+
+it("keeps the Douyin ID row visible when the creator identity is unavailable", () => {
+  render(<DesktopItemDetails item={{ ...item, creator: null }} />);
+
+  expect(screen.getByText("抖音号")).toBeVisible();
+  expect(screen.getByText("暂未获取")).toBeVisible();
+});
+
 it("rechecks the remote item and keeps the local file visible when Douyin deleted it", async () => {
   const user = userEvent.setup();
   vi.mocked(api.checkRemoteAvailability).mockResolvedValue({

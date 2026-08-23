@@ -1,4 +1,4 @@
-import { Archive, FolderSimple, HardDrives, X } from "@phosphor-icons/react";
+import { Archive, FolderSimple, HardDrives, IdentificationCard, X } from "@phosphor-icons/react";
 
 import type { FeedItem } from "../../app/api";
 import { useI18n } from "../../i18n/context";
@@ -18,6 +18,7 @@ export function ItemDetailsSheet({ item, onClose, onOpenAuthor }: { item: FeedIt
         </header>
         <p className="item-details-description">{item.description}</p>
         <dl className="item-details-list">
+          <DetailRow icon={<IdentificationCard size={20} />} label={t("itemCreatorDouyinId")} value={item.creator?.uniqueId || t("creatorIdUnavailable")} />
           <DetailRow icon={<Archive size={20} />} label={t("archived")} value={new Date(item.archivedAt * 1000).toLocaleDateString()} />
           <DetailRow icon={<FolderSimple size={20} />} label={t("collectionLabel")} value={item.collections.map((entry) => entry.name).join("、") || t("allArchives")} />
           <DetailRow icon={<HardDrives size={20} />} label={t("source")} value={t("localOriginal")} />
