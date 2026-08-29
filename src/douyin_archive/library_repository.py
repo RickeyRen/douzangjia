@@ -133,7 +133,9 @@ class LibraryRepository:
             "LEFT JOIN creator_identity_refresh r ON r.creator_id=c.remote_id "
             "WHERE (c.unique_id IS NULL OR TRIM(c.unique_id)='') "
             "AND (r.attempted_at IS NULL OR r.attempted_at<=?) "
-            "ORDER BY c.last_seen_at DESC, c.remote_id LIMIT 1",
+            "ORDER BY CASE WHEN c.remote_id=("
+            "SELECT remote_id FROM douyin_account WHERE provider='douyin'"
+            ") THEN 0 ELSE 1 END, c.last_seen_at DESC, c.remote_id LIMIT 1",
             (cutoff,),
         )
         return str(row["remote_id"]) if row is not None else None

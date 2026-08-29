@@ -263,6 +263,31 @@ async def test_missing_creator_identity_queue_obeys_retry_cooldown(
     assert candidate is None
 
 
+async def test_missing_creator_identity_queue_prioritizes_the_logged_in_account(
+    database: Database,
+) -> None:
+    """Catches the account Douyin ID starving behind thousands of newer creators."""
+    library = LibraryRepository(database)
+    await library.upsert_creator(
+        CreatorRecord(remote_id="self-account", nickname="当前账号", unique_id=None)
+    )
+    await library.upsert_creator(
+        CreatorRecord(remote_id="recent-creator", nickname="最近作者", unique_id=None)
+    )
+    await database.execute(
+        "UPDATE creators SET last_seen_at=1 WHERE remote_id='self-account'"
+    )
+    await database.execute(
+        "INSERT INTO douyin_account "
+        "(provider, remote_id, nickname, health_status, updated_at) "
+        "VALUES ('douyin', 'self-account', '当前账号', 'healthy', 1)"
+    )
+
+    candidate = await library.next_creator_missing_identity(retry_after_seconds=86400)
+
+    assert candidate == "self-account"
+
+
 async def test_non_video_source_entities_are_persisted_and_reconciled(
     database: Database,
 ) -> None:

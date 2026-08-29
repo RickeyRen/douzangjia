@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from .account_health import AccountHealthService
+from .account_health import AccountHealthService, DouyinAccountProfile
 from .archive_handler import ArchiveJobHandler
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .auth_service import AuthService
@@ -183,6 +183,19 @@ class RuntimeSyncCoordinator:
         try:
             profile = await self.refresh_creator_profile(creator_id)
             await library.upsert_creator(profile)
+            account = await self.database.fetchone(
+                "SELECT remote_id FROM douyin_account WHERE provider='douyin'"
+            )
+            if account is not None and str(account["remote_id"]) == profile.remote_id:
+                await self.account_health.record_success(
+                    DouyinAccountProfile(
+                        remote_id=profile.remote_id,
+                        nickname=profile.nickname,
+                        unique_id=profile.unique_id,
+                        avatar_url=profile.avatar_url,
+                    ),
+                    verified_at=int(time.time()),
+                )
         except ProviderError as error:
             await library.record_creator_identity_attempt(
                 creator_id, error_code=error.code

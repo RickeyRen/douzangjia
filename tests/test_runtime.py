@@ -243,6 +243,41 @@ async def test_creator_identity_backfill_updates_one_missing_creator(
     await database.close()
 
 
+async def test_creator_identity_backfill_updates_the_logged_in_account_snapshot(
+    tmp_path: Path,
+) -> None:
+    """Catches a refreshed self profile remaining unavailable on the dashboard."""
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    await database.execute(
+        "INSERT INTO creators (remote_id, nickname, first_seen_at, last_seen_at) "
+        "VALUES ('self-account', '当前账号', 1, 1)"
+    )
+    await database.execute(
+        "INSERT INTO douyin_account "
+        "(provider, remote_id, nickname, health_status, updated_at) "
+        "VALUES ('douyin', 'self-account', '当前账号', 'healthy', 1)"
+    )
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(),
+        source_factory=FakeSource,
+    )
+
+    updated = await coordinator.run_creator_identity_backfill()
+    account = await database.fetchone(
+        "SELECT unique_id FROM douyin_account WHERE provider='douyin'"
+    )
+
+    assert updated is True
+    assert account is not None and account["unique_id"] == "travel-account"
+    await coordinator.close()
+    await database.close()
+
+
 async def test_stale_browser_session_is_marked_expired_without_opening_source(
     tmp_path: Path,
 ) -> None:
