@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from douyin_archive.db import Database
-from douyin_archive.library_models import LibrarySource, LibrarySourceKind
+from douyin_archive.library_models import (
+    LibrarySource,
+    LibrarySourceKind,
+    LibrarySyncStatus,
+)
 from douyin_archive.library_repository import LibraryRepository
 from douyin_archive.repositories import ArchiveRepository
 
@@ -307,6 +311,82 @@ async def test_live_snapshot_matches_full_home_contract(dashboard_components) ->
     }
     assert "account" in snapshot
     assert "sources" in snapshot
+
+
+async def test_live_snapshot_exposes_current_sync_and_download_activity(
+    dashboard_components,
+) -> None:
+    """Catches the live homepage hiding the work the archive engine is doing."""
+    database, _dashboard_module, _telemetry_module, service, _telemetry = (
+        dashboard_components
+    )
+    archive = ArchiveRepository(database)
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="account:likes",
+            kind=LibrarySourceKind.LIKE,
+            remote_id="self",
+            name="喜欢",
+            declared_count=20,
+            sync_status=LibrarySyncStatus.RUNNING,
+        )
+    )
+    await archive.upsert_item(
+        remote_id="active-video",
+        author_name="旅行家",
+        description="海边日落",
+        item_type="video",
+    )
+    await database.execute(
+        "INSERT INTO download_jobs "
+        "(kind, remote_id, payload_json, status, attempts, next_attempt_at, "
+        "created_at, updated_at) VALUES "
+        "('download', 'active-video', "
+        "'{\"assets\":[{\"asset_index\":0,\"media_type\":\"video\"}]}', "
+        "'running', 0, 1, 9, 10)"
+    )
+    await database.execute(
+        "INSERT INTO media_files "
+        "(item_id, asset_index, media_type, status, downloaded_bytes, total_bytes, "
+        "speed_bps, progress_updated_at, created_at, updated_at) "
+        "VALUES ('active-video', 0, 'video', 'running', 25, 100, 10, 10000, 9, 10000)"
+    )
+    await database.execute(
+        "INSERT INTO sync_runs "
+        "(mode, phase, status, discovered_count, enqueued_count, started_at) "
+        "VALUES ('incremental', 'discovering', 'running', 9, 4, 9990)"
+    )
+
+    activity = (await service.snapshot())["activity"]
+
+    assert activity["state"] == "syncing_and_downloading"
+    assert activity["sync"] == {
+        "id": 1,
+        "mode": "incremental",
+        "phase": "discovering",
+        "status": "running",
+        "discovered": 9,
+        "enqueued": 4,
+        "errorCode": None,
+        "startedAt": 9990,
+        "finishedAt": None,
+    }
+    assert activity["sources"] == [
+        {
+            "id": "account:likes",
+            "kind": "like",
+            "name": "喜欢",
+            "discovered": 0,
+            "remoteTotal": 20,
+        }
+    ]
+    assert len(activity["downloads"]) == 1
+    assert activity["downloads"][0]["description"] == "海边日落"
+    assert activity["downloads"][0]["author"] == "旅行家"
+    assert activity["downloads"][0]["downloadedBytes"] == 25
+    assert activity["downloads"][0]["totalBytes"] == 100
+    assert activity["downloads"][0]["speedBps"] == 10.0
 
 
 async def test_runtime_cards_report_real_logical_service_boundaries(

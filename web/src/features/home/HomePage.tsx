@@ -26,6 +26,7 @@ import { ThemeToggle } from "../../theme/ThemeToggle";
 import { formatBytes, formatSpeed } from "../status/downloadFormat";
 import { formatDelta, formatLoadAverage, formatPercent, formatRuntimeStatus } from "./dashboardFormat";
 import { DashboardMetric, DashboardSection, DashboardTrend } from "./DashboardPrimitives";
+import { LiveActivitySection } from "./LiveActivitySection";
 import { RuntimeSection } from "./RuntimeSection";
 import { SourceProgressSection } from "./SourceProgressSection";
 import { useDashboardStream, type DashboardStreamState } from "./useDashboardStream";
@@ -97,6 +98,8 @@ export function HomePage({
       </header>
 
       <div className="home-scroll">
+        <LiveActivitySection activity={snapshot.activity} speedBps={snapshot.queue.speedBps} onOpenDownloads={onOpenDownloads} />
+
         <DashboardSection title={t("engineUsageTitle")}>
           <div className="home-dashboard-grid is-four">
             <DashboardMetric label={t("serviceCount")} value={`${snapshot.runtime.serviceCount} ${t("serviceUnit")}`} icon={<Stack size={18} weight="duotone" />} tone="blue" />

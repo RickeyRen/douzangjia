@@ -22,6 +22,7 @@ const snapshot = {
     historyStartedAt: null,
   },
   health: { recentErrors: 0, uptimeSeconds: 1, latestSync: null },
+  activity: { state: "idle" as const, sync: null, sources: [], downloads: [] },
   account: { sessionStored: true, status: "healthy" as const, lastVerifiedAt: 1, lastSyncAt: 1, lastFailureAt: null, errorCode: null, consecutiveFailures: 0, account: null },
   runtime: {
     serviceCount: 3,

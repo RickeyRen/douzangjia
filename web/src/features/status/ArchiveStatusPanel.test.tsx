@@ -80,6 +80,7 @@ beforeEach(() => {
       lifetime: { bytes: 120_000_000 }, historyStartedAt: null,
     },
     health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
+    activity: { state: "idle", sync: null, sources: [], downloads: [] },
     account: { sessionStored: true, status: "healthy", lastVerifiedAt: 1, lastSyncAt: 1, lastFailureAt: null, errorCode: null, consecutiveFailures: 0, account: null },
     runtime: {
       serviceCount: 3,

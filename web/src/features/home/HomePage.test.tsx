@@ -58,6 +58,44 @@ const snapshot: DashboardSnapshot = {
     historyStartedAt: 1,
   },
   health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
+  activity: {
+    state: "syncing_and_downloading",
+    sync: {
+      id: 8,
+      mode: "incremental",
+      phase: "discovering",
+      status: "running",
+      discovered: 9,
+      enqueued: 4,
+      errorCode: null,
+      startedAt: 90,
+      finishedAt: null,
+    },
+    sources: [
+      { id: "account:likes", kind: "like", name: "喜欢", discovered: 120, remoteTotal: 150 },
+    ],
+    downloads: [
+      {
+        id: 21,
+        kind: "download",
+        remoteId: "video-21",
+        author: "旅行家",
+        description: "海边日落",
+        collections: ["想去的地方"],
+        status: "running",
+        attempts: 0,
+        nextAttemptAt: 0,
+        errorCode: null,
+        updatedAt: 100,
+        currentAssetIndex: 0,
+        downloadedBytes: 25,
+        totalBytes: 100,
+        speedBps: 10,
+        etaSeconds: 8,
+        assets: [],
+      },
+    ],
+  },
   account: {
     sessionStored: true,
     status: "healthy",
@@ -176,6 +214,7 @@ it("renders the complete real operations dashboard in scan order", () => {
 
   const home = screen.getByRole("main", { name: "首页" });
   for (const heading of [
+    "实时活动",
     "归档引擎使用情况",
     "服务详情",
     "归档吞吐",
@@ -198,6 +237,20 @@ it("renders the complete real operations dashboard in scan order", () => {
   expect(within(home).getByText("+9.5 MB")).toBeVisible();
   expect(within(home).getAllByText("数据积累中")).toHaveLength(2);
   expect(within(home).getByText("5 个进程")).toBeVisible();
+});
+
+it("shows the current sync source and per-video download progress", () => {
+  render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
+
+  const activity = screen.getByRole("region", { name: "实时活动" });
+  expect(within(activity).getByText("正在同步并下载")).toBeVisible();
+  expect(within(activity).getAllByText("喜欢").length).toBeGreaterThanOrEqual(1);
+  expect(within(activity).getByText("已发现 9 · 新增任务 4")).toBeVisible();
+  expect(within(activity).getByText("海边日落")).toBeVisible();
+  expect(within(activity).getByText("旅行家 · 想去的地方")).toBeVisible();
+  expect(within(activity).getByText("25 B / 100 B")).toBeVisible();
+  expect(within(activity).getByText("10 B/s")).toBeVisible();
+  expect(within(activity).getByRole("progressbar", { name: "海边日落 下载进度" })).toHaveAttribute("aria-valuenow", "25");
 });
 
 it("uses distinct semantic icon tones instead of one accent everywhere", () => {

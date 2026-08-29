@@ -83,6 +83,7 @@ const dashboardSnapshot: api.DashboardSnapshot = {
     uptimeSeconds: 600,
     latestSync: { id: 8, mode: "full", phase: "collecting", status: "running", discovered: 6, enqueued: 4, errorCode: null, startedAt: 100, finishedAt: null },
   },
+  activity: { state: "syncing", sync: { id: 8, mode: "full", phase: "collecting", status: "running", discovered: 6, enqueued: 4, errorCode: null, startedAt: 100, finishedAt: null }, sources: [], downloads: [] },
   account: {
     sessionStored: true,
     status: "healthy",

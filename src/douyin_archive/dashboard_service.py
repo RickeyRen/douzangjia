@@ -170,7 +170,8 @@ class DashboardService:
             "(SELECT COALESCE(SUM(byte_size), 0) FROM media_files WHERE status='ready') "
             "AS archived_bytes"
         )
-        queue = (await DownloadMonitor(self.db).snapshot(limit=0))["summary"]
+        downloads = await DownloadMonitor(self.db, clock=self.clock).snapshot(limit=3)
+        queue = downloads["summary"]
         recent_errors = await self.db.fetchone(
             "SELECT "
             "(SELECT COUNT(*) FROM download_jobs WHERE status IN ('failed', 'retry') "
@@ -200,6 +201,51 @@ class DashboardService:
         browser_busy = bool(browser_state.get("busy", False))
         browser_status = (
             "busy" if browser_busy else "running" if browser_started else "unavailable"
+        )
+        sync_state = (
+            {
+                "id": latest_sync["id"],
+                "mode": latest_sync["mode"],
+                "phase": latest_sync["phase"],
+                "status": latest_sync["status"],
+                "discovered": latest_sync["discovered_count"],
+                "enqueued": latest_sync["enqueued_count"],
+                "errorCode": latest_sync["error_code"],
+                "startedAt": latest_sync["started_at"],
+                "finishedAt": latest_sync["finished_at"],
+            }
+            if latest_sync is not None
+            else None
+        )
+        sources = await self.source_progress()
+        activity_downloads = [
+            item
+            for item in downloads["items"]
+            if item["status"] in {"pending", "running", "retry"}
+        ]
+        active_sources = [
+            {
+                "id": source["id"],
+                "kind": source["kind"],
+                "name": source["name"],
+                "discovered": source["discovered"],
+                "remoteTotal": source["remoteTotal"],
+            }
+            for source in sources
+            if source["syncStatus"] == "running"
+        ][:3]
+        syncing = bool(
+            sync_state is not None and sync_state["status"] in {"queued", "running"}
+        )
+        downloading = bool(activity_downloads)
+        activity_state = (
+            "syncing_and_downloading"
+            if syncing and downloading
+            else "syncing"
+            if syncing
+            else "downloading"
+            if downloading
+            else "idle"
         )
         return {
             "storage": {
@@ -238,20 +284,14 @@ class DashboardService:
                 "recentErrors": int(recent_errors["total"]) if recent_errors else 0,
                 "uptimeSeconds": max(generated_at - self.started_at, 0),
                 "latestSync": (
-                    {
-                        "id": latest_sync["id"],
-                        "mode": latest_sync["mode"],
-                        "phase": latest_sync["phase"],
-                        "status": latest_sync["status"],
-                        "discovered": latest_sync["discovered_count"],
-                        "enqueued": latest_sync["enqueued_count"],
-                        "errorCode": latest_sync["error_code"],
-                        "startedAt": latest_sync["started_at"],
-                        "finishedAt": latest_sync["finished_at"],
-                    }
-                    if latest_sync is not None
-                    else None
+                    sync_state
                 ),
+            },
+            "activity": {
+                "state": activity_state,
+                "sync": sync_state,
+                "sources": active_sources,
+                "downloads": activity_downloads,
             },
             "account": account,
             "runtime": {
@@ -286,7 +326,7 @@ class DashboardService:
                     "lastActivityAt": account["lastSyncAt"],
                 },
             },
-            "sources": await self.source_progress(),
+            "sources": sources,
             "generatedAt": generated_at,
         }
 

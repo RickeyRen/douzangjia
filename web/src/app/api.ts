@@ -124,6 +124,19 @@ export type ArchiveBatch = {
   errorCode?: string | null;
 };
 
+export type DashboardActivity = {
+  state: "syncing_and_downloading" | "syncing" | "downloading" | "idle";
+  sync: SyncRun | null;
+  sources: Array<{
+    id: string;
+    kind: LibrarySource["kind"];
+    name: string;
+    discovered: number;
+    remoteTotal: number | null;
+  }>;
+  downloads: DownloadJob[];
+};
+
 export type DashboardSnapshot = {
   storage: { totalBytes: number; usedBytes: number; freeBytes: number; archiveBytes: number; usedPercent: number };
   system: { cpuCount: number; cpuLoadPercent: number; loadAverage1m: number; loadAverage5m: number; loadAverage15m: number; memoryTotalBytes: number; memoryUsedBytes: number; processMemoryBytes: number; browserProcessCount: number; browserMemoryBytes: number };
@@ -137,6 +150,7 @@ export type DashboardSnapshot = {
     historyStartedAt: number | null;
   };
   health: { recentErrors: number; uptimeSeconds: number; latestSync: SyncRun | null };
+  activity: DashboardActivity;
   account: DouyinHealth;
   runtime: DashboardRuntime;
   sources: SourceProgress[];

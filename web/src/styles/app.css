@@ -656,6 +656,49 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .home-dashboard-section { min-width: 0; margin-top: 16px; }
 .home-dashboard-section:first-child { margin-top: 0; }
 .home-dashboard-section > h2 { margin: 0 0 8px; color: var(--app-text); font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
+.home-activity {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(250px, .8fr) minmax(360px, 1.2fr);
+  overflow: hidden;
+  border: 1px solid var(--app-line-strong);
+  border-radius: 9px;
+  background: var(--app-surface-raised);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);
+}
+.home-activity.is-active { border-color: color-mix(in srgb, var(--app-info) 30%, var(--app-line-strong)); }
+.home-activity-summary { display: grid; min-width: 0; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; padding: 15px; background: linear-gradient(135deg, var(--app-info-soft), transparent 68%); }
+.home-activity-orbit { display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid color-mix(in srgb, var(--icon-color) 38%, var(--app-line)); border-radius: 50%; color: var(--icon-color); background: var(--icon-soft); }
+.home-activity.is-active .home-activity-orbit { box-shadow: 0 0 0 6px color-mix(in srgb, var(--app-info) 8%, transparent); }
+.home-activity-copy { min-width: 0; }
+.home-activity-live { display: flex; align-items: center; gap: 6px; color: var(--app-faint); font-size: 10px; font-weight: 620; }
+.home-activity-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--app-success); }
+.home-activity.is-active .home-activity-live i { animation: home-status-breathe 1.7s ease-in-out infinite; }
+.home-activity-copy > strong { display: block; overflow: hidden; margin-top: 6px; color: var(--app-text); font-size: 19px; font-weight: 680; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
+.home-activity-copy > p { overflow: hidden; margin: 5px 0 0; color: var(--app-muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.home-activity-stats { display: flex; grid-column: 1 / -1; gap: 22px; margin: 13px 0 0; padding-top: 11px; border-top: 1px solid var(--app-line); }
+.home-activity-stats div { min-width: 92px; }
+.home-activity-stats dt { color: var(--app-faint); font-size: 10px; }
+.home-activity-stats dd { margin: 4px 0 0; color: var(--app-text); font-family: "Geist Mono", ui-monospace, monospace; font-size: 14px; font-weight: 650; }
+.home-activity-list { display: grid; min-width: 0; align-content: center; border-left: 1px solid var(--app-line-strong); }
+.home-activity-row { position: relative; display: grid; min-width: 0; min-height: 66px; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; overflow: hidden; border: 0; border-bottom: 1px solid var(--app-line); padding: 10px 13px; color: var(--app-text); background: transparent; text-align: left; }
+.home-activity-row:last-child { border-bottom: 0; }
+.home-activity-row > .app-icon-well { width: 34px; height: 34px; border-radius: 8px; }
+.home-activity-row-copy { min-width: 0; }
+.home-activity-row-copy strong,
+.home-activity-row-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-activity-row-copy strong { color: var(--app-text); font-size: 12px; font-weight: 650; }
+.home-activity-row-copy small { margin-top: 4px; color: var(--app-faint); font-size: 10px; }
+.home-activity-counts { color: var(--app-muted); font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; white-space: nowrap; }
+.home-activity-scan { position: absolute; inset: auto 0 0; height: 2px; background: linear-gradient(90deg, transparent, var(--app-violet), transparent); animation: download-progress-slide 1.5s linear infinite; }
+.home-activity-download-metrics { min-width: 108px; text-align: right; }
+.home-activity-download-metrics strong,
+.home-activity-download-metrics small { display: block; font-family: "Geist Mono", ui-monospace, monospace; }
+.home-activity-download-metrics strong { color: var(--app-text); font-size: 11px; }
+.home-activity-download-metrics small { margin-top: 4px; color: var(--app-info); font-size: 10px; }
+.home-activity-progress { position: absolute; inset: auto 13px 7px 57px; height: 3px; overflow: hidden; border-radius: 3px; background: var(--app-line); }
+.home-activity-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--app-info), var(--app-accent)); transition: width 260ms ease; }
+.home-activity-progress.is-indeterminate i { width: 38%; animation: download-progress-slide 1.5s linear infinite; }
 .home-dashboard-grid { display: grid; min-width: 0; gap: 8px; }
 .home-dashboard-grid.is-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .home-dashboard-grid.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -817,6 +860,13 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
   .home-queue-grid > :last-child,
   .home-account-grid > :last-child { grid-column: 1 / -1; }
   .home-dashboard-metric { min-height: 96px; flex-direction: column; gap: 8px; padding: 11px; }
+  .home-activity { grid-template-columns: minmax(0, 1fr); }
+  .home-activity-summary { padding: 13px; }
+  .home-activity-list { border-top: 1px solid var(--app-line-strong); border-left: 0; }
+  .home-activity-row { min-height: 72px; grid-template-columns: 34px minmax(0, 1fr); padding: 10px 12px 18px; }
+  .home-activity-counts,
+  .home-activity-download-metrics { grid-column: 2; margin-top: -5px; text-align: left; }
+  .home-activity-progress { inset: auto 12px 8px 56px; }
   .home-dashboard-metric-copy > strong { margin-top: 5px; font-size: 18px; }
   .home-dashboard-metric-copy > span { max-width: 100%; white-space: normal; }
   .home-trend-grid,
@@ -840,6 +890,9 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 
 @media (prefers-reduced-motion: reduce) {
   .home-live-state.is-live i { animation: none; }
+  .home-activity.is-active .home-activity-live i,
+  .home-activity-scan,
+  .home-activity-progress.is-indeterminate i { animation: none; }
   button.home-dashboard-metric { transition: none; }
 }
 .auth-shell { position: relative; display: grid; min-height: 100dvh; color: var(--app-text); background: var(--app-bg); }
