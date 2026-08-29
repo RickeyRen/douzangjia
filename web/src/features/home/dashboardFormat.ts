@@ -14,6 +14,14 @@ export function formatLoadAverage(one: number, five: number, fifteen: number): s
   return `${one.toFixed(2)} / ${five.toFixed(2)} / ${fifteen.toFixed(2)}`;
 }
 
+export function formatPercent(value: number, total: number): string {
+  if (value <= 0 || total <= 0) return "0%";
+  const share = (value / total) * 100;
+  if (share < 0.1) return "<0.1%";
+  if (share < 10) return `${share.toFixed(1)}%`;
+  return `${Math.round(share)}%`;
+}
+
 export function formatRuntimeStatus(
   status: string,
   labels: Record<"running" | "busy" | "unavailable", string>,

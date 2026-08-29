@@ -24,7 +24,7 @@ import {
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
 import { formatBytes, formatSpeed } from "../status/downloadFormat";
-import { formatDelta, formatLoadAverage, formatRuntimeStatus } from "./dashboardFormat";
+import { formatDelta, formatLoadAverage, formatPercent, formatRuntimeStatus } from "./dashboardFormat";
 import { DashboardMetric, DashboardSection, DashboardTrend } from "./DashboardPrimitives";
 import { RuntimeSection } from "./RuntimeSection";
 import { SourceProgressSection } from "./SourceProgressSection";
@@ -39,10 +39,6 @@ function timestamp(value: number | null, locale: "zh-CN" | "en"): string {
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(value * 1000));
-}
-
-function percent(value: number, total: number): string {
-  return `${total > 0 ? Math.round((value / total) * 100) : 0}%`;
 }
 
 export function HomePage({
@@ -139,9 +135,9 @@ export function HomePage({
 
         <DashboardSection title={t("nasSystemTitle")}>
           <div className="home-dashboard-grid is-four">
-            <DashboardMetric label={t("archiveData")} value={formatBytes(snapshot.storage.archiveBytes)} detail={`${percent(snapshot.storage.archiveBytes, snapshot.storage.totalBytes)} ${t("storageUsage")}`} icon={<Database size={18} weight="duotone" />} tone="blue" />
+            <DashboardMetric label={t("archiveData")} value={formatBytes(snapshot.storage.archiveBytes)} detail={`${formatPercent(snapshot.storage.archiveBytes, snapshot.storage.totalBytes)} ${t("storageUsage")}`} icon={<Database size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("diskSpace")} value={`${formatBytes(snapshot.storage.usedBytes)} / ${formatBytes(snapshot.storage.totalBytes)}`} detail={`${formatBytes(snapshot.storage.freeBytes)} ${t("freeStorage")}`} icon={<HardDrives size={18} weight="duotone" />} tone="cyan" />
-            <DashboardMetric label={t("systemMemory")} value={`${formatBytes(snapshot.system.memoryUsedBytes)} / ${formatBytes(snapshot.system.memoryTotalBytes)}`} detail={percent(snapshot.system.memoryUsedBytes, snapshot.system.memoryTotalBytes)} icon={<Memory size={18} weight="duotone" />} tone="green" />
+            <DashboardMetric label={t("systemMemory")} value={`${formatBytes(snapshot.system.memoryUsedBytes)} / ${formatBytes(snapshot.system.memoryTotalBytes)}`} detail={formatPercent(snapshot.system.memoryUsedBytes, snapshot.system.memoryTotalBytes)} icon={<Memory size={18} weight="duotone" />} tone="green" />
             <DashboardMetric label={t("loadAverage")} value={formatLoadAverage(snapshot.system.loadAverage1m, snapshot.system.loadAverage5m, snapshot.system.loadAverage15m)} detail={`${snapshot.system.cpuCount} CPU`} icon={<Cpu size={18} weight="duotone" />} tone="violet" />
           </div>
         </DashboardSection>
@@ -149,7 +145,7 @@ export function HomePage({
         <DashboardSection title={t("libraryTitle")}>
           <div className="home-dashboard-grid is-five">
             <DashboardMetric label={t("discoveredItems")} value={number.format(snapshot.library.items)} icon={<Stack size={18} weight="duotone" />} tone="blue" />
-            <DashboardMetric label={t("downloadedPosts")} value={number.format(snapshot.library.archivedItems)} detail={percent(snapshot.library.archivedItems, snapshot.library.items)} icon={<VideoCamera size={18} weight="duotone" />} tone="amber" />
+            <DashboardMetric label={t("downloadedPosts")} value={number.format(snapshot.library.archivedItems)} detail={formatPercent(snapshot.library.archivedItems, snapshot.library.items)} icon={<VideoCamera size={18} weight="duotone" />} tone="amber" />
             <DashboardMetric label={t("mediaFiles")} value={number.format(snapshot.library.mediaFiles)} icon={<Database size={18} weight="duotone" />} tone="cyan" />
             <DashboardMetric label={t("creatorsCount")} value={number.format(snapshot.library.creators)} icon={<UsersThree size={18} weight="duotone" />} tone="green" />
             <DashboardMetric label={t("sourceCategories")} value={number.format(snapshot.library.sources)} detail={`${snapshot.library.completeSources} ${t("syncComplete")}`} icon={<Stack size={18} weight="duotone" />} tone="violet" />
