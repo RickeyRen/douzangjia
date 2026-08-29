@@ -48,7 +48,10 @@ export function SourceProgressSection({
             <article key={source.id} className="home-source-row" data-icon-tone={tone}>
               <button className="home-source-identity" type="button" onClick={() => onOpenSource(source.id)}>
                 <span className="app-icon-well" data-icon-tone={tone}><Database size={17} weight="duotone" /></span>
-                <span><strong>{source.name}</strong><small>{numberFormat.format(source.archived)} / {numberFormat.format(source.discovered)} {t("archivedWorks")}</small></span>
+                <div className="home-source-copy">
+                  <strong>{source.name}</strong>
+                  <small>{numberFormat.format(source.archived)} / {numberFormat.format(source.discovered)} {t("archivedWorks")}</small>
+                </div>
               </button>
               <ProgressRing value={source.coveragePercent} label={`${source.name} ${t("collectionProgressTitle")}`} compact />
               <dl className="home-source-metrics">

@@ -213,6 +213,20 @@ it("uses distinct semantic icon tones instead of one accent everywhere", () => {
   expect(home.querySelector('[data-runtime-tone="green"]')).toBeTruthy();
 });
 
+it("keeps source copy outside the fixed-size icon well", () => {
+  render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
+
+  const source = screen
+    .getByRole("region", { name: "收藏分类进度" })
+    .querySelector<HTMLButtonElement>(".home-source-identity");
+  expect(source).toBeTruthy();
+  if (!source) throw new Error("missing source identity button");
+  expect(source.querySelectorAll(":scope > .app-icon-well")).toHaveLength(1);
+  const copy = source.querySelector(".home-source-copy");
+  expect(copy).toBeTruthy();
+  expect(copy).toContainElement(screen.getByText("想去的地方"));
+});
+
 it("changes one category download policy without changing another source", async () => {
   const user = userEvent.setup();
   vi.mocked(api.updateSourceDownloadPolicy).mockResolvedValue({

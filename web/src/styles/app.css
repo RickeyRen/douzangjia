@@ -530,8 +530,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .home-source-list { margin-top: 14px; border-top: 1px solid var(--app-line); }
 .home-source-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 14px 2px; border-bottom: 1px solid var(--app-line); }
 .home-source-identity { display: flex; min-width: 0; align-items: center; gap: 10px; border: 0; padding: 0; color: var(--app-text); background: transparent; text-align: left; }
-.home-source-identity > span { display: grid; width: 35px; height: 35px; flex: 0 0 35px; place-items: center; border-radius: 9px; color: var(--icon-color); background: var(--icon-soft); }
-.home-source-identity > div { min-width: 0; }
+.home-source-identity > .app-icon-well { display: grid; width: 35px; height: 35px; flex: 0 0 35px; place-items: center; border-radius: 9px; color: var(--icon-color); background: var(--icon-soft); }
+.home-source-copy { min-width: 0; flex: 1; }
 .home-source-identity strong, .home-source-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-source-identity strong { font-size: 14px; font-weight: 640; }
 .home-source-identity small { margin-top: 4px; color: var(--app-faint); font-size: 12px; }
@@ -730,8 +730,8 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
   background: var(--app-surface-raised);
 }
 .home-source-identity { min-height: 44px; gap: 10px; }
-.home-source-identity > span:first-child { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 8px; }
-.home-source-identity > span:last-child { min-width: 0; }
+.home-source-identity > .app-icon-well { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 8px; }
+.home-source-copy { min-width: 0; }
 .home-source-identity strong { font-size: 13px; font-weight: 650; }
 .home-source-identity small { margin-top: 4px; color: var(--app-faint); font-size: 11px; }
 .home-source-row > .progress-ring { grid-column: auto; }
