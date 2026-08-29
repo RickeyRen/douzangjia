@@ -1,6 +1,4 @@
 import asyncio
-import json
-import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -10,9 +8,10 @@ from typing import Literal
 from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .account_health import AccountHealthService
+from .admin_store import AdminStore, normalize_username
 from .browser_coordinator import BrowserCoordinator
 from .browser_profile import BrowserProfileStore
 from .browser_socket import handle_browser_socket
@@ -42,11 +41,28 @@ def _mjpeg_chunk(frame: bytes) -> bytes:
 
 
 class SetupRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=64)
     password: str = Field(min_length=12, max_length=256)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        return normalize_username(value)[0]
 
 
 class SessionRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=64)
     password: str = Field(min_length=1, max_length=256)
+
+
+class OwnerMigrationRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=64)
+    current_password: str = Field(min_length=1, max_length=256, alias="currentPassword")
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        return normalize_username(value)[0]
 
 
 class SyncRequest(BaseModel):
@@ -84,39 +100,6 @@ class KeyRequest(BaseModel):
         "Enter",
         "Tab",
     ]
-
-
-class AdminStore:
-    """Small first-boot credential store; the database layer replaces this facade later."""
-
-    def __init__(self, path: Path) -> None:
-        self.path = path
-
-    @property
-    def configured(self) -> bool:
-        return self.path.is_file()
-
-    def create(self, password_hash: str) -> None:
-        if self.configured:
-            raise FileExistsError(self.path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps({"passwordHash": password_hash}, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        os.chmod(temporary, 0o600)
-        temporary.replace(self.path)
-
-    def password_hash(self) -> str | None:
-        if not self.configured:
-            return None
-        try:
-            value = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        encoded = value.get("passwordHash") if isinstance(value, dict) else None
-        return str(encoded) if encoded else None
 
 
 def _prepare_directories(root: Path) -> None:
@@ -220,12 +203,16 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         setup_path = request.url.path == "/api/setup"
         status_path = request.url.path == "/api/status"
         login_path = request.url.path == "/api/session" and request.method == "POST"
+        migration_path = (
+            request.url.path == "/api/admin/migrate-owner" and request.method == "POST"
+        )
         protected = (
             is_api
             and admin_store.configured
             and not setup_path
             and not status_path
             and not login_path
+            and not migration_path
         )
         session_valid = decode_session(request)
         if protected and not session_valid:
@@ -275,9 +262,12 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         }
 
     @app.post("/api/setup", status_code=201)
-    async def setup(payload: SetupRequest, response: Response) -> dict[str, bool]:
+    async def setup(payload: SetupRequest, response: Response) -> dict[str, object]:
         try:
-            admin_store.create(password_hasher.hash(payload.password))
+            account = admin_store.create_owner(
+                payload.username,
+                password_hasher.hash(payload.password),
+            )
         except FileExistsError:
             return JSONResponse(
                 status_code=409,
@@ -285,7 +275,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             )
 
         issue_session(response)
-        return {"configured": True}
+        return {"configured": True, "username": account.username}
 
     @app.get("/api/status")
     async def public_status(request: Request) -> dict[str, object]:
@@ -295,6 +285,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         authenticated = decode_session(request)
         result: dict[str, object] = {
             "configured": admin_store.configured,
+            "ownerSetupRequired": admin_store.owner_setup_required,
             "authenticated": authenticated,
             "douyinAuthenticated": douyin is not None,
         }
@@ -306,14 +297,37 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     @app.post("/api/session")
     async def login(payload: SessionRequest, response: Response):
-        encoded = admin_store.password_hash()
-        if encoded is None or not password_hasher.verify(encoded, payload.password):
+        account = admin_store.account(payload.username)
+        if account is None or not password_hasher.verify(account.password_hash, payload.password):
             return JSONResponse(
                 status_code=401,
-                content={"code": "INVALID_CREDENTIALS", "message": "密码不正确"},
+                content={"code": "INVALID_CREDENTIALS", "message": "用户名或密码不正确"},
             )
         issue_session(response)
-        return {"authenticated": True}
+        return {"authenticated": True, "username": account.username}
+
+    @app.post("/api/admin/migrate-owner")
+    async def migrate_owner(payload: OwnerMigrationRequest, response: Response):
+        encoded = admin_store.legacy_password_hash()
+        if not admin_store.owner_setup_required:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "MIGRATION_NOT_REQUIRED", "message": "账户迁移已完成"},
+            )
+        if encoded is None or not password_hasher.verify(encoded, payload.current_password):
+            return JSONResponse(
+                status_code=401,
+                content={"code": "INVALID_CREDENTIALS", "message": "用户名或密码不正确"},
+            )
+        try:
+            account = admin_store.migrate_owner(payload.username, encoded)
+        except FileExistsError:
+            return JSONResponse(
+                status_code=409,
+                content={"code": "USERNAME_TAKEN", "message": "该用户名已存在"},
+            )
+        issue_session(response)
+        return {"configured": True, "authenticated": True, "username": account.username}
 
     @app.delete("/api/session")
     async def logout(response: Response) -> dict[str, bool]:

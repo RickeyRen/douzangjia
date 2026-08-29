@@ -47,7 +47,7 @@ def test_jobs_route_returns_summary_and_asset_details(
     app = create_app(Settings(archive_root=tmp_path, master_key=master_key))
 
     with TestClient(app) as client:
-        client.post("/api/setup", json={"password": "a secure local passphrase"})
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
         response = client.get("/api/jobs?limit=50")
 
     assert response.status_code == 200

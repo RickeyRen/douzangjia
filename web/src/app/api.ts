@@ -244,6 +244,7 @@ export type PointerEventPayload = PointerPoint & { action: "down" | "move" | "up
 
 export type BootstrapStatus = {
   configured: boolean;
+  ownerSetupRequired: boolean;
   authenticated: boolean;
   douyinAuthenticated: boolean;
   douyinHealth?: DouyinHealth;
@@ -347,15 +348,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const fetchStatus = () => request<BootstrapStatus>("/api/status");
-export const setupAdmin = (password: string) =>
-  request<{ configured: boolean }>("/api/setup", {
+export const setupAdmin = (username: string, password: string) =>
+  request<{ configured: boolean; username: string }>("/api/setup", {
     method: "POST",
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   });
-export const loginAdmin = (password: string) =>
-  request<{ authenticated: boolean }>("/api/session", {
+export const loginAdmin = (username: string, password: string) =>
+  request<{ authenticated: boolean; username: string }>("/api/session", {
     method: "POST",
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
+  });
+export const migrateOwner = (username: string, currentPassword: string) =>
+  request<{ configured: boolean; authenticated: boolean; username: string }>("/api/admin/migrate-owner", {
+    method: "POST",
+    body: JSON.stringify({ username, currentPassword }),
   });
 export const fetchCollections = () => request<{ items: Collection[] }>("/api/collections");
 export const fetchLibrarySources = () => request<{ items: LibrarySource[] }>("/api/library/sources");

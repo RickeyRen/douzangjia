@@ -52,7 +52,7 @@ def build_client(root: Path, master_key: str) -> TestClient:
     asyncio.run(seed_archive_targets(root))
     client = TestClient(create_app(Settings(archive_root=root, master_key=master_key)))
     client.__enter__()
-    client.post("/api/setup", json={"password": "a secure local passphrase"})
+    client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
     return client
 
 

@@ -17,7 +17,28 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-默认访问 `http://NAS-IP:8099` 。首次打开时先创建 NAS 本地管理密码，再扫描页面中的抖音二维码。扫码成功会立即启动首次全量归档，之后每 5 分钟增量同步。
+默认访问 `http://NAS-IP:8099` 。首次打开时先创建 NAS 本地管理员用户名和密码，再扫描页面中的抖音二维码。扫码成功会立即启动首次全量归档，之后每 5 分钟增量同步。
+
+从旧版升级时，页面会要求用原管理员密码设置一个用户名。这个步骤只升级本地凭据文件，不会清除数据库、归档文件或 Chromium Profile。用户名登录不区分大小写，密码仍使用 Argon2 哈希且凭据文件权限为 `0600`。
+
+### 次级维护账户
+
+项目不会预置任何后门账户。NAS 所有者可以显式添加一个次级维护账户，密码必须通过标准输入传入，命令行和输出都不会显示明文：
+
+```bash
+printf '%s' '请替换为至少12位的随机密码' | docker exec -i douzangjia \
+  python -m douyin_archive.admin_cli add \
+  --archive-root /archive --username codex-debug --kind debug
+```
+
+不再需要远程维护时可以立即撤销：
+
+```bash
+docker exec douzangjia python -m douyin_archive.admin_cli remove \
+  --archive-root /archive --username codex-debug
+```
+
+删除次级账户不会影响所有者账户、抖音登录状态或归档内容；唯一的所有者账户不能被该命令误删。
 
 登录页使用 Chromium CDP + WebSocket 传送最新 JPEG 帧，旧帧不会排队；浏览器不支持 CDP 时会自动退回 MJPEG 兼容模式。画面固定为 1280×800，并在网页窗口内完整等比显示。
 

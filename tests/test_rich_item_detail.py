@@ -114,7 +114,7 @@ def test_item_detail_exposes_douyin_creator_file_and_remote_information(
     """Catches the details UI receiving only a title and generic local badge."""
     asyncio.run(_seed_rich_item(tmp_path))
     with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
-        client.post("/api/setup", json={"password": "a secure local passphrase"})
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
         response = client.get("/api/items/734")
 
     assert response.status_code == 200
@@ -159,7 +159,7 @@ def test_remote_check_endpoint_persists_runtime_evidence(tmp_path: Path, master_
 
     with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
         client.app.state.runtime = Runtime()
-        client.post("/api/setup", json={"password": "a secure local passphrase"})
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
         response = client.post(
             "/api/items/734/remote-check",
             headers={"X-CSRF-Token": client.cookies.get("archive_csrf") or ""},

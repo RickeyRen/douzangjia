@@ -72,7 +72,7 @@ def make_client(
 
 def authenticate(client: TestClient) -> None:
     response = client.post(
-        "/api/setup", json={"password": "a secure local passphrase"}
+        "/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"}
     )
     assert response.status_code == 201
 

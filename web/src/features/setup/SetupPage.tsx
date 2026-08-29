@@ -7,6 +7,7 @@ import { ThemeToggle } from "../../theme/ThemeToggle";
 
 export function SetupPage({ onComplete }: { onComplete: () => void }) {
   const { t } = useI18n();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +22,7 @@ export function SetupPage({ onComplete }: { onComplete: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await setupAdmin(password);
+      await setupAdmin(username, password);
       onComplete();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t("feedError"));
@@ -33,10 +34,21 @@ export function SetupPage({ onComplete }: { onComplete: () => void }) {
   return (
     <AuthFrame title={t("setupTitle")} body={t("setupBody")}>
       <form className="auth-form" onSubmit={(event) => void submit(event)}>
+        <label className="auth-field">
+          {t("username")}
+          <input
+            type="text"
+            autoComplete="username"
+            value={username}
+            maxLength={32}
+            onChange={(event) => setUsername(event.target.value)}
+          />
+          <span>{t("usernameHint")}</span>
+        </label>
         <PasswordField label={t("password")} value={password} onChange={setPassword} hint={t("passwordHint")} />
         <PasswordField label={t("confirmPassword")} value={confirm} onChange={setConfirm} />
         {error ? <p className="auth-error">{error}</p> : null}
-        <button className="friendly-button friendly-button-primary friendly-button-full" disabled={busy || password.length < 12}>
+        <button className="friendly-button friendly-button-primary friendly-button-full" disabled={busy || username.trim().length < 2 || password.length < 12}>
           {t("createArchive")}
         </button>
       </form>
@@ -67,13 +79,13 @@ export function AuthFrame({ title, body, children }: { title: string; body: stri
   );
 }
 
-function PasswordField({ label, value, onChange, hint }: { label: string; value: string; onChange: (value: string) => void; hint?: string }) {
+export function PasswordField({ label, value, onChange, hint, autoComplete = "new-password" }: { label: string; value: string; onChange: (value: string) => void; hint?: string; autoComplete?: "new-password" | "current-password" }) {
   return (
     <label className="auth-field">
       {label}
       <input
         type="password"
-        autoComplete="new-password"
+        autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

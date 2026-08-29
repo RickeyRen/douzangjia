@@ -13,7 +13,7 @@ def test_dashboard_exposes_professional_nas_and_library_metrics(
         create_app(Settings(archive_root=tmp_path, master_key=master_key))
     ) as client:
         setup = client.post(
-            "/api/setup", json={"password": "a secure local passphrase"}
+            "/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"}
         )
         response = client.get("/api/dashboard")
 
@@ -62,7 +62,7 @@ def test_dashboard_series_returns_persisted_real_samples(
     with TestClient(
         create_app(Settings(archive_root=tmp_path, master_key=master_key))
     ) as client:
-        client.post("/api/setup", json={"password": "a secure local passphrase"})
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
         connection = sqlite3.connect(tmp_path / "data" / "archive.sqlite3")
         connection.execute(
             "INSERT INTO metric_samples "

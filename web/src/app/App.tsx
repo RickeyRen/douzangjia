@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { fetchStatus, type BootstrapStatus } from "./api";
 import { DouyinLoginPage } from "../features/auth/DouyinLoginPage";
 import { LocalLoginPage } from "../features/auth/LocalLoginPage";
+import { OwnerMigrationPage } from "../features/auth/OwnerMigrationPage";
 import { FeedPage } from "../features/feed/FeedPage";
 import { SetupPage } from "../features/setup/SetupPage";
 import { useI18n } from "../i18n/context";
@@ -11,6 +12,7 @@ export function App() {
   const { t } = useI18n();
   const [status, setStatus] = useState<BootstrapStatus | null>(null);
   const [error, setError] = useState(false);
+  const [useExistingAccount, setUseExistingAccount] = useState(false);
 
   async function refresh() {
     try {
@@ -28,6 +30,14 @@ export function App() {
   if (error) return <div className="app-state"><div><p>{t("feedError")}</p><button className="friendly-button friendly-button-secondary" onClick={() => void refresh()}>{t("retry")}</button></div></div>;
   if (!status) return <div className="app-state">{t("loadingArchive")}</div>;
   if (!status.configured) return <SetupPage onComplete={() => void refresh()} />;
+  if (status.ownerSetupRequired && !status.authenticated && !useExistingAccount) {
+    return (
+      <OwnerMigrationPage
+        onComplete={() => void refresh()}
+        onUseExistingAccount={() => setUseExistingAccount(true)}
+      />
+    );
+  }
   if (!status.authenticated) return <LocalLoginPage onComplete={() => void refresh()} />;
   if (!status.douyinAuthenticated) return <DouyinLoginPage onAuthenticated={() => void refresh()} />;
   return <FeedPage />;

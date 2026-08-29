@@ -60,7 +60,7 @@ def authenticated_client(tmp_path: Path, master_key: str) -> tuple[TestClient, s
     )
     client = TestClient(app)
     client.__enter__()
-    client.post("/api/setup", json={"password": "a secure local passphrase"})
+    client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
     csrf = client.cookies.get("archive_csrf")
     assert csrf
     return client, csrf

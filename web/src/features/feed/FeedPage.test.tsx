@@ -209,6 +209,7 @@ describe("FeedPage", () => {
     });
     vi.mocked(api.fetchStatus).mockResolvedValue({
       configured: true,
+      ownerSetupRequired: false,
       authenticated: true,
       douyinAuthenticated: true,
     });

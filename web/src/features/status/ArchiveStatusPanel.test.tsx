@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date(1_780_000));
   vi.mocked(api.fetchJobs).mockResolvedValue(snapshot);
   vi.mocked(api.fetchSyncRuns).mockResolvedValue({ items: [] });
-  vi.mocked(api.fetchStatus).mockResolvedValue({ configured: true, authenticated: true, douyinAuthenticated: true });
+  vi.mocked(api.fetchStatus).mockResolvedValue({ configured: true, ownerSetupRequired: false, authenticated: true, douyinAuthenticated: true });
   vi.mocked(api.triggerSync).mockResolvedValue({ runId: 41 });
   vi.mocked(api.fetchDashboard).mockResolvedValue({
     storage: { totalBytes: 1_000_000_000, usedBytes: 420_000_000, freeBytes: 580_000_000, archiveBytes: 120_000_000, usedPercent: 42 },

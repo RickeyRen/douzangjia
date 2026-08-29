@@ -63,7 +63,7 @@ def build_client(root: Path, master_key: str) -> TestClient:
     asyncio.run(seed_feed(root))
     client = TestClient(create_app(Settings(archive_root=root, master_key=master_key)))
     client.__enter__()
-    client.post("/api/setup", json={"password": "a secure local passphrase"})
+    client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
     return client
 
 
@@ -155,7 +155,7 @@ def test_archive_api_requires_local_admin_session(tmp_path: Path, master_key: st
         client.cookies.clear()
         rejected = client.get("/api/feed")
         login = client.post(
-            "/api/session", json={"password": "a secure local passphrase"}
+            "/api/session", json={"username": "test-admin", "password": "a secure local passphrase"}
         )
         accepted = client.get("/api/feed")
     finally:
