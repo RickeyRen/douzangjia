@@ -278,6 +278,44 @@ async def test_live_snapshot_matches_full_home_contract(dashboard_components) ->
     assert "sources" in snapshot
 
 
+async def test_runtime_cards_report_real_logical_service_boundaries(
+    dashboard_components,
+) -> None:
+    """Catches async workers being mislabeled as fabricated OS processes."""
+    database, _dashboard_module, _telemetry_module, service, _telemetry = (
+        dashboard_components
+    )
+    await database.execute(
+        "INSERT INTO download_jobs "
+        "(kind, remote_id, payload_json, status, attempts, next_attempt_at, "
+        "created_at, updated_at) VALUES "
+        "('download', 'active', '{}', 'running', 0, 1, 9, 9)"
+    )
+
+    snapshot = await service.snapshot(
+        runtime={
+            "workerCount": 2,
+            "activeWorkers": 2,
+            "browser": {"started": True, "busy": True},
+        }
+    )
+
+    assert snapshot["runtime"]["serviceCount"] == 3
+    assert snapshot["runtime"]["application"]["memoryBytes"] >= 0
+    assert snapshot["runtime"]["downloader"] == {
+        "status": "running",
+        "workerCount": 2,
+        "activeWorkers": 2,
+        "activeDownloads": 1,
+        "pendingDownloads": 0,
+        "speedBps": 0.0,
+        "lastActivityAt": 9,
+    }
+    assert snapshot["runtime"]["browser"]["status"] == "busy"
+    assert snapshot["runtime"]["browser"]["started"] is True
+    assert snapshot["runtime"]["browser"]["busy"] is True
+
+
 async def test_prune_compacts_old_raw_samples_before_deleting_them(
     dashboard_components,
 ) -> None:

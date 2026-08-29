@@ -415,6 +415,13 @@ class ArchiveRuntime:
     async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
         return await self.sync.refresh_creator_profile(creator_id)
 
+    def dashboard_runtime(self) -> dict[str, object]:
+        return {
+            "workerCount": len(self.workers),
+            "activeWorkers": sum(not task.done() for task in self._worker_tasks),
+            "browser": self.browser_coordinator.runtime_state(),
+        }
+
     async def _probe_existing_media(self) -> None:
         while await self.media_probe_backfill.run_batch(limit=25):
             await asyncio.sleep(0.25)

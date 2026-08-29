@@ -146,7 +146,9 @@ class DashboardService:
             "historyStartedAt": history_started,
         }
 
-    async def snapshot(self) -> dict[str, object]:
+    async def snapshot(
+        self, *, runtime: dict[str, object] | None = None
+    ) -> dict[str, object]:
         disk = shutil.disk_usage(self.archive_root)
         library = await self.db.fetchone(
             "SELECT (SELECT COUNT(*) FROM items) AS items, "
@@ -178,8 +180,24 @@ class DashboardService:
             "SELECT id, mode, phase, status, discovered_count, enqueued_count, "
             "error_code, started_at, finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
         )
+        last_download = await self.db.fetchone(
+            "SELECT MAX(updated_at) AS updated_at FROM download_jobs "
+            "WHERE kind='download'"
+        )
         archive_bytes = int(library["archived_bytes"]) if library is not None else 0
         generated_at = int(self.clock())
+        system = system_snapshot()
+        account = await AccountHealthService(self.db).snapshot()
+        runtime_state = runtime or {}
+        browser_value = runtime_state.get("browser")
+        browser_state = browser_value if isinstance(browser_value, dict) else {}
+        worker_count = int(runtime_state.get("workerCount", 0))
+        active_workers = int(runtime_state.get("activeWorkers", 0))
+        browser_started = bool(browser_state.get("started", False))
+        browser_busy = bool(browser_state.get("busy", False))
+        browser_status = (
+            "busy" if browser_busy else "running" if browser_started else "unavailable"
+        )
         return {
             "storage": {
                 "totalBytes": disk.total,
@@ -188,7 +206,7 @@ class DashboardService:
                 "archiveBytes": archive_bytes,
                 "usedPercent": round(disk.used / disk.total * 100, 1) if disk.total else 0,
             },
-            "system": system_snapshot(),
+            "system": system,
             "library": {
                 "items": int(library["items"]) if library is not None else 0,
                 "archivedItems": (
@@ -232,7 +250,39 @@ class DashboardService:
                     else None
                 ),
             },
-            "account": await AccountHealthService(self.db).snapshot(),
+            "account": account,
+            "runtime": {
+                "serviceCount": 3,
+                "application": {
+                    "status": "running",
+                    "memoryBytes": int(system["processMemoryBytes"]),
+                    "cpuLoadPercent": float(system["cpuLoadPercent"]),
+                    "uptimeSeconds": max(generated_at - self.started_at, 0),
+                    "lastActivityAt": generated_at,
+                },
+                "downloader": {
+                    "status": "running" if active_workers > 0 else "unavailable",
+                    "workerCount": worker_count,
+                    "activeWorkers": active_workers,
+                    "activeDownloads": int(queue["running"]),
+                    "pendingDownloads": int(queue["pending"]) + int(queue["retry"]),
+                    "speedBps": float(queue["speedBps"]),
+                    "lastActivityAt": (
+                        int(last_download["updated_at"])
+                        if last_download is not None
+                        and last_download["updated_at"] is not None
+                        else None
+                    ),
+                },
+                "browser": {
+                    "status": browser_status,
+                    "started": browser_started,
+                    "busy": browser_busy,
+                    "processCount": int(system["browserProcessCount"]),
+                    "memoryBytes": int(system["browserMemoryBytes"]),
+                    "lastActivityAt": account["lastSyncAt"],
+                },
+            },
             "sources": await self.source_progress(),
             "generatedAt": generated_at,
         }

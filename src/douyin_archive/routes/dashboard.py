@@ -71,11 +71,13 @@ def _system_snapshot() -> dict[str, object]:
 
 @router.get("/dashboard")
 async def dashboard(request: Request) -> dict[str, object]:
+    runtime_owner = getattr(request.app.state, "runtime", None)
+    runtime = runtime_owner.dashboard_runtime() if runtime_owner is not None else None
     return await DashboardService(
         request.app.state.database,
         request.app.state.settings.archive_root,
         started_at=int(getattr(request.app.state, "started_at", time.time())),
-    ).snapshot()
+    ).snapshot(runtime=runtime)
 
 
 @router.get("/dashboard/series")
@@ -100,7 +102,11 @@ async def dashboard_events(request: Request) -> StreamingResponse:
     )
 
     async def load_snapshot() -> dict[str, object]:
-        return await service.snapshot()
+        runtime_owner = getattr(request.app.state, "runtime", None)
+        runtime = (
+            runtime_owner.dashboard_runtime() if runtime_owner is not None else None
+        )
+        return await service.snapshot(runtime=runtime)
 
     return StreamingResponse(
         dashboard_event_stream(

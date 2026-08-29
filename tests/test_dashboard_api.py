@@ -45,6 +45,10 @@ def test_dashboard_exposes_professional_nas_and_library_metrics(
     assert payload["health"]["recentErrors"] == 0
     assert payload["throughput"]["lifetime"]["bytes"] == 0
     assert payload["throughput"]["today"]["comparisonAvailable"] is False
+    assert payload["runtime"]["serviceCount"] == 3
+    assert payload["runtime"]["application"]["status"] == "running"
+    assert payload["runtime"]["downloader"]["status"] == "unavailable"
+    assert payload["runtime"]["browser"]["status"] == "unavailable"
     assert payload["account"]["status"] == "unknown"
     assert len(payload["sources"]) == 11
     assert payload["sources"][0]["autoDownloadEnabled"] is False

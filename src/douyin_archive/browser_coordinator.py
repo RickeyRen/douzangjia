@@ -73,6 +73,12 @@ class BrowserCoordinator:
             raise RuntimeError("browser coordinator is not started")
         return self._context
 
+    def runtime_state(self) -> dict[str, object]:
+        return {
+            "started": self._context is not None,
+            "busy": self._lease_lock.locked(),
+        }
+
     async def start(self) -> None:
         if self._context is not None:
             return

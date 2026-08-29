@@ -110,6 +110,22 @@ async def test_coordinator_launches_persistent_context_once(tmp_path: Path) -> N
     await coordinator.close()
 
 
+async def test_runtime_state_reports_started_and_serialized_busy_state(
+    tmp_path: Path,
+) -> None:
+    """Catches the dashboard guessing whether the persistent browser is active."""
+    coordinator, _playwright, _context = make_coordinator(tmp_path)
+
+    assert coordinator.runtime_state() == {"started": False, "busy": False}
+
+    lease = await coordinator.acquire_page()
+    assert coordinator.runtime_state() == {"started": True, "busy": True}
+
+    await lease.release()
+    assert coordinator.runtime_state() == {"started": True, "busy": False}
+    await coordinator.close()
+
+
 async def test_page_leases_are_serialized_and_close_only_their_page(
     tmp_path: Path,
 ) -> None:
