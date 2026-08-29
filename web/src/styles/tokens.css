@@ -9,15 +9,15 @@
 
 :root,
 :root[data-theme="dark"] {
-  --app-bg: #080a0e;
-  --app-surface: #0f1319;
-  --app-surface-raised: #151a21;
-  --app-stage: #0b0e13;
-  --app-text: #f4f7fb;
-  --app-muted: #a3adb9;
-  --app-faint: #6f7a88;
-  --app-line: rgb(255 255 255 / 8%);
-  --app-line-strong: rgb(255 255 255 / 14%);
+  --app-bg: #161b22;
+  --app-surface: #181d25;
+  --app-surface-raised: #1b2028;
+  --app-stage: #11161d;
+  --app-text: #c9d1d9;
+  --app-muted: #8b949e;
+  --app-faint: #6e7681;
+  --app-line: #252b35;
+  --app-line-strong: #30363d;
   --app-accent: #3bc9db;
   --app-accent-contrast: #061014;
   --app-accent-soft: rgb(59 201 219 / 10%);

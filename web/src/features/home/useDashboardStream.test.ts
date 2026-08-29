@@ -11,11 +11,24 @@ vi.mock("../../app/api", () => ({
 
 const snapshot = {
   storage: { totalBytes: 1, usedBytes: 0, freeBytes: 1, archiveBytes: 0, usedPercent: 0 },
-  system: { cpuCount: 1, cpuLoadPercent: 0, loadAverage1m: 0, loadAverage5m: 0, loadAverage15m: 0, memoryTotalBytes: 1, memoryUsedBytes: 0, processMemoryBytes: 0 },
+  system: { cpuCount: 1, cpuLoadPercent: 0, loadAverage1m: 0, loadAverage5m: 0, loadAverage15m: 0, memoryTotalBytes: 1, memoryUsedBytes: 0, processMemoryBytes: 0, browserProcessCount: 0, browserMemoryBytes: 0 },
   library: { items: 0, archivedItems: 0, mediaFiles: 0, creators: 0, sources: 0, completeSources: 0, incompleteSources: 0, neverSyncedSources: 0, discoveredLinks: 0, archivedBytes: 0 },
   queue: { pending: 0, running: 0, retry: 0, failed: 0, completed: 0, downloadedBytes: 0, totalBytes: 0, speedBps: 0, etaSeconds: 0 },
+  throughput: {
+    today: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    sevenDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    thirtyDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    lifetime: { bytes: 0 },
+    historyStartedAt: null,
+  },
   health: { recentErrors: 0, uptimeSeconds: 1, latestSync: null },
   account: { sessionStored: true, status: "healthy" as const, lastVerifiedAt: 1, lastSyncAt: 1, lastFailureAt: null, errorCode: null, consecutiveFailures: 0, account: null },
+  runtime: {
+    serviceCount: 3,
+    application: { status: "running", memoryBytes: 0, cpuLoadPercent: 0, uptimeSeconds: 1, lastActivityAt: 1 },
+    downloader: { status: "unavailable", workerCount: 0, activeWorkers: 0, activeDownloads: 0, pendingDownloads: 0, speedBps: 0, lastActivityAt: null },
+    browser: { status: "unavailable", started: false, busy: false, processCount: 0, memoryBytes: 0, lastActivityAt: null },
+  },
   sources: [],
   generatedAt: 1,
 };

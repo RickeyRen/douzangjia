@@ -3,10 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
 import * as api from "../../app/api";
+import type { DashboardSnapshot } from "../../app/api";
 import { ThemeProvider } from "../../theme/ThemeProvider";
 import { HomePage } from "./HomePage";
 
-const snapshot = {
+const snapshot: DashboardSnapshot = {
   storage: {
     totalBytes: 1_000_000_000,
     usedBytes: 420_000_000,
@@ -23,6 +24,8 @@ const snapshot = {
     memoryTotalBytes: 8_000_000_000,
     memoryUsedBytes: 3_000_000_000,
     processMemoryBytes: 180_000_000,
+    browserProcessCount: 5,
+    browserMemoryBytes: 320_000_000,
   },
   library: {
     items: 1600,
@@ -46,6 +49,13 @@ const snapshot = {
     totalBytes: 50_000_000,
     speedBps: 1_240_000,
     etaSeconds: 28,
+  },
+  throughput: {
+    today: { bytes: 20_000_000, previousBytes: 10_000_000, deltaBytes: 10_000_000, comparisonAvailable: true },
+    sevenDays: { bytes: 80_000_000, previousBytes: 0, deltaBytes: 80_000_000, comparisonAvailable: false },
+    thirtyDays: { bytes: 120_000_000, previousBytes: 0, deltaBytes: 120_000_000, comparisonAvailable: false },
+    lifetime: { bytes: 120_000_000 },
+    historyStartedAt: 1,
   },
   health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
   account: {
@@ -86,8 +96,35 @@ const snapshot = {
       errorCode: null,
     },
   ],
+  runtime: {
+    serviceCount: 3,
+    application: {
+      status: "running",
+      memoryBytes: 180_000_000,
+      cpuLoadPercent: 18.5,
+      uptimeSeconds: 3600,
+      lastActivityAt: 100,
+    },
+    downloader: {
+      status: "running",
+      workerCount: 2,
+      activeWorkers: 2,
+      activeDownloads: 1,
+      pendingDownloads: 3,
+      speedBps: 1_240_000,
+      lastActivityAt: 99,
+    },
+    browser: {
+      status: "busy",
+      started: true,
+      busy: true,
+      processCount: 5,
+      memoryBytes: 320_000_000,
+      lastActivityAt: 90,
+    },
+  },
   generatedAt: 100,
-} as const;
+};
 
 vi.mock("./useDashboardStream", () => ({
   useDashboardStream: () => ({
@@ -134,17 +171,33 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("renders a full live home with account, charts, storage, and source progress", () => {
+it("renders the complete real operations dashboard in scan order", () => {
   render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
 
   const home = screen.getByRole("main", { name: "首页" });
-  expect(within(home).getAllByText("天鹰座裂缝之外")).toHaveLength(2);
-  expect(within(home).getByText("抖音连接健康")).toBeVisible();
-  expect(within(home).getAllByText("1.2 MB/s")).toHaveLength(2);
+  for (const heading of [
+    "归档引擎使用情况",
+    "服务详情",
+    "归档吞吐",
+    "队列状态",
+    "NAS 系统",
+    "资料库",
+    "抖音账号",
+    "收藏分类进度",
+    "Runtime",
+  ]) {
+    expect(within(home).getByRole("heading", { name: heading })).toBeVisible();
+  }
+  expect(within(home).getAllByText("天鹰座裂缝之外").length).toBeGreaterThanOrEqual(1);
+  expect(within(home).getByText("sky-gap")).toBeVisible();
+  expect(within(home).getAllByText("1.2 MB/s").length).toBeGreaterThanOrEqual(1);
   expect(within(home).getByText("3,717")).toBeVisible();
   expect(within(home).getByRole("img", { name: "下载速度趋势" })).toBeVisible();
   expect(within(home).getByRole("img", { name: "系统负载趋势" })).toBeVisible();
-  expect(within(home).getByRole("region", { name: "类目下载进度" })).toBeVisible();
+  expect(within(home).getByRole("region", { name: "收藏分类进度" })).toBeVisible();
+  expect(within(home).getByText("+9.5 MB")).toBeVisible();
+  expect(within(home).getAllByText("数据积累中")).toHaveLength(2);
+  expect(within(home).getByText("5 个进程")).toBeVisible();
 });
 
 it("uses distinct semantic icon tones instead of one accent everywhere", () => {
@@ -155,16 +208,9 @@ it("uses distinct semantic icon tones instead of one accent everywhere", () => {
     .map((element) => element.dataset.iconTone);
 
   expect(new Set(tones).size).toBeGreaterThanOrEqual(5);
-  expect(
-    home.querySelector(".home-storage-panel .home-section-title")
-      ?.querySelector("[data-icon-tone]")
-      ?.getAttribute("data-icon-tone"),
-  ).toBe("cyan");
-  expect(
-    home.querySelector(".home-health-panel .home-section-title")
-      ?.querySelector("[data-icon-tone]")
-      ?.getAttribute("data-icon-tone"),
-  ).toBe("rose");
+  expect(home.querySelector('[data-runtime-tone="blue"]')).toBeTruthy();
+  expect(home.querySelector('[data-runtime-tone="violet"]')).toBeTruthy();
+  expect(home.querySelector('[data-runtime-tone="green"]')).toBeTruthy();
 });
 
 it("changes one category download policy without changing another source", async () => {
@@ -183,4 +229,20 @@ it("changes one category download policy without changing another source", async
     "favorite_collection:travel",
     false,
   );
+});
+
+it("keeps the last real snapshot visible when the live stream disconnects", () => {
+  render(
+    <ThemeProvider>
+      <HomePage
+        onOpenDownloads={vi.fn()}
+        onOpenSource={vi.fn()}
+        stream={{ snapshot, series: [], connected: false, loading: false, error: true }}
+      />
+    </ThemeProvider>,
+  );
+
+  expect(screen.getByText("实时数据正在重连")).toBeVisible();
+  expect(screen.getByText("最后更新")).toBeVisible();
+  expect(screen.getAllByText("1,569")[0]).toBeVisible();
 });

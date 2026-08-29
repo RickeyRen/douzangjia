@@ -69,9 +69,15 @@ const sources: api.LibrarySource[] = [
 
 const dashboardSnapshot: api.DashboardSnapshot = {
   storage: { totalBytes: 1_000, usedBytes: 400, freeBytes: 600, archiveBytes: 250, usedPercent: 40 },
-  system: { cpuCount: 4, cpuLoadPercent: 12, loadAverage1m: 0.2, loadAverage5m: 0.18, loadAverage15m: 0.16, memoryTotalBytes: 1_000, memoryUsedBytes: 300, processMemoryBytes: 80 },
+  system: { cpuCount: 4, cpuLoadPercent: 12, loadAverage1m: 0.2, loadAverage5m: 0.18, loadAverage15m: 0.16, memoryTotalBytes: 1_000, memoryUsedBytes: 300, processMemoryBytes: 80, browserProcessCount: 0, browserMemoryBytes: 0 },
   library: { items: 10, archivedItems: 6, mediaFiles: 6, creators: 3, sources: 4, completeSources: 1, incompleteSources: 3, neverSyncedSources: 0, discoveredLinks: 10, archivedBytes: 250 },
   queue: { pending: 2, running: 1, retry: 0, failed: 0, completed: 4, downloadedBytes: 25, totalBytes: 100, speedBps: 10, etaSeconds: 8 },
+  throughput: {
+    today: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    sevenDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    thirtyDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+    lifetime: { bytes: 250 }, historyStartedAt: null,
+  },
   health: {
     recentErrors: 0,
     uptimeSeconds: 600,
@@ -86,6 +92,12 @@ const dashboardSnapshot: api.DashboardSnapshot = {
     errorCode: null,
     consecutiveFailures: 0,
     account: { id: "self-id", nickname: "天鹰座裂缝之外", uniqueId: "sky-gap", avatarUrl: null },
+  },
+  runtime: {
+    serviceCount: 3,
+    application: { status: "running", memoryBytes: 80, cpuLoadPercent: 12, uptimeSeconds: 600, lastActivityAt: 100 },
+    downloader: { status: "running", workerCount: 2, activeWorkers: 2, activeDownloads: 1, pendingDownloads: 2, speedBps: 10, lastActivityAt: 100 },
+    browser: { status: "unavailable", started: false, busy: false, processCount: 0, memoryBytes: 0, lastActivityAt: 90 },
   },
   sources: [
     { id: "account:posts", kind: "post", name: "作品", autoDownloadEnabled: true, downloadPolicyUpdatedAt: 90, discovered: 5, archived: 2, pending: 2, running: 1, retry: 0, failed: 0, archivedBytes: 100, knownTotalBytes: 250, remoteTotal: 5, remoteComplete: true, coveragePercent: 40, syncStatus: "complete", lastSyncAt: 90, errorCode: null },

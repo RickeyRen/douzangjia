@@ -126,13 +126,56 @@ export type ArchiveBatch = {
 
 export type DashboardSnapshot = {
   storage: { totalBytes: number; usedBytes: number; freeBytes: number; archiveBytes: number; usedPercent: number };
-  system: { cpuCount: number; cpuLoadPercent: number; loadAverage1m: number; loadAverage5m: number; loadAverage15m: number; memoryTotalBytes: number; memoryUsedBytes: number; processMemoryBytes: number };
+  system: { cpuCount: number; cpuLoadPercent: number; loadAverage1m: number; loadAverage5m: number; loadAverage15m: number; memoryTotalBytes: number; memoryUsedBytes: number; processMemoryBytes: number; browserProcessCount: number; browserMemoryBytes: number };
   library: { items: number; archivedItems: number; mediaFiles: number; creators: number; sources: number; completeSources: number; incompleteSources: number; neverSyncedSources: number; discoveredLinks: number; archivedBytes: number };
   queue: DownloadSummary;
+  throughput: {
+    today: ThroughputWindow;
+    sevenDays: ThroughputWindow;
+    thirtyDays: ThroughputWindow;
+    lifetime: { bytes: number };
+    historyStartedAt: number | null;
+  };
   health: { recentErrors: number; uptimeSeconds: number; latestSync: SyncRun | null };
   account: DouyinHealth;
+  runtime: DashboardRuntime;
   sources: SourceProgress[];
   generatedAt: number;
+};
+
+export type ThroughputWindow = {
+  bytes: number;
+  previousBytes: number;
+  deltaBytes: number;
+  comparisonAvailable: boolean;
+};
+
+export type DashboardRuntime = {
+  serviceCount: number;
+  application: {
+    status: string;
+    memoryBytes: number;
+    cpuLoadPercent: number;
+    uptimeSeconds: number;
+    lastActivityAt: number | null;
+  };
+  downloader: {
+    status: string;
+    workerCount: number;
+    activeWorkers: number;
+    activeDownloads: number;
+    pendingDownloads: number;
+    speedBps: number;
+    lastActivityAt: number | null;
+  };
+  browser: {
+    status: string;
+    started: boolean;
+    busy: boolean;
+    processCount: number;
+    memoryBytes: number;
+    lastActivityAt: number | null;
+  };
 };
 
 export type DouyinHealth = {

@@ -70,11 +70,23 @@ beforeEach(() => {
   vi.mocked(api.triggerSync).mockResolvedValue({ runId: 41 });
   vi.mocked(api.fetchDashboard).mockResolvedValue({
     storage: { totalBytes: 1_000_000_000, usedBytes: 420_000_000, freeBytes: 580_000_000, archiveBytes: 120_000_000, usedPercent: 42 },
-    system: { cpuCount: 4, cpuLoadPercent: 18.5, loadAverage1m: 0.74, loadAverage5m: 0.62, loadAverage15m: 0.58, memoryTotalBytes: 8_000_000_000, memoryUsedBytes: 3_000_000_000, processMemoryBytes: 180_000_000 },
+    system: { cpuCount: 4, cpuLoadPercent: 18.5, loadAverage1m: 0.74, loadAverage5m: 0.62, loadAverage15m: 0.58, memoryTotalBytes: 8_000_000_000, memoryUsedBytes: 3_000_000_000, processMemoryBytes: 180_000_000, browserProcessCount: 0, browserMemoryBytes: 0 },
     library: { items: 1600, archivedItems: 1569, mediaFiles: 3717, creators: 328, sources: 14, completeSources: 3, incompleteSources: 6, neverSyncedSources: 5, discoveredLinks: 2300, archivedBytes: 120_000_000 },
     queue: snapshot.summary,
+    throughput: {
+      today: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+      sevenDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+      thirtyDays: { bytes: 0, previousBytes: 0, deltaBytes: 0, comparisonAvailable: false },
+      lifetime: { bytes: 120_000_000 }, historyStartedAt: null,
+    },
     health: { recentErrors: 2, uptimeSeconds: 3600, latestSync: null },
     account: { sessionStored: true, status: "healthy", lastVerifiedAt: 1, lastSyncAt: 1, lastFailureAt: null, errorCode: null, consecutiveFailures: 0, account: null },
+    runtime: {
+      serviceCount: 3,
+      application: { status: "running", memoryBytes: 180_000_000, cpuLoadPercent: 18.5, uptimeSeconds: 3600, lastActivityAt: 1_780_000 },
+      downloader: { status: "unavailable", workerCount: 0, activeWorkers: 0, activeDownloads: 1, pendingDownloads: 3, speedBps: 1_240_000, lastActivityAt: null },
+      browser: { status: "unavailable", started: false, busy: false, processCount: 0, memoryBytes: 0, lastActivityAt: 1 },
+    },
     sources: [],
     generatedAt: 1_780_000,
   });

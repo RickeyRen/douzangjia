@@ -19,26 +19,32 @@ function expectFontSize(selector: string, size: number): void {
 }
 
 it("keeps home dashboard labels and values comfortably readable", () => {
-  expectFontSize(".home-account h1", 17);
-  expectFontSize(".home-account p", 12);
-  expectFontSize(".home-section-title span", 12);
-  expectFontSize(".home-section-title strong", 24);
-  expectFontSize(".home-storage-ring strong", 25);
-  expectFontSize(".home-storage-ring small", 12);
-  expectFontSize(".home-storage-visual dt", 12);
-  expectFontSize(".home-health-details dt", 12);
-  expectFontSize(".home-storage-visual dd", 12);
-  expectFontSize(".home-health-details dd", 12);
-  expectFontSize(".home-metric-strip span", 12);
-  expectFontSize(".home-metric-strip strong", 24);
-  expectFontSize(".home-metric-strip small", 12);
-  expectFontSize(".home-system-strip span", 12);
-  expectFontSize(".home-system-strip strong", 20);
-  expectFontSize(".home-system-strip small", 12);
-  expectFontSize(".home-source-heading p", 13);
-  expectFontSize(".home-source-identity strong", 14);
-  expectFontSize(".home-source-identity small", 12);
-  expectFontSize(".home-source-metrics dt", 12);
-  expectFontSize(".home-source-metrics dd", 13);
+  expectFontSize(".home-brand h1", 18);
+  expectFontSize(".home-brand p", 11);
+  expectFontSize(".home-account strong", 13);
+  expectFontSize(".home-account small", 11);
+  expectFontSize(".home-live-state strong", 11);
+  expectFontSize(".home-live-state small", 10);
+  expectFontSize(".home-dashboard-section > h2", 16);
+  expectFontSize(".home-dashboard-metric-copy > small", 12);
+  expectFontSize(".home-dashboard-metric-copy > strong", 20);
+  expectFontSize(".home-dashboard-metric-copy > span", 11);
+  expectFontSize(".home-runtime-card header strong", 14);
+  expectFontSize(".home-runtime-card header small", 11);
+  expectFontSize(".home-runtime-card dt", 11);
+  expectFontSize(".home-runtime-card dd", 13);
+  expectFontSize(".home-source-identity strong", 13);
+  expectFontSize(".home-source-identity small", 11);
+  expectFontSize(".home-source-metrics dt", 11);
+  expectFontSize(".home-source-metrics dd", 12);
   expectFontSize(".home-source-error", 12);
+});
+
+it("defines desktop and iPhone sibling layouts without horizontal overflow", () => {
+  expect(homeStyles).toContain(".home-dashboard-grid.is-four");
+  expect(homeStyles).toContain("grid-template-columns: repeat(4, minmax(0, 1fr))");
+  expect(homeStyles).toContain(".home-runtime-grid");
+  expect(homeStyles).toContain("grid-template-columns: repeat(3, minmax(0, 1fr))");
+  expect(homeStyles).toContain("@media (max-width: 719px)");
+  expect(homeStyles).toContain("overflow-x: hidden");
 });
