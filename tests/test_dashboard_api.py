@@ -26,6 +26,8 @@ def test_dashboard_exposes_professional_nas_and_library_metrics(
     assert payload["system"]["cpuCount"] >= 1
     assert payload["system"]["memoryTotalBytes"] >= 0
     assert payload["system"]["processMemoryBytes"] >= 0
+    assert payload["system"]["browserProcessCount"] >= 0
+    assert payload["system"]["browserMemoryBytes"] >= 0
     assert payload["library"] == {
         "items": 0,
         "archivedItems": 0,
@@ -41,6 +43,8 @@ def test_dashboard_exposes_professional_nas_and_library_metrics(
     assert payload["queue"]["pending"] == 0
     assert payload["queue"]["speedBps"] == 0
     assert payload["health"]["recentErrors"] == 0
+    assert payload["throughput"]["lifetime"]["bytes"] == 0
+    assert payload["throughput"]["today"]["comparisonAvailable"] is False
     assert payload["account"]["status"] == "unknown"
     assert len(payload["sources"]) == 11
     assert payload["sources"][0]["autoDownloadEnabled"] is False

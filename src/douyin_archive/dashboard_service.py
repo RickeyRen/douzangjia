@@ -3,7 +3,9 @@ from __future__ import annotations
 import shutil
 import time
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .account_health import AccountHealthService
 from .db import Database
@@ -11,6 +13,8 @@ from .download_monitor import DownloadMonitor
 from .telemetry import system_snapshot
 
 WINDOW_SECONDS = {"15m": 15 * 60, "24h": 24 * 60 * 60, "7d": 7 * 24 * 60 * 60}
+DAY_SECONDS = 24 * 60 * 60
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 class DashboardService:
@@ -95,6 +99,53 @@ class DashboardService:
             )
         return result
 
+    async def throughput(self, archive_bytes: int) -> dict[str, object]:
+        now = int(self.clock())
+        local_now = datetime.fromtimestamp(now, tz=SHANGHAI)
+        today_start = int(
+            local_now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        )
+        history = await self.db.fetchone(
+            "SELECT MIN(completed_at) AS started_at FROM media_files "
+            "WHERE status='ready' AND completed_at IS NOT NULL"
+        )
+        history_started = (
+            int(history["started_at"])
+            if history is not None and history["started_at"] is not None
+            else None
+        )
+
+        async def window(current_start: int, previous_start: int) -> dict[str, object]:
+            row = await self.db.fetchone(
+                "SELECT "
+                "COALESCE(SUM(CASE WHEN completed_at>=? AND completed_at<? "
+                "THEN byte_size ELSE 0 END), 0) AS current_bytes, "
+                "COALESCE(SUM(CASE WHEN completed_at>=? AND completed_at<? "
+                "THEN byte_size ELSE 0 END), 0) AS previous_bytes "
+                "FROM media_files WHERE status='ready' AND byte_size IS NOT NULL",
+                (current_start, now, previous_start, current_start),
+            )
+            current = int(row["current_bytes"]) if row is not None else 0
+            previous = int(row["previous_bytes"]) if row is not None else 0
+            return {
+                "bytes": current,
+                "previousBytes": previous,
+                "deltaBytes": current - previous,
+                "comparisonAvailable": bool(
+                    history_started is not None and history_started <= previous_start
+                ),
+            }
+
+        return {
+            "today": await window(today_start, today_start - DAY_SECONDS),
+            "sevenDays": await window(now - 7 * DAY_SECONDS, now - 14 * DAY_SECONDS),
+            "thirtyDays": await window(
+                now - 30 * DAY_SECONDS, now - 60 * DAY_SECONDS
+            ),
+            "lifetime": {"bytes": archive_bytes},
+            "historyStartedAt": history_started,
+        }
+
     async def snapshot(self) -> dict[str, object]:
         disk = shutil.disk_usage(self.archive_root)
         library = await self.db.fetchone(
@@ -160,6 +211,7 @@ class DashboardService:
                 ),
                 "archivedBytes": archive_bytes,
             },
+            "throughput": await self.throughput(archive_bytes),
             "queue": queue,
             "health": {
                 "recentErrors": int(recent_errors["total"]) if recent_errors else 0,

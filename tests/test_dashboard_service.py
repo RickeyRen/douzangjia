@@ -25,7 +25,12 @@ async def dashboard_components(tmp_path: Path):
 
 
 async def _seed_ready_media(
-    database: Database, archive: ArchiveRepository, item_id: str, byte_size: int
+    database: Database,
+    archive: ArchiveRepository,
+    item_id: str,
+    byte_size: int,
+    *,
+    completed_at: int = 1,
 ) -> None:
     await archive.upsert_item(
         remote_id=item_id,
@@ -37,9 +42,101 @@ async def _seed_ready_media(
         "INSERT INTO media_files "
         "(item_id, asset_index, media_type, byte_size, status, downloaded_bytes, "
         "total_bytes, speed_bps, created_at, updated_at, completed_at) "
-        "VALUES (?, 0, 'video', ?, 'ready', ?, ?, 0, 1, 1, 1)",
-        (item_id, byte_size, byte_size, byte_size),
+        "VALUES (?, 0, 'video', ?, 'ready', ?, ?, 0, 1, 1, ?)",
+        (item_id, byte_size, byte_size, byte_size, completed_at),
     )
+
+
+async def test_throughput_uses_completed_media_and_only_compares_full_history(
+    tmp_path: Path,
+) -> None:
+    """Catches the dashboard inventing time-window traffic or comparisons."""
+    database = await Database(tmp_path / "throughput.sqlite3").open()
+    try:
+        archive = ArchiveRepository(database)
+        service = importlib.import_module("douyin_archive.dashboard_service").DashboardService(
+            database,
+            tmp_path,
+            clock=lambda: 964_800,
+        )
+        await _seed_ready_media(
+            database, archive, "historical", 50, completed_at=1
+        )
+        await _seed_ready_media(
+            database, archive, "yesterday", 100, completed_at=840_000
+        )
+        await _seed_ready_media(
+            database, archive, "today", 300, completed_at=922_000
+        )
+
+        throughput = (await service.snapshot())["throughput"]
+
+        assert throughput["today"] == {
+            "bytes": 300,
+            "previousBytes": 100,
+            "deltaBytes": 200,
+            "comparisonAvailable": True,
+        }
+        assert throughput["lifetime"] == {"bytes": 450}
+        assert throughput["historyStartedAt"] == 1
+    finally:
+        await database.close()
+
+
+async def test_throughput_marks_comparison_unavailable_without_prior_coverage(
+    tmp_path: Path,
+) -> None:
+    """Catches a partial telemetry history being labeled as a real comparison."""
+    database = await Database(tmp_path / "partial-throughput.sqlite3").open()
+    try:
+        archive = ArchiveRepository(database)
+        service = importlib.import_module("douyin_archive.dashboard_service").DashboardService(
+            database,
+            tmp_path,
+            clock=lambda: 964_800,
+        )
+        await _seed_ready_media(
+            database, archive, "today-only", 300, completed_at=922_000
+        )
+
+        today = (await service.snapshot())["throughput"]["today"]
+
+        assert today["bytes"] == 300
+        assert today["previousBytes"] == 0
+        assert today["comparisonAvailable"] is False
+    finally:
+        await database.close()
+
+
+def test_process_tree_snapshot_counts_only_real_chromium_descendants(
+    tmp_path: Path,
+) -> None:
+    """Catches unrelated child RSS being presented as browser memory."""
+    proc_root = tmp_path / "proc"
+    for pid, children, command, rss_kib in (
+        (100, "101 102", "python api", 100),
+        (101, "103", "chromium --type=browser", 10),
+        (102, "", "ffmpeg probe", 5),
+        (103, "", "chrome --type=renderer", 20),
+    ):
+        task = proc_root / str(pid) / "task" / str(pid)
+        task.mkdir(parents=True)
+        (task / "children").write_text(children, encoding="utf-8")
+        (proc_root / str(pid) / "cmdline").write_bytes(command.replace(" ", "\0").encode())
+        (proc_root / str(pid) / "status").write_text(
+            f"Name:\tprocess\nVmRSS:\t{rss_kib} kB\n",
+            encoding="utf-8",
+        )
+
+    snapshot = importlib.import_module("douyin_archive.telemetry").process_tree_snapshot(
+        root_pid=100,
+        proc_root=proc_root,
+    )
+
+    assert snapshot == {
+        "browserProcessCount": 2,
+        "browserMemoryBytes": 30 * 1024,
+    }
 
 
 async def test_source_progress_is_logical_while_global_storage_is_deduplicated(

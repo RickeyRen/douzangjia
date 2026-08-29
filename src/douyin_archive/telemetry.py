@@ -45,6 +45,63 @@ def process_memory_bytes() -> int:
     return maximum if sys.platform == "darwin" else maximum * 1024
 
 
+def _process_rss_bytes(pid: int, proc_root: Path) -> int:
+    try:
+        lines = (proc_root / str(pid) / "status").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    except OSError:
+        return 0
+    for line in lines:
+        if line.startswith("VmRSS:"):
+            try:
+                return int(line.split()[1]) * 1024
+            except (ValueError, IndexError):
+                return 0
+    return 0
+
+
+def process_tree_snapshot(
+    *,
+    root_pid: int | None = None,
+    proc_root: Path = Path("/proc"),
+) -> dict[str, int]:
+    """Return RSS for actual Chromium descendants of the application process."""
+    root = os.getpid() if root_pid is None else root_pid
+    pending = [root]
+    visited: set[int] = set()
+    browser_count = 0
+    browser_memory = 0
+    while pending:
+        pid = pending.pop()
+        if pid in visited:
+            continue
+        visited.add(pid)
+        try:
+            children = (
+                proc_root / str(pid) / "task" / str(pid) / "children"
+            ).read_text(encoding="utf-8")
+            pending.extend(int(value) for value in children.split())
+        except (OSError, ValueError):
+            pass
+        if pid == root:
+            continue
+        try:
+            command = (proc_root / str(pid) / "cmdline").read_bytes().replace(
+                b"\0", b" "
+            ).decode("utf-8", errors="ignore").lower()
+        except OSError:
+            continue
+        if "chromium" not in command and "chrome" not in command:
+            continue
+        browser_count += 1
+        browser_memory += _process_rss_bytes(pid, proc_root)
+    return {
+        "browserProcessCount": browser_count,
+        "browserMemoryBytes": browser_memory,
+    }
+
+
 def system_memory() -> tuple[int, int]:
     meminfo = Path("/proc/meminfo")
     if meminfo.is_file():
@@ -83,6 +140,7 @@ def system_snapshot() -> dict[str, object]:
         "memoryTotalBytes": memory_total,
         "memoryUsedBytes": memory_used,
         "processMemoryBytes": process_memory_bytes(),
+        **process_tree_snapshot(),
     }
 
 
