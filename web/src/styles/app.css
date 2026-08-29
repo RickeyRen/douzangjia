@@ -643,6 +643,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .home-live-state small { margin-top: 2px; color: var(--app-faint); font-size: 10px; }
 .home-header .theme-toggle { width: 40px; height: 40px; justify-self: end; }
 .home-scroll {
+  container-name: dashboard;
+  container-type: inline-size;
   height: calc(100dvh - 64px);
   overflow-x: hidden;
   overflow-y: auto;
@@ -770,6 +772,11 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
   .home-source-identity:hover,
   .home-source-open:hover { border-color: color-mix(in srgb, var(--app-info) 42%, var(--app-line-strong)); background: color-mix(in srgb, var(--app-surface-raised) 88%, var(--app-info-soft)); }
   button.home-dashboard-metric:active { transform: translateY(1px); }
+}
+
+@container dashboard (min-width: 720px) and (max-width: 1249px) {
+  .home-dashboard-grid.is-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-dashboard-grid.is-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (min-width: 720px) and (max-width: 1199px) {

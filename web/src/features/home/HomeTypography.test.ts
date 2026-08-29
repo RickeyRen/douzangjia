@@ -48,3 +48,13 @@ it("defines desktop and iPhone sibling layouts without horizontal overflow", () 
   expect(homeStyles).toContain("@media (max-width: 719px)");
   expect(homeStyles).toContain("overflow-x: hidden");
 });
+
+it("adapts dashboard columns to the content width left by the desktop rail", () => {
+  expect(declaration(".home-scroll")).toMatch(/container-type:\s*inline-size/);
+  const start = homeStyles.indexOf("@container dashboard (min-width: 720px) and (max-width: 1249px)");
+  const end = homeStyles.indexOf("@media (min-width: 720px) and (max-width: 1199px)", start);
+  const responsiveRules = homeStyles.slice(start, end);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(responsiveRules).toContain(".home-dashboard-grid.is-four { grid-template-columns: repeat(2");
+  expect(responsiveRules).toContain(".home-dashboard-grid.is-five { grid-template-columns: repeat(3");
+});
