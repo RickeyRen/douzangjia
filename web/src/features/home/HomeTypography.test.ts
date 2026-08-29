@@ -58,3 +58,10 @@ it("adapts dashboard columns to the content width left by the desktop rail", () 
   expect(responsiveRules).toContain(".home-dashboard-grid.is-four { grid-template-columns: repeat(2");
   expect(responsiveRules).toContain(".home-dashboard-grid.is-five { grid-template-columns: repeat(3");
 });
+
+it("keeps every interactive home control at least 44 pixels on mobile", () => {
+  expect(declaration(".home-header .theme-toggle")).toMatch(/width:\s*44px/);
+  expect(declaration(".home-header .theme-toggle")).toMatch(/height:\s*44px/);
+  expect(declaration(".home-source-open")).toMatch(/width:\s*44px/);
+  expect(declaration(".home-source-open")).toMatch(/height:\s*44px/);
+});

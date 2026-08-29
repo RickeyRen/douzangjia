@@ -548,7 +548,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .home-policy-toggle input:checked + span { border-color: var(--app-accent); background: var(--app-accent-soft); }
 .home-policy-toggle input:checked + span::after { transform: translateX(15px); background: var(--app-accent); }
 .home-policy-toggle input:focus-visible + span { outline: 2px solid color-mix(in srgb, var(--app-accent) 60%, transparent); outline-offset: 2px; }
-.home-source-open { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 8px; color: var(--app-faint); background: transparent; }
+.home-source-open { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 8px; color: var(--app-faint); background: transparent; }
 .home-source-error { grid-column: 1 / -1; margin: 0; color: var(--app-danger); font-size: 12px; }
 .home-state { display: grid; min-height: 100dvh; place-items: center; color: var(--app-muted); }
 .home-skeleton { background: linear-gradient(100deg, var(--app-bg) 25%, var(--app-surface) 42%, var(--app-bg) 58%); background-size: 220% 100%; animation: home-skeleton 1.4s ease infinite; }
@@ -641,7 +641,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb
 .home-live-state.is-live i { background: var(--app-success); animation: home-status-breathe 2.4s ease-in-out infinite; }
 .home-live-state strong { color: var(--app-muted); font-size: 11px; font-weight: 650; }
 .home-live-state small { margin-top: 2px; color: var(--app-faint); font-size: 10px; }
-.home-header .theme-toggle { width: 40px; height: 40px; justify-self: end; }
+.home-header .theme-toggle { width: 44px; height: 44px; justify-self: end; }
 .home-scroll {
   container-name: dashboard;
   container-type: inline-size;
@@ -723,7 +723,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 .home-source-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(190px, 1.4fr) auto minmax(190px, .8fr) auto 36px;
+  grid-template-columns: minmax(190px, 1.4fr) auto minmax(190px, .8fr) auto 44px;
   align-items: center;
   gap: 14px;
   border: 1px solid var(--app-line-strong);
@@ -743,7 +743,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 .home-source-metrics dt { color: var(--app-faint); font-size: 11px; }
 .home-source-metrics dd { margin: 4px 0 0; color: var(--app-text); font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; font-weight: 620; }
 .home-policy-toggle { min-width: 44px; min-height: 44px; padding: 11px 4px; }
-.home-source-open { width: 36px; height: 36px; }
+.home-source-open { width: 44px; height: 44px; }
 .home-source-error { grid-column: 1 / -1; font-size: 12px; }
 .home-runtime-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .home-runtime-card {
@@ -785,7 +785,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
   .home-dashboard-grid.is-four,
   .home-dashboard-grid.is-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-dashboard-grid.is-five > :last-child { grid-column: 1 / -1; }
-  .home-source-row { grid-template-columns: minmax(190px, 1fr) auto minmax(150px, .7fr) auto 36px; gap: 10px; }
+  .home-source-row { grid-template-columns: minmax(190px, 1fr) auto minmax(150px, .7fr) auto 44px; gap: 10px; }
 }
 
 @media (max-width: 719px) {
@@ -825,7 +825,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
   .home-trend > svg,
   .home-trend > p { height: 96px; }
   .home-source-row {
-    grid-template-columns: minmax(0, 1fr) auto auto 36px;
+    grid-template-columns: minmax(0, 1fr) auto auto 44px;
     gap: 8px;
     padding: 10px;
   }
