@@ -88,10 +88,10 @@ const snapshot: DashboardSnapshot = {
       failed: 0,
       archivedBytes: 80_000_000,
       knownTotalBytes: 80_000_000,
-      remoteTotal: 120,
-      remoteComplete: true,
-      coveragePercent: 70,
-      syncStatus: "complete",
+      remoteTotal: 150,
+      remoteComplete: false,
+      coveragePercent: 56,
+      syncStatus: "incomplete",
       lastSyncAt: 90,
       errorCode: null,
     },
@@ -225,6 +225,14 @@ it("keeps source copy outside the fixed-size icon well", () => {
   const copy = source.querySelector(".home-source-copy");
   expect(copy).toBeTruthy();
   expect(copy).toContainElement(screen.getByText("想去的地方"));
+});
+
+it("shows category archive progress against the remote total when it is known", () => {
+  render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
+
+  const region = screen.getByRole("region", { name: "收藏分类进度" });
+  expect(within(region).getByText("84 / 150 已归档")).toBeVisible();
+  expect(within(region).getByRole("progressbar", { name: "想去的地方 收藏分类进度" })).toHaveAttribute("aria-valuenow", "56");
 });
 
 it("changes one category download policy without changing another source", async () => {

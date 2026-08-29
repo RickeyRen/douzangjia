@@ -215,6 +215,37 @@ async def test_source_progress_reports_queue_states_and_unknown_totals(
     assert source["coveragePercent"] == 0.0
 
 
+async def test_source_progress_uses_declared_remote_total_for_archive_coverage(
+    dashboard_components,
+) -> None:
+    """Catches a partially discovered collection being shown as fully archived."""
+    database, _dashboard_module, _telemetry_module, service, _telemetry = (
+        dashboard_components
+    )
+    archive = ArchiveRepository(database)
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="favorite_collection:partial",
+            kind=LibrarySourceKind.FAVORITE_COLLECTION,
+            remote_id="partial",
+            name="未发现完的收藏夹",
+            declared_count=10,
+        )
+    )
+    for index in range(4):
+        item_id = f"partial-{index}"
+        await _seed_ready_media(database, archive, item_id, 100)
+        await library.link_source_item("favorite_collection:partial", item_id, str(index))
+
+    source = (await service.source_progress())[0]
+
+    assert source["discovered"] == 4
+    assert source["archived"] == 4
+    assert source["remoteTotal"] == 10
+    assert source["coveragePercent"] == 40.0
+
+
 async def test_metric_series_filters_windows_and_keeps_real_values(
     dashboard_components,
 ) -> None:

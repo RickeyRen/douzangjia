@@ -103,3 +103,57 @@ it("loads once, then follows SSE snapshots and closes the stream", async () => {
   view.unmount();
   expect(FakeEventSource.latest.closed).toBe(true);
 });
+
+it("refreshes persisted trend points when a new five-second sample can exist", async () => {
+  const nextPoint = {
+    sampledAt: 6,
+    downloadSpeedBps: 2048,
+    downloadedBytes: 1024,
+    cpuLoadPercent: 12,
+    memoryUsedBytes: 300,
+    processMemoryBytes: 100,
+    diskUsedBytes: 400,
+    diskFreeBytes: 600,
+    archiveBytes: 50,
+  };
+  vi.mocked(api.fetchDashboardSeries)
+    .mockResolvedValueOnce({ window: "24h", items: [] })
+    .mockResolvedValueOnce({ window: "24h", items: [nextPoint] });
+  const view = renderHook(() => useDashboardStream());
+  await waitFor(() => expect(api.fetchDashboardSeries).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(view.result.current.snapshot?.generatedAt).toBe(1));
+
+  act(() => {
+    FakeEventSource.latest.emit("snapshot", { ...snapshot, generatedAt: 6 });
+  });
+
+  await waitFor(() => expect(view.result.current.series).toEqual([nextPoint]));
+  expect(api.fetchDashboardSeries).toHaveBeenCalledTimes(2);
+});
+
+it("keeps the last persisted trend visible when a refresh fails", async () => {
+  const previousPoint = {
+    sampledAt: 1,
+    downloadSpeedBps: 512,
+    downloadedBytes: 256,
+    cpuLoadPercent: 8,
+    memoryUsedBytes: 300,
+    processMemoryBytes: 100,
+    diskUsedBytes: 400,
+    diskFreeBytes: 600,
+    archiveBytes: 50,
+  };
+  vi.mocked(api.fetchDashboardSeries)
+    .mockResolvedValueOnce({ window: "24h", items: [previousPoint] })
+    .mockRejectedValueOnce(new Error("series unavailable"));
+  const view = renderHook(() => useDashboardStream());
+  await waitFor(() => expect(view.result.current.series).toEqual([previousPoint]));
+
+  act(() => {
+    FakeEventSource.latest.emit("snapshot", { ...snapshot, generatedAt: 6 });
+  });
+  await waitFor(() => expect(api.fetchDashboardSeries).toHaveBeenCalledTimes(2));
+
+  expect(view.result.current.series).toEqual([previousPoint]);
+  expect(view.result.current.error).toBe(false);
+});

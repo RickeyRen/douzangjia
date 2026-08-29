@@ -44,13 +44,14 @@ export function SourceProgressSection({
       <div className="home-source-list" role="region" aria-label={t("collectionProgressTitle")}>
         {localSources.map((source, index) => {
           const tone = tones[index % tones.length];
+          const progressTotal = Math.max(source.discovered, source.remoteTotal ?? 0);
           return (
             <article key={source.id} className="home-source-row" data-icon-tone={tone}>
               <button className="home-source-identity" type="button" onClick={() => onOpenSource(source.id)}>
                 <span className="app-icon-well" data-icon-tone={tone}><Database size={17} weight="duotone" /></span>
                 <div className="home-source-copy">
                   <strong>{source.name}</strong>
-                  <small>{numberFormat.format(source.archived)} / {numberFormat.format(source.discovered)} {t("archivedWorks")}</small>
+                  <small>{numberFormat.format(source.archived)} / {numberFormat.format(progressTotal)} {t("archivedWorks")}</small>
                 </div>
               </button>
               <ProgressRing value={source.coveragePercent} label={`${source.name} ${t("collectionProgressTitle")}`} compact />

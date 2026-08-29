@@ -67,6 +67,7 @@ class DashboardService:
                 if row["declared_count"] is not None
                 else None
             )
+            coverage_total = max(discovered, remote_total or 0)
             result.append(
                 {
                     "id": row["id"],
@@ -89,7 +90,9 @@ class DashboardService:
                         and row["sync_status"] == "complete"
                     ),
                     "coveragePercent": (
-                        round(archived / discovered * 100, 1) if discovered else 0.0
+                        round(archived / coverage_total * 100, 1)
+                        if coverage_total
+                        else 0.0
                     ),
                     "syncStatus": row["sync_status"],
                     "lastSyncAt": row["last_incremental_scan_at"]

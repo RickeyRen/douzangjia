@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   fetchDashboard,
@@ -21,6 +21,7 @@ export function useDashboardStream(enabled = true): DashboardStreamState {
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(false);
+  const lastSeriesRefreshAt = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -34,6 +35,7 @@ export function useDashboardStream(enabled = true): DashboardStreamState {
         if (!active) return;
         setSnapshot(nextSnapshot);
         setSeries(nextSeries.items);
+        lastSeriesRefreshAt.current = nextSnapshot.generatedAt;
         setError(false);
       })
       .catch(() => {
@@ -50,6 +52,14 @@ export function useDashboardStream(enabled = true): DashboardStreamState {
         setSnapshot(next);
         setConnected(true);
         setError(false);
+        if (next.generatedAt - lastSeriesRefreshAt.current >= 5) {
+          lastSeriesRefreshAt.current = next.generatedAt;
+          void fetchDashboardSeries("24h").then((nextSeries) => {
+            if (active) setSeries(nextSeries.items);
+          }).catch(() => {
+            // Keep the last persisted series visible while the next sample retries.
+          });
+        }
       } catch {
         if (active) setError(true);
       }
