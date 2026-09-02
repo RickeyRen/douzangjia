@@ -9,13 +9,15 @@ export function DashboardSection({
   title,
   children,
   className = "",
+  testId,
 }: {
   title: string;
   children: ReactNode;
   className?: string;
+  testId?: string;
 }) {
   return (
-    <section className={`home-dashboard-section ${className}`.trim()}>
+    <section className={`home-dashboard-section ${className}`.trim()} data-testid={testId}>
       <h2>{title}</h2>
       {children}
     </section>

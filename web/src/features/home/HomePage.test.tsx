@@ -239,6 +239,16 @@ it("renders the complete real operations dashboard in scan order", () => {
   expect(within(home).getByText("5 个进程")).toBeVisible();
 });
 
+it("organizes live data into the Credit Pros bento hierarchy", () => {
+  render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
+
+  const bento = screen.getByTestId("dashboard-bento");
+  expect(bento).toContainElement(screen.getByTestId("dashboard-hero"));
+  expect(bento).toContainElement(screen.getByTestId("dashboard-primary-metrics"));
+  expect(screen.getByTestId("dashboard-storage-card")).toHaveAttribute("data-used-percent", "42");
+  expect(screen.getByTestId("dashboard-queue-card")).toHaveTextContent("2");
+});
+
 it("shows the current sync source and per-video download progress", () => {
   render(<ThemeProvider><HomePage onOpenDownloads={vi.fn()} onOpenSource={vi.fn()} /></ThemeProvider>);
 

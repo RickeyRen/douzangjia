@@ -43,7 +43,7 @@ export function LiveActivitySection({
   const sourceNames = activity.sources.map((source) => source.name).join(" · ");
 
   return (
-    <DashboardSection title={t("liveActivityTitle")} className="home-activity-section">
+    <DashboardSection title={t("liveActivityTitle")} className="home-activity-section bento-hero" testId="dashboard-hero">
       <div className={`home-activity${active ? " is-active" : ""}`} role="region" aria-label={t("liveActivityTitle")}>
         <div className="home-activity-summary">
           <span className="home-activity-orbit" data-icon-tone={active ? "cyan" : "green"}>

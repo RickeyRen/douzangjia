@@ -97,19 +97,19 @@ export function HomePage({
         <ThemeToggle />
       </header>
 
-      <div className="home-scroll">
+      <div className="home-scroll" data-testid="dashboard-bento">
         <LiveActivitySection activity={snapshot.activity} speedBps={snapshot.queue.speedBps} onOpenDownloads={onOpenDownloads} />
 
-        <DashboardSection title={t("engineUsageTitle")}>
-          <div className="home-dashboard-grid is-four">
-            <DashboardMetric label={t("serviceCount")} value={`${snapshot.runtime.serviceCount} ${t("serviceUnit")}`} icon={<Stack size={18} weight="duotone" />} tone="blue" />
-            <DashboardMetric label={t("appAndBrowserMemory")} value={formatBytes(totalObservedMemory)} detail={`${t("processMemory")} ${formatBytes(snapshot.runtime.application.memoryBytes)}`} icon={<Memory size={18} weight="duotone" />} tone="cyan" />
+        <DashboardSection title={t("engineUsageTitle")} className="bento-primary">
+          <div className="home-dashboard-grid is-four" data-testid="dashboard-primary-metrics">
+            <DashboardMetric label={t("archiveData")} value={formatBytes(snapshot.storage.archiveBytes)} detail={`${number.format(snapshot.library.archivedItems)} ${t("downloadedPosts")}`} icon={<Database size={18} weight="duotone" />} tone="blue" />
+            <DashboardMetric label={t("appAndBrowserMemory")} value={formatBytes(totalObservedMemory)} detail={`${formatPercent(totalObservedMemory, snapshot.system.memoryTotalBytes)} ${t("storageUsage")}`} icon={<Memory size={18} weight="duotone" />} tone="cyan" />
             <DashboardMetric label={t("currentSpeed")} value={formatSpeed(snapshot.queue.speedBps)} detail={`${snapshot.queue.running} ${t("activeDownloads")}`} icon={<DownloadSimple size={18} weight="duotone" />} tone="amber" onClick={onOpenDownloads} />
             <DashboardMetric label={t("averageCpuLoad")} value={`${snapshot.system.cpuLoadPercent.toFixed(1)}%`} detail={formatLoadAverage(snapshot.system.loadAverage1m, snapshot.system.loadAverage5m, snapshot.system.loadAverage15m)} icon={<Cpu size={18} weight="duotone" />} tone="violet" />
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("serviceDetailsTitle")}>
+        <DashboardSection title={t("serviceDetailsTitle")} className="bento-services">
           <div className="home-dashboard-grid is-three home-service-grid">
             <DashboardMetric label={t("applicationService")} value={runtimeLabels.running} detail={formatBytes(snapshot.runtime.application.memoryBytes)} icon={<Cpu size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("downloadEngine")} value={formatRuntimeStatus(snapshot.runtime.downloader.status, runtimeLabels)} detail={`${snapshot.runtime.downloader.activeWorkers} / ${snapshot.runtime.downloader.workerCount} Worker`} icon={<CloudArrowDown size={18} weight="duotone" />} tone="violet" onClick={onOpenDownloads} />
@@ -117,7 +117,7 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("throughputTitle")}>
+        <DashboardSection title={t("throughputTitle")} className="bento-throughput">
           <div className="home-dashboard-grid is-four home-throughput-grid">
             <DashboardMetric label={t("today")} value={formatBytes(snapshot.throughput.today.bytes)} detail={comparison(snapshot.throughput.today, t("compareYesterday"))} icon={<CalendarBlank size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("lastSevenDays")} value={formatBytes(snapshot.throughput.sevenDays.bytes)} detail={comparison(snapshot.throughput.sevenDays, t("compareLastWeek"))} icon={<CalendarBlank size={18} weight="duotone" />} tone="green" />
@@ -126,8 +126,8 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("queueStatusTitle")}>
-          <div className="home-dashboard-grid is-five home-queue-grid">
+        <DashboardSection title={t("queueStatusTitle")} className="bento-queue">
+          <div className="home-dashboard-grid is-five home-queue-grid" data-testid="dashboard-queue-card">
             <DashboardMetric label={t("statusPending")} value={number.format(snapshot.queue.pending)} icon={<Hourglass size={18} weight="duotone" />} tone="blue" onClick={onOpenDownloads} />
             <DashboardMetric label={t("statusRunning")} value={number.format(snapshot.queue.running)} detail={formatSpeed(snapshot.queue.speedBps)} icon={<DownloadSimple size={18} weight="duotone" />} tone="green" onClick={onOpenDownloads} />
             <DashboardMetric label={t("statusRetry")} value={number.format(snapshot.queue.retry)} icon={<Pulse size={18} weight="duotone" />} tone="amber" onClick={onOpenDownloads} />
@@ -136,8 +136,8 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("nasSystemTitle")}>
-          <div className="home-dashboard-grid is-four">
+        <DashboardSection title={t("nasSystemTitle")} className="bento-storage">
+          <div className="home-dashboard-grid is-four" data-testid="dashboard-storage-card" data-used-percent={snapshot.storage.usedPercent}>
             <DashboardMetric label={t("archiveData")} value={formatBytes(snapshot.storage.archiveBytes)} detail={`${formatPercent(snapshot.storage.archiveBytes, snapshot.storage.totalBytes)} ${t("storageUsage")}`} icon={<Database size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("diskSpace")} value={`${formatBytes(snapshot.storage.usedBytes)} / ${formatBytes(snapshot.storage.totalBytes)}`} detail={`${formatBytes(snapshot.storage.freeBytes)} ${t("freeStorage")}`} icon={<HardDrives size={18} weight="duotone" />} tone="cyan" />
             <DashboardMetric label={t("systemMemory")} value={`${formatBytes(snapshot.system.memoryUsedBytes)} / ${formatBytes(snapshot.system.memoryTotalBytes)}`} detail={formatPercent(snapshot.system.memoryUsedBytes, snapshot.system.memoryTotalBytes)} icon={<Memory size={18} weight="duotone" />} tone="green" />
@@ -145,7 +145,7 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("libraryTitle")}>
+        <DashboardSection title={t("libraryTitle")} className="bento-library">
           <div className="home-dashboard-grid is-five">
             <DashboardMetric label={t("discoveredItems")} value={number.format(snapshot.library.items)} icon={<Stack size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("downloadedPosts")} value={number.format(snapshot.library.archivedItems)} detail={formatPercent(snapshot.library.archivedItems, snapshot.library.items)} icon={<VideoCamera size={18} weight="duotone" />} tone="amber" />
@@ -155,7 +155,7 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("douyinAccountTitle")}>
+        <DashboardSection title={t("douyinAccountTitle")} className="bento-account">
           <div className="home-dashboard-grid is-five home-account-grid">
             <DashboardMetric label={t("nickname")} value={accountName} icon={<UserCircle size={18} weight="duotone" />} tone="blue" />
             <DashboardMetric label={t("douyinId")} value={accountId} icon={<IdentificationCard size={18} weight="duotone" />} tone="cyan" />
@@ -165,7 +165,7 @@ export function HomePage({
           </div>
         </DashboardSection>
 
-        <DashboardSection title={t("performanceTrendTitle")}>
+        <DashboardSection title={t("performanceTrendTitle")} className="bento-trends">
           <div className="home-trend-grid">
             <DashboardTrend label={t("downloadSpeedTrend")} points={series} value={(point) => point.downloadSpeedBps} current={formatSpeed(snapshot.queue.speedBps)} tone="blue" emptyLabel={t("noMetricHistory")} />
             <DashboardTrend label={t("systemLoadTrend")} points={series} value={(point) => point.cpuLoadPercent} current={`${snapshot.system.cpuLoadPercent.toFixed(1)}%`} tone="violet" emptyLabel={t("noMetricHistory")} />
