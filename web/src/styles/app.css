@@ -1082,7 +1082,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 }
 .home-activity { min-height: 210px; border-radius: 24px; }
 .home-activity-summary { padding: 24px; background: radial-gradient(circle at 8% 10%, color-mix(in srgb, var(--app-cyan) 11%, transparent), transparent 48%); }
-.home-activity-copy > strong { margin-top: 11px; font-size: clamp(24px, 2.5vw, 38px); font-weight: 470; letter-spacing: -.055em; }
+.home-activity-copy > strong { overflow: visible; margin-top: 11px; font-size: clamp(24px, 2.5vw, 38px); font-weight: 470; line-height: 1.12; letter-spacing: -.055em; text-overflow: clip; white-space: normal; }
 .home-activity-copy > p { margin-top: 8px; font-size: 13px; }
 .home-activity-stats { gap: 34px; margin-top: 22px; padding-top: 18px; }
 .home-activity-stats dt { font-size: 11px; }
