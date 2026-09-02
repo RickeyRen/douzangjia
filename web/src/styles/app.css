@@ -1219,6 +1219,7 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 
 @media (max-width: 719px) {
   .archive-feed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+  .creator-page .archive-feed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .archive-grid-card { border-radius: 16px; }
   .archive-grid-caption { padding: 38px 10px 10px; }
   .archive-grid-caption strong { font-size: 12px; }
