@@ -605,6 +605,7 @@ describe("FeedPage", () => {
 
     expect(screen.getByTestId("feed-grid")).toBeVisible();
     expect(screen.getAllByRole("button", { name: /\u6253\u5f00\u4f5c\u54c1/ })).toHaveLength(2);
+    expect(screen.getAllByText("抖音号 · travel-id")).toHaveLength(2);
     expect(window.localStorage.getItem("liuying.feedView.v1")).toBe("grid");
   });
 

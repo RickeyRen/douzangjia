@@ -29,6 +29,7 @@ export function FeedGrid({ items, activeIndex, onOpen }: { items: FeedItem[]; ac
               <span className="archive-grid-caption">
                 <strong>{title}</strong>
                 <small>@{item.author}</small>
+                <small className="archive-grid-douyin-id">{t("douyinId")} · {item.creator?.uniqueId || t("creatorIdUnavailable")}</small>
               </span>
             </button>
           </article>
