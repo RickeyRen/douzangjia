@@ -993,3 +993,55 @@ button.home-dashboard-metric { transition: border-color 160ms ease, background-c
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Credit Pros application shell */
+.archive-desktop-grid { display: block; max-width: none; }
+.credit-pros-shell { width: 100%; height: 100dvh; min-width: 0; background: var(--app-bg); }
+.credit-pros-primary,
+.credit-pros-context,
+.credit-pros-details { display: none; min-width: 0; min-height: 0; }
+.credit-pros-stage { min-width: 0; min-height: 0; height: 100dvh; overflow: hidden; }
+
+.primary-rail { display: flex; width: 100%; height: 100%; flex-direction: column; align-items: center; padding: 18px 10px 16px; background: #070708; }
+.primary-brand { display: grid; width: 46px; height: 46px; flex: 0 0 46px; place-items: center; border: 1px solid var(--app-line-strong); border-radius: 16px; color: var(--app-text); background: var(--app-surface-raised); box-shadow: inset 0 1px rgb(255 255 255 / 5%); }
+.primary-destinations { display: grid; gap: 9px; margin-top: 34px; }
+.primary-destinations button { --icon-color: var(--app-muted); position: relative; display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid transparent; border-radius: 16px; padding: 0; color: var(--icon-color); background: transparent; transition: color 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.primary-destinations button > span { pointer-events: none; position: absolute; left: calc(100% + 12px); z-index: 20; width: max-content; max-width: 170px; opacity: 0; transform: translateX(-4px); border: 1px solid var(--app-line-strong); border-radius: 9px; padding: 7px 9px; color: var(--app-text); background: rgb(14 15 18 / 96%); box-shadow: 0 10px 28px rgb(0 0 0 / 34%); font-size: 11px; transition: opacity 160ms ease, transform 160ms ease; }
+.primary-destinations button[aria-current="page"] { color: var(--icon-color); border-color: color-mix(in srgb, var(--icon-color) 28%, var(--app-line)); background: color-mix(in srgb, var(--icon-color) 12%, transparent); box-shadow: 0 0 24px color-mix(in srgb, var(--icon-color) 14%, transparent), inset 0 1px rgb(255 255 255 / 5%); }
+.primary-destinations button[data-icon-tone="amber"] { --icon-color: var(--app-warning); }
+.primary-destinations button[data-icon-tone="blue"] { --icon-color: var(--app-info); }
+.primary-destinations button[data-icon-tone="violet"] { --icon-color: var(--app-violet); }
+.primary-destinations button[data-icon-tone="green"] { --icon-color: var(--app-success); }
+.primary-destinations button[data-icon-tone="cyan"] { --icon-color: var(--app-cyan); }
+.primary-account { position: relative; display: grid; width: 42px; height: 42px; place-items: center; margin-top: auto; overflow: visible; border: 1px solid var(--app-line-strong); border-radius: 50%; color: var(--app-muted); background: var(--app-surface-raised); }
+.primary-account img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.primary-account i { position: absolute; right: -1px; bottom: 0; width: 10px; height: 10px; border: 2px solid #070708; border-radius: 50%; background: var(--app-faint); }
+.primary-account[data-health="healthy"] i { background: var(--app-success); box-shadow: 0 0 12px color-mix(in srgb, var(--app-success) 62%, transparent); }
+.primary-account[data-health="degraded"] i,
+.primary-account[data-health="checking"] i { background: var(--app-warning); }
+.primary-account[data-health="expired"] i { background: var(--app-danger); }
+
+@media (hover: hover) {
+  .primary-destinations button:hover { transform: translateY(-1px); color: var(--icon-color); border-color: color-mix(in srgb, var(--icon-color) 24%, var(--app-line)); background: color-mix(in srgb, var(--icon-color) 9%, transparent); }
+  .primary-destinations button:hover > span { opacity: 1; transform: translateX(0); }
+}
+
+@media (min-width: 960px) {
+  .credit-pros-shell { display: grid; grid-template-columns: 72px minmax(0, 1fr); }
+  .credit-pros-primary { display: block; height: 100dvh; border-right: 1px solid var(--app-line); }
+  .credit-pros-stage { grid-column: 2; }
+  .credit-pros-shell .archive-content-column,
+  .credit-pros-shell .home-page { height: 100dvh; }
+}
+
+@media (min-width: 1280px) {
+  .credit-pros-shell { grid-template-columns: 72px 232px minmax(0, 1fr); }
+  .credit-pros-shell[data-has-details="true"] { grid-template-columns: 72px 232px minmax(520px, 1fr) 340px; }
+  .credit-pros-context { display: block; height: 100dvh; overflow: hidden; border-right: 1px solid var(--app-line); }
+  .credit-pros-context .collection-rail { display: flex; width: 100%; height: 100%; padding: 22px 14px 16px; border: 0; background: #09090b; }
+  .credit-pros-context .collection-brand { display: none; }
+  .credit-pros-context .collection-navigation { margin-top: 0; }
+  .credit-pros-stage { grid-column: 3; }
+  .credit-pros-details { display: block; grid-column: 4; height: 100dvh; overflow: hidden; border-left: 1px solid var(--app-line); }
+  .credit-pros-details .desktop-item-details { display: flex; width: 100%; height: 100%; background: #09090b; }
+}

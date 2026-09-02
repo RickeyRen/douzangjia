@@ -5,9 +5,11 @@ import { archiveCreator, archiveItem, archiveSource, fetchCreator, fetchFeed, fe
 import { FriendlyIconButton } from "../../components/FriendlyIconButton";
 import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
+import { AppShell } from "../navigation/AppShell";
 import { CollectionRail } from "../navigation/CollectionRail";
 import type { UtilityPanel } from "../navigation/CollectionRail";
 import { MobileNavigation, type MobileDestination } from "../navigation/MobileNavigation";
+import { PrimaryRail } from "../navigation/PrimaryRail";
 import { ArchiveStatusPanel } from "../status/ArchiveStatusPanel";
 import { HomePage } from "../home/HomePage";
 import { useDashboardStream } from "../home/useDashboardStream";
@@ -344,18 +346,36 @@ export function FeedPage() {
     setCreator((current) => current ? { ...current, subscription } : current);
   }
 
+  const desktopDetails = !homeOpen && !selectedCreator && !entityMode && viewMode === "focus"
+    ? active
+      ? <DesktopItemDetails item={active} refreshingIdentity={creatorIdentityRefreshing} onOpenAuthor={openAuthor} />
+      : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" />
+    : undefined;
+
   return (
     <main data-testid="archive-feed-root" className="iphone-feed-shell archive-app-shell">
       <div data-testid="desktop-workspace" className={`archive-desktop-grid${homeOpen || selectedCreator || viewMode === "grid" || entityMode ? " is-grid-view" : ""}`}>
-        <CollectionRail
-          sources={sources}
-          dashboard={dashboardStream.snapshot}
-          selected={selectedCreator ? undefined : selected}
-          homeActive={homeOpen}
-          onSelect={selectCollection}
-          onOpenHome={() => setHomeOpen(true)}
-          onOpenPanel={setUtilityPanel}
-        />
+        <AppShell
+          primary={(
+            <PrimaryRail
+              active={homeOpen ? "home" : "library"}
+              dashboard={dashboardStream.snapshot}
+              onOpen={(destination) => destination === "collections" ? selectCollection(undefined) : openMobileDestination(destination)}
+            />
+          )}
+          context={(
+            <CollectionRail
+              sources={sources}
+              dashboard={dashboardStream.snapshot}
+              selected={selectedCreator ? undefined : selected}
+              homeActive={homeOpen}
+              onSelect={selectCollection}
+              onOpenHome={() => setHomeOpen(true)}
+              onOpenPanel={setUtilityPanel}
+            />
+          )}
+          details={desktopDetails}
+        >
         {homeOpen ? (
           <HomePage
             onOpenDownloads={() => setUtilityPanel("downloads")}
@@ -454,9 +474,9 @@ export function FeedPage() {
             </footer>
           ) : null}
         </section>
-        {!selectedCreator && !entityMode && viewMode === "focus" ? active ? <DesktopItemDetails item={active} refreshingIdentity={creatorIdentityRefreshing} onOpenAuthor={openAuthor} /> : <aside data-testid="desktop-details" className="desktop-item-details friendly-panel desktop-details-empty" /> : null}
           </>
         )}
+        </AppShell>
       </div>
 
       {drawerOpen ? <CollectionDrawer sources={sources} dashboard={dashboardStream.snapshot} selected={selected} onSelect={(id) => { selectCollection(id); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} /> : null}
