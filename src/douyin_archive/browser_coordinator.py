@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import urlsplit
 
 from .browser_launch import chromium_persistent_launch_options
@@ -17,6 +17,25 @@ FAVORITES_URL = (
     "https://www.douyin.com/user/self?from_tab_name=main&showTab=favorite_collection"
 )
 DOUYIN_SESSION_COOKIES = {"sessionid", "sessionid_ss"}
+PROBE_TIMEOUT_SECONDS = 5.0
+# Playwright surfaces a dead driver or browser through several error shapes;
+# a crashed Node driver only leaves the closed asyncio transport message.
+DISCONNECT_MARKERS = (
+    "handler is closed",
+    "has been closed",
+    "connection closed",
+    "browser closed",
+    "target closed",
+)
+
+T = TypeVar("T")
+
+
+def is_disconnect_error(error: BaseException) -> bool:
+    if type(error).__name__ == "TargetClosedError":
+        return True
+    message = str(error).lower()
+    return any(marker in message for marker in DISCONNECT_MARKERS)
 
 
 class BrowserProfileLocked(RuntimeError):
@@ -64,6 +83,8 @@ class BrowserCoordinator:
         self._playwright_factory = playwright_factory
         self._playwright: Any = None
         self._context: Any = None
+        self._context_closed = False
+        self._disconnected = False
         self._start_lock = asyncio.Lock()
         self._lease_lock = asyncio.Lock()
 
@@ -75,16 +96,35 @@ class BrowserCoordinator:
 
     def runtime_state(self) -> dict[str, object]:
         return {
-            "started": self._context is not None,
+            "started": self._is_live(),
             "busy": self._lease_lock.locked(),
+            "disconnected": self._disconnected,
         }
 
+    async def probe(self) -> str:
+        """Report ``ok``, ``not_started``, ``disconnected`` or ``unresponsive``."""
+        context = self._context
+        if context is None or self._context_closed:
+            return "disconnected" if self._disconnected or context else "not_started"
+        try:
+            await asyncio.wait_for(context.cookies(), timeout=PROBE_TIMEOUT_SECONDS)
+        except TimeoutError:
+            return "unresponsive"
+        except Exception as error:
+            if not is_disconnect_error(error):
+                raise
+            await self._discard(context)
+            return "disconnected"
+        return "ok"
+
     async def start(self) -> None:
-        if self._context is not None:
+        if self._is_live():
             return
         async with self._start_lock:
-            if self._context is not None:
+            if self._is_live():
                 return
+            if self._context is not None:
+                await self._discard_locked(self._context)
             profile_path = self.profile_store.prepare()
             self._playwright = await self._create_playwright()
             try:
@@ -107,6 +147,12 @@ class BrowserCoordinator:
                         "persistent Chromium profile is already in use"
                     ) from error
                 raise
+            self._context_closed = False
+            self._disconnected = False
+            context = self._context
+            on = getattr(context, "on", None)
+            if on is not None:
+                on("close", lambda *_args: self._mark_closed(context))
 
     async def acquire_page(
         self,
@@ -117,14 +163,14 @@ class BrowserCoordinator:
         if serialized:
             await self._lease_lock.acquire()
         try:
-            await self.start()
-            page = await self.context.new_page()
-            await page.set_viewport_size(
-                {"width": viewport[0], "height": viewport[1]}
-            )
-            return CoordinatorPageLease(
-                self, page, self.context, serialized=serialized
-            )
+            async def open_page(context: Any) -> CoordinatorPageLease:
+                page = await context.new_page()
+                await page.set_viewport_size(
+                    {"width": viewport[0], "height": viewport[1]}
+                )
+                return CoordinatorPageLease(self, page, context, serialized=serialized)
+
+            return await self._with_context(open_page)
         except BaseException:
             if serialized:
                 self._release_lease()
@@ -139,14 +185,21 @@ class BrowserCoordinator:
         )
 
     async def cookies(self) -> list[dict[str, object]]:
-        await self.start()
-        return await self.context.cookies()
+        return await self._with_context(lambda context: context.cookies())
 
     async def add_cookies(self, cookies: list[dict[str, object]]) -> None:
-        await self.start()
-        await self.context.add_cookies(cookies)
+        await self._with_context(lambda context: context.add_cookies(cookies))
 
     async def is_douyin_authenticated(self) -> bool:
+        try:
+            return await self._check_douyin_authenticated()
+        except Exception as error:
+            if not is_disconnect_error(error) or self._context is None:
+                raise
+            await self._discard(self._context)
+        return await self._check_douyin_authenticated()
+
+    async def _check_douyin_authenticated(self) -> bool:
         if not await self.has_douyin_session_cookie():
             return False
 
@@ -169,12 +222,54 @@ class BrowserCoordinator:
             playwright = self._playwright
             self._context = None
             self._playwright = None
+            self._context_closed = False
+            self._disconnected = False
             if context is not None:
                 with suppress(Exception):
                     await context.close()
             if playwright is not None:
                 with suppress(Exception):
                     await playwright.stop()
+
+    def _is_live(self) -> bool:
+        return self._context is not None and not self._context_closed
+
+    def _mark_closed(self, context: Any) -> None:
+        if self._context is context:
+            self._context_closed = True
+            self._disconnected = True
+
+    async def _with_context(self, operation: Callable[[Any], Awaitable[T]]) -> T:
+        """Run ``operation`` once more on a relaunched context after a disconnect."""
+        await self.start()
+        context = self.context
+        try:
+            return await operation(context)
+        except Exception as error:
+            if not is_disconnect_error(error):
+                raise
+            await self._discard(context)
+        await self.start()
+        return await operation(self.context)
+
+    async def _discard(self, context: Any) -> None:
+        async with self._start_lock:
+            await self._discard_locked(context)
+
+    async def _discard_locked(self, context: Any) -> None:
+        # Another caller may already have replaced the dead context.
+        if self._context is not context:
+            return
+        playwright = self._playwright
+        self._context = None
+        self._playwright = None
+        self._context_closed = False
+        self._disconnected = True
+        with suppress(Exception):
+            await context.close()
+        if playwright is not None:
+            with suppress(Exception):
+                await playwright.stop()
 
     async def _create_playwright(self) -> Any:
         if self._playwright_factory is None:

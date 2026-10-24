@@ -238,7 +238,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return {"status": "ok"}
 
     @app.get("/health/ready")
-    async def readiness(request: Request) -> dict[str, object]:
+    async def readiness(request: Request) -> JSONResponse:
         try:
             _prepare_directories(settings.archive_root)
             probe = settings.archive_root / "tmp" / ".write-probe"
@@ -247,19 +247,30 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             archive_status = "ok"
         except OSError:
             archive_status = "error"
+        coordinator = request.app.state.browser_coordinator
         try:
-            request.app.state.browser_coordinator.profile_store.prepare()
+            coordinator.profile_store.prepare()
             browser_profile_status = "ok"
         except OSError:
             browser_profile_status = "error"
-        status = "ok" if archive_status == "ok" and browser_profile_status == "ok" else "error"
-        return {
-            "status": status,
-            "checks": {
-                "archiveRoot": archive_status,
-                "browserProfile": browser_profile_status,
+        # Not started is healthy: the next sync or login launches the browser.
+        browser_connection = await coordinator.probe()
+        healthy = (
+            archive_status == "ok"
+            and browser_profile_status == "ok"
+            and browser_connection in {"ok", "not_started"}
+        )
+        return JSONResponse(
+            status_code=200 if healthy else 503,
+            content={
+                "status": "ok" if healthy else "error",
+                "checks": {
+                    "archiveRoot": archive_status,
+                    "browserProfile": browser_profile_status,
+                    "browserConnection": browser_connection,
+                },
             },
-        }
+        )
 
     @app.post("/api/setup", status_code=201)
     async def setup(payload: SetupRequest, response: Response) -> dict[str, object]:
