@@ -30,6 +30,7 @@ export type MediaFile = {
   byteSize: number | null;
   mimeType: string | null;
   url: string;
+  posterUrl?: string;
   relativePath?: string | null;
   checksumSha256?: string | null;
   completedAt?: number | null;
@@ -64,6 +65,9 @@ export type FeedItem = {
   archivedAt: number;
   sourceUrl: string | null;
   coverUrl?: string | null;
+  thumbnailUrl?: string | null;
+  starred?: boolean;
+  starredAt?: number | null;
   creator?: { id: string; nickname: string; uniqueId: string | null; avatarUrl: string | null } | null;
   douyin?: {
     statistics: Record<string, number>;
@@ -325,6 +329,72 @@ export type SyncRun = {
   finishedAt: number | null;
 };
 
+export type SyncHealthState = "ok" | "syncing" | "stale" | "failing" | "login_required" | "never";
+
+export type SyncHealth = {
+  state: SyncHealthState;
+  lastSuccessAt: number | null;
+  lastAttemptAt: number | null;
+  lastErrorCode: string | null;
+  consecutiveFailures: number;
+  intervalSeconds: number;
+  staleAfterSeconds: number;
+  browser: string;
+};
+
+export type HomeShelf = {
+  id: string;
+  kind: LibrarySource["kind"];
+  name: string;
+  itemCount: number;
+  lastSeenAt: number | null;
+  covers: string[];
+};
+
+export type HomeCreator = {
+  id: string;
+  nickname: string;
+  uniqueId: string | null;
+  avatarUrl: string | null;
+  itemCount: number;
+};
+
+export type HomeSnapshot = {
+  stats: {
+    items: number;
+    videos: number;
+    galleries: number;
+    downloadedItems: number;
+    archivedBytes: number;
+    creators: number;
+    starred: number;
+  };
+  health: SyncHealth;
+  recent: FeedItem[];
+  starred: FeedItem[];
+  shelves: HomeShelf[];
+  creators: HomeCreator[];
+};
+
+export type FeedSort = "archived" | "published" | "source" | "starred" | "random";
+
+export type FeedQuery = {
+  sourceId?: string;
+  creatorId?: string;
+  collectionId?: string;
+  author?: string;
+  type?: "video" | "gallery";
+  search?: string;
+  sort?: FeedSort;
+  seed?: number;
+  downloaded?: boolean;
+  starred?: boolean;
+  cursor?: string;
+  limit?: number;
+};
+
+export type Page<T> = { items: T[]; nextCursor: string | null };
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -399,31 +469,43 @@ export const checkRemoteAvailability = (remoteId: string) =>
 export const fetchArchiveBatches = () => request<{ items: ArchiveBatch[] }>("/api/archive/batches?limit=20");
 export const controlArchiveBatch = (batchId: number, action: "pause" | "resume" | "cancel") =>
   request<ArchiveBatch>(`/api/archive/batches/${batchId}/${action}`, { method: "POST" });
-export const fetchFeed = ({
-  sourceId,
-  collectionId,
-  author,
-  creatorId,
-  search,
-  cursor,
-}: {
-  sourceId?: string;
-  collectionId?: string;
-  author?: string;
-  creatorId?: string;
-  search?: string;
-  cursor?: string;
-}) => {
-  const query = new URLSearchParams({ limit: "20" });
-  if (creatorId) query.set("creatorId", creatorId);
-  if (sourceId) query.set("sourceId", sourceId);
-  if (collectionId) query.set("collectionId", collectionId);
-  if (author) query.set("author", author);
-  if (search && !creatorId) query.set("search", search);
-  if (cursor) query.set("cursor", cursor);
-  const path = creatorId || sourceId ? "/api/library/feed" : "/api/feed";
-  return request<{ items: FeedItem[]; nextCursor: string | null }>(`${path}?${query}`);
+export function feedQueryString(query: FeedQuery): string {
+  const params = new URLSearchParams({ limit: String(query.limit ?? 24) });
+  const text: Array<[keyof FeedQuery, string]> = [
+    ["sourceId", "sourceId"],
+    ["creatorId", "creatorId"],
+    ["collectionId", "collectionId"],
+    ["author", "author"],
+    ["type", "type"],
+    ["search", "search"],
+    ["sort", "sort"],
+    ["cursor", "cursor"],
+  ];
+  for (const [key, name] of text) {
+    const value = query[key];
+    if (typeof value === "string" && value) params.set(name, value);
+  }
+  if (query.sort === "random") params.set("seed", String(query.seed ?? 1));
+  if (query.downloaded) params.set("downloaded", "true");
+  if (query.starred) params.set("starred", "true");
+  return params.toString();
+}
+
+export const fetchFeed = (query: FeedQuery) => request<Page<FeedItem>>(`/api/feed?${feedQueryString(query)}`);
+export const fetchItem = (remoteId: string) => request<FeedItem>(`/api/items/${encodeURIComponent(remoteId)}`);
+export const fetchHome = () => request<HomeSnapshot>("/api/home");
+export const fetchSyncHealth = () => request<SyncHealth>("/api/health/sync");
+export const setItemStar = (remoteId: string, starred: boolean) =>
+  request<{ starred: boolean; starredAt: number | null }>(`/api/items/${encodeURIComponent(remoteId)}/star`, {
+    method: starred ? "PUT" : "DELETE",
+  });
+export const fetchCreators = ({ search, sort = "items", cursor }: { search?: string; sort?: "items" | "recent"; cursor?: string }) => {
+  const params = new URLSearchParams({ limit: "40", sort });
+  if (search) params.set("search", search);
+  if (cursor) params.set("cursor", cursor);
+  return request<Page<Creator>>(`/api/creators?${params}`);
 };
+export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
 export const refreshCreator = (creatorId: string) =>
   request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/refresh`, { method: "POST" });

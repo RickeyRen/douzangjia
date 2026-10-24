@@ -6,6 +6,7 @@ import { I18nProvider } from "./i18n/context";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/tokens.css";
 import "./styles/app.css";
+import "./styles/auth.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

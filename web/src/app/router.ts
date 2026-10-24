@@ -1,0 +1,130 @@
+import { useSyncExternalStore } from "react";
+
+import type { FeedSort } from "./api";
+
+export type LibraryFilters = {
+  type?: "video" | "gallery";
+  sort?: FeedSort;
+  downloaded?: boolean;
+};
+
+export type Route =
+  | { name: "home" }
+  | { name: "library"; sourceId?: string; filters: LibraryFilters }
+  | { name: "starred"; filters: LibraryFilters }
+  | { name: "search"; query: string; filters: LibraryFilters }
+  | { name: "creators"; query: string }
+  | { name: "creator"; creatorId: string; filters: LibraryFilters }
+  | { name: "activity" }
+  | { name: "settings" };
+
+const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random"]);
+
+function readFilters(params: URLSearchParams): LibraryFilters {
+  const type = params.get("type");
+  const sort = params.get("sort") as FeedSort | null;
+  return {
+    type: type === "video" || type === "gallery" ? type : undefined,
+    sort: sort && SORTS.has(sort) ? sort : undefined,
+    downloaded: params.get("dl") === "1" || undefined,
+  };
+}
+
+function writeFilters(params: URLSearchParams, filters: LibraryFilters) {
+  if (filters.type) params.set("type", filters.type);
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.downloaded) params.set("dl", "1");
+}
+
+export function parseRoute(hash: string): Route {
+  const raw = hash.replace(/^#/, "");
+  const [pathPart, queryPart = ""] = raw.split("?", 2);
+  const segments = pathPart.split("/").filter(Boolean).map(decodeURIComponent);
+  const params = new URLSearchParams(queryPart);
+  const filters = readFilters(params);
+  switch (segments[0]) {
+    case "library":
+      return segments[1] ? { name: "library", sourceId: segments[1], filters } : { name: "library", filters };
+    case "starred":
+      return { name: "starred", filters };
+    case "search":
+      return { name: "search", query: params.get("q") ?? "", filters };
+    case "creators":
+      return { name: "creators", query: params.get("q") ?? "" };
+    case "creator":
+      return segments[1] ? { name: "creator", creatorId: segments[1], filters } : { name: "creators", query: "" };
+    case "activity":
+      return { name: "activity" };
+    case "settings":
+      return { name: "settings" };
+    default:
+      return { name: "home" };
+  }
+}
+
+export function routeHref(route: Route): string {
+  const params = new URLSearchParams();
+  let path = "/";
+  switch (route.name) {
+    case "home":
+      break;
+    case "library":
+      path = route.sourceId ? `/library/${encodeURIComponent(route.sourceId)}` : "/library";
+      writeFilters(params, route.filters);
+      break;
+    case "starred":
+      path = "/starred";
+      writeFilters(params, route.filters);
+      break;
+    case "search":
+      path = "/search";
+      if (route.query) params.set("q", route.query);
+      writeFilters(params, route.filters);
+      break;
+    case "creators":
+      path = "/creators";
+      if (route.query) params.set("q", route.query);
+      break;
+    case "creator":
+      path = `/creator/${encodeURIComponent(route.creatorId)}`;
+      writeFilters(params, route.filters);
+      break;
+    case "activity":
+      path = "/activity";
+      break;
+    case "settings":
+      path = "/settings";
+      break;
+  }
+  const query = params.toString();
+  return `#${path}${query ? `?${query}` : ""}`;
+}
+
+export function navigate(route: Route, { replace = false }: { replace?: boolean } = {}) {
+  const href = routeHref(route);
+  if (window.location.hash === href) return;
+  if (replace) {
+    window.history.replaceState(null, "", href);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  } else {
+    window.location.hash = href;
+  }
+}
+
+function subscribe(callback: () => void) {
+  window.addEventListener("hashchange", callback);
+  return () => window.removeEventListener("hashchange", callback);
+}
+
+export function useRoute(): Route {
+  const hash = useSyncExternalStore(subscribe, () => window.location.hash, () => "");
+  return parseRoute(hash);
+}
+
+/** Routes compare by href so navigation highlights survive filter changes. */
+export function sameSection(a: Route, b: Route): boolean {
+  if (a.name !== b.name) return false;
+  if (a.name === "library" && b.name === "library") return a.sourceId === b.sourceId;
+  if (a.name === "creator" && b.name === "creator") return a.creatorId === b.creatorId;
+  return true;
+}

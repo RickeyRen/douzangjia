@@ -1,4 +1,4 @@
-import { QrCode, ShieldCheck } from "@phosphor-icons/react";
+import { QrCode, ShieldCheck, X } from "@phosphor-icons/react";
 import {
   useEffect,
   useRef,
@@ -20,7 +20,7 @@ import { useI18n } from "../../i18n/context";
 import { ThemeToggle } from "../../theme/ThemeToggle";
 import { useDouyinBrowserSocket } from "./useDouyinBrowserSocket";
 
-export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => void }) {
+export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated?: () => void; onCancel?: () => void }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<LoginStatus | null>(null);
   const [error, setError] = useState(false);
@@ -214,6 +214,12 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
           </div>
         </div>
 
+        {onCancel ? (
+          <button type="button" className="friendly-icon-button remote-browser-back" aria-label="返回资料库" onClick={onCancel}>
+            <X size={18} />
+          </button>
+        ) : null}
+
         <div className="remote-browser-status-wrap">
           <div className="remote-browser-status" role="status">
             <span />
@@ -250,6 +256,11 @@ export function DouyinLoginPage({ onAuthenticated }: { onAuthenticated?: () => v
           >
             <ShieldCheck size={20} weight="regular" />
             {t("loginDouyin")}
+          </button>
+        ) : null}
+        {onCancel ? (
+          <button type="button" onClick={onCancel} className="friendly-button friendly-button-secondary auth-cancel">
+            返回资料库
           </button>
         ) : null}
       </section>

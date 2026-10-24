@@ -1,0 +1,302 @@
+/* Local account, setup and Douyin login screens. */
+.auth-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+.auth-brand-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 48px;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 50% at 20% 25%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 80% 70%, rgb(96 165 250 / 22%), transparent 70%),
+    var(--bg-elevated);
+}
+
+.auth-brand-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 64px;
+  mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+}
+
+.auth-brand-panel strong {
+  position: relative;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.auth-brand-panel p {
+  position: relative;
+  max-width: 360px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 16px;
+}
+
+.auth-content {
+  display: grid;
+  place-items: center;
+  padding: 32px 24px;
+}
+
+.auth-card,
+.douyin-auth-card {
+  width: min(420px, 100%);
+}
+
+.auth-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.auth-card h1,
+.douyin-auth-card h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.auth-card > p,
+.douyin-auth-card > p {
+  margin: 8px 0 28px;
+  color: var(--muted);
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-field input {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 400;
+  outline: none;
+  transition: box-shadow 0.15s, background 0.15s;
+}
+
+.auth-field input:focus {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.auth-field span {
+  color: var(--faint);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.friendly-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.friendly-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.friendly-button-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.friendly-button-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.friendly-button-secondary {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.friendly-button-full {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.friendly-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  color: var(--text-2);
+}
+
+.friendly-icon-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.auth-theme-toggle {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+.auth-douyin-shell {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 24px;
+}
+
+.douyin-auth-card {
+  padding: 32px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lg);
+}
+
+.douyin-auth-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--text-2);
+}
+
+.douyin-auth-status span,
+.remote-browser-status span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 4px var(--success-soft);
+}
+
+.douyin-auth-button {
+  width: 100%;
+}
+
+.auth-cancel {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.remote-browser-help {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 60%);
+  backdrop-filter: blur(12px);
+  color: #fff;
+}
+
+.remote-browser-help p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.remote-browser-help small {
+  color: rgb(255 255 255 / 65%);
+}
+
+.remote-browser-status-wrap {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.remote-browser-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 60%);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.remote-browser-back {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-brand-panel {
+    min-height: 200px;
+    padding: 28px 24px;
+  }
+
+  .auth-brand-panel strong {
+    font-size: 30px;
+  }
+
+  .auth-content {
+    place-items: start center;
+  }
+
+  .remote-browser-help small {
+    display: none;
+  }
+}
