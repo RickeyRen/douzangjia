@@ -15,6 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/local/bin/douyin-chromium \
     HOME=/tmp \
+    SQLITE_TMPDIR=/archive/tmp \
     WEB_DIST=/app/web-dist
 
 WORKDIR /app

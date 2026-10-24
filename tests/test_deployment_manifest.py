@@ -38,3 +38,13 @@ def test_docker_image_bypasses_the_broken_nas_hub_mirror() -> None:
 
     assert "FROM docker.m.daocloud.io/library/node:22-bookworm-slim" in dockerfile
     assert "FROM docker.m.daocloud.io/library/python:3.13-slim-bookworm" in dockerfile
+
+
+def test_chromium_shared_memory_and_sqlite_temp_files_do_not_compete() -> None:
+    """Catches the 1g /tmp filling with Chromium shm, crashing pages and SQLite writes."""
+    manifest = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
+    tmpfs = manifest["services"]["archive"]["tmpfs"]
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert any(entry.startswith("/tmp:") and "size=4g" in entry for entry in tmpfs)
+    assert "SQLITE_TMPDIR=/archive/tmp" in dockerfile
