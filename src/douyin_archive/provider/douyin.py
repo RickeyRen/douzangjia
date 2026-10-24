@@ -15,6 +15,7 @@ from ..library_models import CreatorRecord
 from ..remote_availability import evidence_for_probe_response
 from .base import (
     ProviderChanged,
+    ProviderError,
     RawPageSource,
     RemoteCollection,
     RemotePage,
@@ -24,6 +25,29 @@ from .base import (
 from .normalizers import normalize_collections, normalize_page
 
 logger = logging.getLogger(__name__)
+
+# A month-long backlog once scrolled the likes feed deep enough to crash the
+# renderer. Reopening is bounded so a page that always crashes still fails.
+MAX_PAGE_CRASH_RECOVERIES = 3
+LIGHTWEIGHT_BLOCKED_RESOURCES = frozenset({"image", "media", "font"})
+
+
+def is_page_crash(error: BaseException | None) -> bool:
+    """True when the renderer died, including crashes wrapped by retry helpers."""
+    seen: set[int] = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        message = str(error).lower()
+        if "target crashed" in message or "page crashed" in message:
+            return True
+        error = error.__cause__ or error.__context__
+    return False
+
+
+class PageCrashed(ProviderError):
+    """Raised when the renderer keeps crashing after every allowed reopen."""
+
+    code = "DOUYIN_PAGE_CRASHED"
 
 
 def _parse_compact_count(raw: str) -> int | None:
@@ -559,19 +583,12 @@ class PlaywrightDouyinSource:
     ) -> AsyncIterator[dict]:
         if kind not in self.SUPPORTED_ACCOUNT_SOURCES:
             raise ProviderChanged("unsupported Douyin account source")
-        await self.open()
         target_url = self.ACCOUNT_SOURCE_URLS.get(kind)
         if target_url is None:
             tab_key = self.ACCOUNT_SOURCE_TABS[kind]
             target_url = f"{self.SELF_URL}&showTab={tab_key}"
-        await self._page.goto(
-            target_url,
-            wait_until="domcontentloaded",
-            timeout=45_000,
-        )
-        await self._page.wait_for_timeout(1_000)
-        for labels in self.ACCOUNT_SOURCE_CLICKS.get(kind, ()):
-            await self._activate_profile_tab(labels)
+        await self.open()
+        await self._open_account_source(kind, target_url)
 
         nested_links: list[str | None]
         if kind in {"favorite_series", "favorite_drama"}:
@@ -582,28 +599,84 @@ class PlaywrightDouyinSource:
         previous_payload: dict[str, object] | None = None
         total = 0
         seen_ids: set[str] = set()
+        crashes = 0
         for nested_link in nested_links:
             if nested_link is not None:
-                await self._page.goto(nested_link, wait_until="domcontentloaded", timeout=45_000)
-                await self._page.wait_for_timeout(800)
-            async for batch in self._iter_visible_item_id_batches(
-                known_ids=known_ids, full_scan=full_scan
-            ):
-                unique_batch = [item_id for item_id in batch if item_id not in seen_ids]
-                if not unique_batch:
-                    continue
-                seen_ids.update(unique_batch)
-                payload = await self._fetch_aweme_details(unique_batch)
-                total += len(unique_batch)
-                current_payload: dict[str, object] = {
-                    **payload,
-                    "cursor": str(total),
-                }
-                if previous_payload is not None:
-                    yield {**previous_payload, "has_more": True}
-                previous_payload = current_payload
+                await self._open_nested_link(nested_link)
+            while True:
+                try:
+                    async for batch in self._iter_visible_item_id_batches(
+                        known_ids=known_ids, full_scan=full_scan
+                    ):
+                        unique_batch = [item_id for item_id in batch if item_id not in seen_ids]
+                        if not unique_batch:
+                            continue
+                        payload = await self._fetch_aweme_details(unique_batch)
+                        seen_ids.update(unique_batch)
+                        total += len(unique_batch)
+                        current_payload: dict[str, object] = {
+                            **payload,
+                            "cursor": str(total),
+                        }
+                        if previous_payload is not None:
+                            yield {**previous_payload, "has_more": True}
+                        previous_payload = current_payload
+                    break
+                except Exception as error:
+                    if not is_page_crash(error):
+                        raise
+                    crashes += 1
+                    logger.warning(
+                        "Douyin page crashed while scrolling kind=%s discovered=%s attempt=%s",
+                        kind,
+                        total,
+                        crashes,
+                    )
+                    if crashes > MAX_PAGE_CRASH_RECOVERIES:
+                        raise PageCrashed(
+                            "Douyin page kept crashing while scrolling the account source"
+                        ) from error
+                    # Items already in seen_ids are skipped on the way back down,
+                    # so only the unread tail costs detail requests again.
+                    await self._reopen_after_crash(kind, target_url, nested_link)
         if previous_payload is not None:
             yield {**previous_payload, "has_more": False}
+
+    async def _open_account_source(self, kind: str, target_url: str) -> None:
+        await self._page.goto(
+            target_url,
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        await self._page.wait_for_timeout(1_000)
+        for labels in self.ACCOUNT_SOURCE_CLICKS.get(kind, ()):
+            await self._activate_profile_tab(labels)
+
+    async def _open_nested_link(self, nested_link: str) -> None:
+        await self._page.goto(nested_link, wait_until="domcontentloaded", timeout=45_000)
+        await self._page.wait_for_timeout(800)
+
+    async def _reopen_after_crash(
+        self, kind: str, target_url: str, nested_link: str | None
+    ) -> None:
+        """Replace the dead renderer with a lighter page parked on the same source."""
+        await self._recycle_page()
+        await self.open()
+        await self._enable_lightweight_mode()
+        await self._open_account_source(kind, target_url)
+        if nested_link is not None:
+            await self._open_nested_link(nested_link)
+
+    async def _enable_lightweight_mode(self) -> None:
+        # Item ids come from links and data attributes, not pixels; skipping
+        # images and video streams keeps a very long feed within renderer memory.
+        async def block_heavy_resources(route: Any) -> None:
+            if route.request.resource_type in LIGHTWEIGHT_BLOCKED_RESOURCES:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await self._page.route("**/*", block_heavy_resources)
 
     async def iter_account_raw_entity_pages(self, kind: str) -> AsyncIterator[dict[str, object]]:
         try:
@@ -988,7 +1061,9 @@ class PlaywrightDouyinSource:
                         ],
                     }
                 last_error = TypeError("Douyin item detail response was not an object")
-            except Exception as error:  # noqa: BLE001 - browser failures are retryable
+            except Exception as error:  # browser failures are retryable, crashes are not
+                if is_page_crash(error):
+                    raise  # a dead renderer never answers; let the caller reopen it
                 last_error = error
             logger.warning(
                 "Douyin item detail retry attempt=%s error_type=%s",

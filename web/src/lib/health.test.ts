@@ -32,4 +32,5 @@ it("hides bookkeeping codes but explains real errors", () => {
   expect(errorSuffix(null)).toBe("");
   expect(errorSuffix("COUNT_MISMATCH")).toContain("不一致");
   expect(errorSuffix("SOMETHING_NEW")).toBe(" · SOMETHING_NEW");
+  expect(errorSuffix("DOUYIN_PAGE_CRASHED")).toContain("崩溃");
 });

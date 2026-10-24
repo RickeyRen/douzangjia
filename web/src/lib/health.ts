@@ -25,6 +25,8 @@ const ERROR_TEXT: Record<string, string> = {
   COUNT_MISMATCH: "数量和抖音上不一致，会在下次核对时补齐",
   DOWNLOAD_FAILED: "下载失败",
   CREATOR_SYNC_FAILED: "博主作品同步失败",
+  DOUYIN_PAGE_CRASHED: "后台页面多次崩溃，已重开仍未完成",
+  SYNC_FAILED: "同步意外中断",
 };
 
 /** Codes that describe bookkeeping, not problems worth showing to people. */
