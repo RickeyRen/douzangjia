@@ -18,6 +18,7 @@ FAVORITES_URL = (
 )
 DOUYIN_SESSION_COOKIES = {"sessionid", "sessionid_ss"}
 PROBE_TIMEOUT_SECONDS = 5.0
+BLANK_BEFORE_CLOSE_TIMEOUT_MS = 5_000
 # Playwright surfaces a dead driver or browser through several error shapes;
 # a crashed Node driver only leaves the closed asyncio transport message.
 DISCONNECT_MARKERS = (
@@ -61,6 +62,14 @@ class CoordinatorPageLease:
             return
         self._released = True
         try:
+            # Playwright's Chromium page dispose forgets Web Worker sessions, so a
+            # closed Douyin page stays reachable with every request and body it
+            # saw. Navigating away first lets Chromium detach the workers while
+            # the page session still handles the event.
+            with suppress(Exception):
+                await self.page.goto(
+                    "about:blank", timeout=BLANK_BEFORE_CLOSE_TIMEOUT_MS
+                )
             with suppress(Exception):
                 await self.page.close()
         finally:

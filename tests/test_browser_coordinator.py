@@ -29,16 +29,19 @@ class FakePage:
         self.goto_error = goto_error
         self.viewport: dict[str, int] | None = None
         self.closed = False
+        self.events: list[str] = []
 
     async def set_viewport_size(self, viewport: dict[str, int]) -> None:
         self.viewport = viewport
 
     async def goto(self, url: str, **_options: Any) -> None:
+        self.events.append(f"goto:{url}")
         if self.goto_error is not None:
             raise self.goto_error
         self.url = self.redirected_url or url
 
     async def close(self) -> None:
+        self.events.append("close")
         self.closed = True
 
 
@@ -349,3 +352,36 @@ async def test_probe_reports_connection_state_through_crash_and_recovery(
     assert await coordinator.probe() == "ok"
     await coordinator.close()
     assert await coordinator.probe() == "not_started"
+
+
+async def test_release_navigates_to_blank_before_closing_page(tmp_path: Path) -> None:
+    """Catches closed Douyin pages staying in the driver through Web Worker sessions."""
+    coordinator, _playwright, _context = make_coordinator(tmp_path)
+    lease = await coordinator.acquire_page()
+    await lease.page.goto("https://www.douyin.com/user/self")
+
+    await lease.release()
+    await lease.release()
+
+    assert lease.page.events == [
+        "goto:https://www.douyin.com/user/self",
+        "goto:about:blank",
+        "close",
+    ]
+    await coordinator.close()
+
+
+async def test_release_still_closes_page_when_blank_navigation_fails(
+    tmp_path: Path,
+) -> None:
+    coordinator, _playwright, context = make_coordinator(tmp_path)
+    context.goto_error = DRIVER_CRASH
+    lease = await coordinator.acquire_page()
+
+    await lease.release()
+
+    assert lease.page.events == ["goto:about:blank", "close"]
+    assert coordinator.runtime_state()["busy"] is False
+    next_lease = await asyncio.wait_for(coordinator.acquire_page(), timeout=0.1)
+    await next_lease.release()
+    await coordinator.close()
