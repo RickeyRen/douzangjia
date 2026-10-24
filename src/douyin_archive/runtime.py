@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import socket
 import time
@@ -30,6 +31,22 @@ from .storage import CollectionProjector, ObjectStore
 from .sync_service import SyncResult, SyncService
 from .telemetry import TelemetrySampler
 from .worker import Worker
+
+logger = logging.getLogger(__name__)
+
+
+async def start_browser_without_blocking_app(coordinator: Any) -> bool:
+    """Launch the shared browser, but keep the web app up if Chromium refuses.
+
+    Browsing the archive must not depend on the browser; syncs call start()
+    again and the health banner reports the problem meanwhile.
+    """
+    try:
+        await coordinator.start()
+    except Exception:
+        logger.exception("Chromium failed to launch at startup; sync will retry later")
+        return False
+    return True
 
 
 class CookieLoader(Protocol):
@@ -382,7 +399,7 @@ class ArchiveRuntime:
         await recover_interrupted_sync_runs(self.database)
         await self.jobs.recover_stale_running(older_than_seconds=0)
         await DownloadProgressRepository(self.database).backfill_parts(self.store)
-        await self.browser_coordinator.start()
+        await start_browser_without_blocking_app(self.browser_coordinator)
         self.auth_service.on_authenticated = self._initial_sync
         self._worker_tasks = [asyncio.create_task(worker.run_forever()) for worker in self.workers]
         self._probe_task = asyncio.create_task(self._probe_existing_media())

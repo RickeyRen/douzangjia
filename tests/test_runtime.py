@@ -407,3 +407,25 @@ async def test_startup_marks_previous_sync_runs_interrupted(tmp_path: Path) -> N
     assert row is not None
     assert (row["status"], row["error_code"]) == ("failed", "SYNC_INTERRUPTED")
     await database.close()
+
+
+async def test_browser_launch_failure_does_not_take_the_web_app_down(caplog) -> None:
+    """Catches a stale profile lock making the whole archive unreachable."""
+    from douyin_archive.runtime import start_browser_without_blocking_app
+
+    class RefusingCoordinator:
+        async def start(self) -> None:
+            raise RuntimeError("The profile appears to be in use by another Chromium process")
+
+    class ReadyCoordinator:
+        started = False
+
+        async def start(self) -> None:
+            self.started = True
+
+    ready = ReadyCoordinator()
+
+    assert await start_browser_without_blocking_app(RefusingCoordinator()) is False
+    assert "sync will retry later" in caplog.text
+    assert await start_browser_without_blocking_app(ready) is True
+    assert ready.started is True

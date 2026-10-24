@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from urllib.parse import urlsplit
 
 from .browser_launch import chromium_persistent_launch_options
 from .browser_profile import BrowserProfileStore
+
+logger = logging.getLogger(__name__)
 
 LOGIN_VIEWPORT = (1280, 800)
 FAVORITES_VIEWPORT = (1440, 1000)
@@ -135,6 +138,8 @@ class BrowserCoordinator:
             if self._context is not None:
                 await self._discard_locked(self._context)
             profile_path = self.profile_store.prepare()
+            if self.profile_store.clear_stale_singleton():
+                logger.warning("Removed a stale Chromium profile lock from a previous container")
             self._playwright = await self._create_playwright()
             try:
                 self._context = await self._playwright.chromium.launch_persistent_context(
