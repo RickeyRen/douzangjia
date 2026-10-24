@@ -74,6 +74,7 @@ async def list_creators(
     limit: int = Query(default=40, ge=1, le=100),
     cursor: str | None = None,
     search: str | None = None,
+    sort: str = Query(default="recent", pattern="^(recent|items)$"),
 ):
     conditions: list[str] = []
     parameters: list[object] = []
@@ -81,26 +82,32 @@ async def list_creators(
         conditions.append("(c.nickname LIKE ? OR c.unique_id LIKE ?)")
         term = f"%{search}%"
         parameters.extend((term, term))
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    # The "items" order ranks creators by how much of them the archive holds.
+    sort_key = "c.last_seen_at" if sort == "recent" else "known_item_count"
+    having = ""
     if cursor:
         try:
-            seen_at, remote_id = _decode_cursor(cursor)
+            before_key, remote_id = _decode_cursor(cursor)
         except ValueError:
             return JSONResponse(
                 status_code=400,
                 content={"code": "INVALID_CURSOR", "message": "分页游标无效"},
             )
-        conditions.append("(c.last_seen_at < ? OR (c.last_seen_at=? AND c.remote_id < ?))")
-        parameters.extend((seen_at, seen_at, remote_id))
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        having = f" HAVING ({sort_key} < ? OR ({sort_key}=? AND c.remote_id < ?))"
+        parameters.extend((before_key, before_key, remote_id))
     rows = await request.app.state.database.fetchall(
-        _select_sql(where) + " ORDER BY c.last_seen_at DESC, c.remote_id DESC LIMIT ?",
+        _select_sql(where)
+        + having
+        + f" ORDER BY {sort_key} DESC, c.remote_id DESC LIMIT ?",
         (*parameters, limit + 1),
     )
     visible = rows[:limit]
     next_cursor = None
     if len(rows) > limit and visible:
         last = visible[-1]
-        next_cursor = _encode_cursor(int(last["last_seen_at"]), str(last["remote_id"]))
+        key = last["last_seen_at"] if sort == "recent" else last["known_item_count"]
+        next_cursor = _encode_cursor(int(key), str(last["remote_id"]))
     return {
         "items": [_serialize_creator(row) for row in visible],
         "nextCursor": next_cursor,

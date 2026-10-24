@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -10,22 +11,6 @@ from fastapi.responses import JSONResponse
 from ..remote_availability import RemoteAvailabilityService
 
 router = APIRouter(prefix="/api")
-
-
-def _encode_cursor(first_seen_at: int, remote_id: str) -> str:
-    payload = json.dumps([first_seen_at, remote_id], separators=(",", ":")).encode()
-    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
-
-
-def _decode_cursor(value: str) -> tuple[int, str]:
-    try:
-        padded = value + "=" * (-len(value) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded))
-        if not isinstance(payload, list) or len(payload) != 2:
-            raise ValueError
-        return int(payload[0]), str(payload[1])
-    except (ValueError, TypeError, json.JSONDecodeError) as error:
-        raise ValueError("invalid feed cursor") from error
 
 
 def _local_state(job_status: str | None, *, ready_assets: int, total_assets: int) -> str:
@@ -84,6 +69,9 @@ async def _serialize_item(database, row) -> dict[str, Any]:
             "SELECT remote_id, nickname, unique_id, avatar_url FROM creators WHERE remote_id=?",
             (row["creator_id"],),
         )
+    star = await database.fetchone(
+        "SELECT starred_at FROM item_stars WHERE item_id=?", (row["remote_id"],)
+    )
     remote_check = await database.fetchone(
         "SELECT status, checked_at, evidence_code, last_available_at "
         "FROM remote_checks WHERE item_id=?",
@@ -120,6 +108,11 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         "archivedAt": row["first_seen_at"],
         "sourceUrl": row["source_url"],
         "coverUrl": row["cover_url"],
+        "thumbnailUrl": (
+            f"/api/media/{media[0]['id']}/poster" if media else row["cover_url"] or None
+        ),
+        "starred": star is not None,
+        "starredAt": star["starred_at"] if star is not None else None,
         "creator": (
             {
                 "id": creator["remote_id"],
@@ -146,6 +139,7 @@ async def _serialize_item(database, row) -> dict[str, Any]:
                 "byteSize": item["byte_size"],
                 "mimeType": item["mime_type"],
                 "url": f"/api/media/{item['id']}",
+                "posterUrl": f"/api/media/{item['id']}/poster",
                 "relativePath": item["relative_path"],
                 "checksumSha256": item["checksum_sha256"],
                 "completedAt": item["completed_at"],
@@ -217,24 +211,73 @@ async def collections(request: Request) -> dict[str, object]:
     }
 
 
+FEED_SORTS = {"archived", "published", "source", "starred", "random"}
+
+
+def _encode_feed_cursor(key: object, remote_id: str) -> str:
+    payload = json.dumps([key, remote_id], separators=(",", ":"), ensure_ascii=False).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def _decode_feed_cursor(value: str) -> tuple[object, str]:
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+        if not isinstance(payload, list) or len(payload) != 2:
+            raise ValueError
+        key, remote_id = payload
+        if not isinstance(key, (int, str)) or isinstance(key, bool):
+            raise TypeError
+        return key, str(remote_id)
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid feed cursor") from error
+
+
+def _invalid_feed_request(code: str, message: str) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"code": code, "message": message})
+
+
 @router.get("/feed")
 async def feed(
     request: Request,
     limit: int = Query(default=12, ge=1, le=50),
     cursor: str | None = None,
     collection_id: str | None = Query(default=None, alias="collectionId"),
+    source_id: str | None = Query(default=None, alias="sourceId"),
+    creator_id: str | None = Query(default=None, alias="creatorId"),
     media_type: str | None = Query(default=None, alias="type"),
     author: str | None = None,
     search: str | None = None,
+    sort: str | None = None,
+    seed: int = Query(default=1, ge=1, le=2_147_483_646),
+    downloaded: bool = False,
+    starred: bool = False,
 ):
+    sort = sort or ("source" if source_id else "starred" if starred else "archived")
+    if sort not in FEED_SORTS:
+        return _invalid_feed_request("INVALID_SORT", "不支持的排序方式")
+    if sort == "source" and not source_id:
+        return _invalid_feed_request("INVALID_SORT", "按来源顺序排序需要指定来源")
+    if sort == "starred" and not starred:
+        return _invalid_feed_request("INVALID_SORT", "按精选时间排序需要只看精选")
+
+    joins: list[str] = []
     conditions: list[str] = []
     parameters: list[object] = []
+    if source_id:
+        joins.append("JOIN source_items si ON si.item_id=i.remote_id AND si.source_id=?")
+        parameters.append(source_id)
+    if starred:
+        joins.append("JOIN item_stars st ON st.item_id=i.remote_id")
     if collection_id:
         conditions.append(
             "EXISTS (SELECT 1 FROM collection_items ci "
             "WHERE ci.item_id=i.remote_id AND ci.collection_id=?)"
         )
         parameters.append(collection_id)
+    if creator_id:
+        conditions.append("i.creator_id=?")
+        parameters.append(creator_id)
     if media_type:
         conditions.append("i.item_type=?")
         parameters.append(media_type)
@@ -242,22 +285,48 @@ async def feed(
         conditions.append("i.author_name=?")
         parameters.append(author)
     if search:
-        conditions.append("(i.description LIKE ? OR i.author_name LIKE ? OR i.remote_id LIKE ?)")
+        conditions.append(
+            "(i.description LIKE ? OR i.author_name LIKE ? OR i.remote_id LIKE ? "
+            "OR EXISTS (SELECT 1 FROM creators c WHERE c.remote_id=i.creator_id "
+            "AND (c.nickname LIKE ? OR c.unique_id LIKE ?)))"
+        )
         term = f"%{search}%"
-        parameters.extend((term, term, term))
+        parameters.extend((term,) * 5)
+    if downloaded:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM media_files mf "
+            "WHERE mf.item_id=i.remote_id AND mf.status='ready')"
+        )
+
+    sort_expression = {
+        "archived": "i.first_seen_at",
+        "published": "COALESCE(i.published_at, i.first_seen_at)",
+        "source": "COALESCE(si.remote_order, '')",
+        "starred": "st.starred_at",
+        # Scatter ids with a large odd multiplier, then permute by a seed-derived
+        # factor; both steps are bijections mod a prime, so pages stay stable.
+        "random": (
+            "(((CAST(substr(i.remote_id, -9) AS INTEGER) * 2654435761) % 4294967311)"
+            f" * {seed % 65521 + 1}) % 4294967311"
+        ),
+    }[sort]
+    expects_text_key = sort == "source"
     if cursor:
         try:
-            before_time, before_id = _decode_cursor(cursor)
+            before_key, before_id = _decode_feed_cursor(cursor)
+            if isinstance(before_key, str) != expects_text_key:
+                raise ValueError
         except ValueError:
-            return JSONResponse(
-                status_code=400,
-                content={"code": "INVALID_CURSOR", "message": "分页游标无效"},
-            )
-        conditions.append("(i.first_seen_at < ? OR (i.first_seen_at = ? AND i.remote_id < ?))")
-        parameters.extend((before_time, before_time, before_id))
+            return _invalid_feed_request("INVALID_CURSOR", "分页游标无效")
+        conditions.append(
+            f"({sort_expression} < ? OR ({sort_expression} = ? AND i.remote_id < ?))"
+        )
+        parameters.extend((before_key, before_key, before_id))
+
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = await request.app.state.database.fetchall(
-        f"SELECT i.* FROM items i {where} ORDER BY i.first_seen_at DESC, i.remote_id DESC LIMIT ?",
+        f"SELECT i.*, {sort_expression} AS feed_sort_key FROM items i {' '.join(joins)} "
+        f"{where} ORDER BY feed_sort_key DESC, i.remote_id DESC LIMIT ?",
         (*parameters, limit + 1),
     )
     has_more = len(rows) > limit
@@ -266,7 +335,7 @@ async def feed(
     next_cursor = None
     if has_more and visible:
         last = visible[-1]
-        next_cursor = _encode_cursor(last["first_seen_at"], last["remote_id"])
+        next_cursor = _encode_feed_cursor(last["feed_sort_key"], str(last["remote_id"]))
     return {"items": items, "nextCursor": next_cursor}
 
 
@@ -301,3 +370,43 @@ async def check_item_remote(remote_id: str, request: Request):
         )
     evidence = await runtime.check_item_availability(remote_id)
     return await RemoteAvailabilityService(request.app.state.database).record(remote_id, evidence)
+
+
+async def _item_exists(request: Request, remote_id: str) -> bool:
+    row = await request.app.state.database.fetchone(
+        "SELECT 1 FROM items WHERE remote_id=?", (remote_id,)
+    )
+    return row is not None
+
+
+def _item_not_found() -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={"code": "ITEM_NOT_FOUND", "message": "归档作品不存在"},
+    )
+
+
+@router.put("/items/{remote_id}/star")
+async def star_item(remote_id: str, request: Request):
+    if not await _item_exists(request, remote_id):
+        return _item_not_found()
+    starred_at = int(time.time())
+    await request.app.state.database.execute(
+        "INSERT INTO item_stars (item_id, starred_at) VALUES (?, ?) "
+        "ON CONFLICT(item_id) DO NOTHING",
+        (remote_id, starred_at),
+    )
+    row = await request.app.state.database.fetchone(
+        "SELECT starred_at FROM item_stars WHERE item_id=?", (remote_id,)
+    )
+    return {"starred": True, "starredAt": row["starred_at"] if row else starred_at}
+
+
+@router.delete("/items/{remote_id}/star")
+async def unstar_item(remote_id: str, request: Request):
+    if not await _item_exists(request, remote_id):
+        return _item_not_found()
+    await request.app.state.database.execute(
+        "DELETE FROM item_stars WHERE item_id=?", (remote_id,)
+    )
+    return {"starred": False, "starredAt": None}

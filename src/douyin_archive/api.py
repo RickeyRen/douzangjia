@@ -508,6 +508,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     from .routes.creators import router as creators_router
     from .routes.dashboard import router as dashboard_router
     from .routes.feed import router as feed_router
+    from .routes.home import router as home_router
     from .routes.jobs import router as jobs_router
     from .routes.library import router as library_router
     from .routes.media import router as media_router
@@ -516,6 +517,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app.include_router(creators_router)
     app.include_router(dashboard_router)
     app.include_router(feed_router)
+    app.include_router(home_router)
     app.include_router(jobs_router)
     app.include_router(library_router)
     app.include_router(media_router)
