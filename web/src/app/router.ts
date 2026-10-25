@@ -15,10 +15,12 @@ export type Route =
   | { name: "search"; query: string; filters: LibraryFilters }
   | { name: "creators"; query: string }
   | { name: "creator"; creatorId: string; filters: LibraryFilters }
+  | { name: "album"; albumId: number; filters: LibraryFilters }
+  | { name: "tag"; tag: string; filters: LibraryFilters }
   | { name: "activity" }
   | { name: "settings" };
 
-const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random"]);
+const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random", "album"]);
 
 function readFilters(params: URLSearchParams): LibraryFilters {
   const type = params.get("type");
@@ -53,6 +55,12 @@ export function parseRoute(hash: string): Route {
       return { name: "creators", query: params.get("q") ?? "" };
     case "creator":
       return segments[1] ? { name: "creator", creatorId: segments[1], filters } : { name: "creators", query: "" };
+    case "album": {
+      const albumId = Number(segments[1]);
+      return Number.isInteger(albumId) && albumId > 0 ? { name: "album", albumId, filters } : { name: "library", filters };
+    }
+    case "tag":
+      return segments[1] ? { name: "tag", tag: segments[1], filters } : { name: "library", filters };
     case "activity":
       return { name: "activity" };
     case "settings":
@@ -87,6 +95,14 @@ export function routeHref(route: Route): string {
       break;
     case "creator":
       path = `/creator/${encodeURIComponent(route.creatorId)}`;
+      writeFilters(params, route.filters);
+      break;
+    case "album":
+      path = `/album/${route.albumId}`;
+      writeFilters(params, route.filters);
+      break;
+    case "tag":
+      path = `/tag/${encodeURIComponent(route.tag)}`;
       writeFilters(params, route.filters);
       break;
     case "activity":
@@ -126,5 +142,7 @@ export function sameSection(a: Route, b: Route): boolean {
   if (a.name !== b.name) return false;
   if (a.name === "library" && b.name === "library") return a.sourceId === b.sourceId;
   if (a.name === "creator" && b.name === "creator") return a.creatorId === b.creatorId;
+  if (a.name === "album" && b.name === "album") return a.albumId === b.albumId;
+  if (a.name === "tag" && b.name === "tag") return a.tag === b.tag;
   return true;
 }

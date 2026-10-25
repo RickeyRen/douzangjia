@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
+  fetchAlbums,
   fetchLibrarySources,
   fetchSyncHealth,
   setItemStar,
+  type Album,
   type DouyinHealth,
   type FeedItem,
   type LibrarySource,
@@ -25,6 +27,7 @@ export function AppDataProvider({
   children: ReactNode;
 }) {
   const [sources, setSources] = useState<LibrarySource[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [health, setHealth] = useState<SyncHealth | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -34,6 +37,14 @@ export function AppDataProvider({
       setSources((await fetchLibrarySources()).items);
     } catch {
       // The sidebar keeps the last known list; pages show their own errors.
+    }
+  }, []);
+
+  const refreshAlbums = useCallback(async () => {
+    try {
+      setAlbums((await fetchAlbums()).items);
+    } catch {
+      // Albums are optional; the sidebar simply keeps what it had.
     }
   }, []);
 
@@ -47,10 +58,11 @@ export function AppDataProvider({
 
   useEffect(() => {
     void refreshSources();
+    void refreshAlbums();
     void refreshHealth();
     const timer = window.setInterval(() => void refreshHealth(), HEALTH_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [refreshHealth, refreshSources]);
+  }, [refreshAlbums, refreshHealth, refreshSources]);
 
   const toast = useCallback((text: string) => {
     window.clearTimeout(toastTimer.current);
@@ -77,6 +89,8 @@ export function AppDataProvider({
     () => ({
       sources,
       refreshSources,
+      albums,
+      refreshAlbums,
       health,
       refreshHealth,
       account,
@@ -85,7 +99,7 @@ export function AppDataProvider({
       requestDouyinLogin: onRequestDouyinLogin,
       logout: onLogout,
     }),
-    [account, health, onLogout, onRequestDouyinLogin, refreshHealth, refreshSources, sources, toast, toggleStar],
+    [account, albums, health, onLogout, onRequestDouyinLogin, refreshAlbums, refreshHealth, refreshSources, sources, toast, toggleStar],
   );
 
   return (

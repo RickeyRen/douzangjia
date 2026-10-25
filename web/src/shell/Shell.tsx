@@ -4,7 +4,9 @@ import {
   CaretUp,
   GearSix,
   House,
+  Images,
   MagnifyingGlass,
+  Plus,
   Moon,
   Pulse,
   QrCode,
@@ -18,7 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { triggerSync } from "../app/api";
+import { createAlbum, triggerSync } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { navigate, routeHref, sameSection, useRoute, type Route } from "../app/router";
 import { describeHealth } from "../lib/health";
@@ -55,8 +57,23 @@ function NavLink({ to, current, icon, label, count }: { to: Route; current: Rout
 }
 
 function Sidebar({ route }: { route: Route }) {
-  const { sources, health } = useAppData();
+  const { sources, health, albums, refreshAlbums, toast } = useAppData();
   const [showEmpty, setShowEmpty] = useState(false);
+  const [newAlbum, setNewAlbum] = useState<string | null>(null);
+
+  async function submitAlbum(event: FormEvent) {
+    event.preventDefault();
+    const name = (newAlbum ?? "").trim();
+    if (!name) return;
+    try {
+      const album = await createAlbum(name);
+      setNewAlbum(null);
+      await refreshAlbums();
+      navigate({ name: "album", albumId: album.id, filters: {} });
+    } catch {
+      toast("创建相册失败，可能已有同名相册");
+    }
+  }
   const groups = groupSources(sources);
   const view = describeHealth(health);
   return (
@@ -73,6 +90,27 @@ function Sidebar({ route }: { route: Route }) {
           <NavLink to={{ name: "library", filters: {} }} current={route} icon={<SquaresFour size={18} />} label="全部作品" />
           <NavLink to={{ name: "starred", filters: {} }} current={route} icon={<Star size={18} />} label="精选" />
           <NavLink to={{ name: "creators", query: "" }} current={route} icon={<Users size={18} />} label="博主" />
+        </div>
+        <div className="nav-group">
+          <div className="nav-label">
+            相册
+            <button type="button" className="nav-label-action" aria-label="新建相册" onClick={() => setNewAlbum("")}>
+              <Plus size={14} weight="bold" />
+            </button>
+          </div>
+          {albums.map((album) => (
+            <NavLink key={album.id} to={{ name: "album", albumId: album.id, filters: {} }} current={route} icon={<Images size={18} />} label={album.name} count={album.itemCount} />
+          ))}
+          {newAlbum !== null ? (
+            <form className="nav-create" onSubmit={(event) => void submitAlbum(event)}>
+              <input autoFocus aria-label="新相册名称" placeholder="相册名称，回车创建" maxLength={60} value={newAlbum} onChange={(event) => setNewAlbum(event.target.value)} onBlur={() => !newAlbum && setNewAlbum(null)} onKeyDown={(event) => event.key === "Escape" && setNewAlbum(null)} />
+            </form>
+          ) : albums.length === 0 ? (
+            <button type="button" className="nav-item nav-item-hint" onClick={() => setNewAlbum("")}>
+              <Plus size={18} />
+              <span className="nav-text">把作品整理进相册</span>
+            </button>
+          ) : null}
         </div>
         {groups.collections.length ? (
           <div className="nav-group">

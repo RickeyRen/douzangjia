@@ -1,10 +1,12 @@
 import { createContext, useContext } from "react";
 
-import type { DouyinHealth, FeedItem, LibrarySource, SyncHealth } from "./api";
+import type { Album, DouyinHealth, FeedItem, LibrarySource, SyncHealth } from "./api";
 
 export type AppData = {
   sources: LibrarySource[];
   refreshSources: () => Promise<void>;
+  albums: Album[];
+  refreshAlbums: () => Promise<void>;
   health: SyncHealth | null;
   refreshHealth: () => Promise<void>;
   account: DouyinHealth | null;

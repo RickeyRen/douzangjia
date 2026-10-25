@@ -11,6 +11,7 @@ import { useMediaNavigation } from "./useMediaNavigation";
 
 const SORT_LABELS: Record<FeedSort, string> = {
   source: "收藏顺序",
+  album: "加入顺序",
   starred: "精选时间",
   archived: "最近收藏",
   published: "最新发布",

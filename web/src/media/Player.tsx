@@ -21,6 +21,7 @@ import { archiveItem, checkRemoteAvailability, type FeedItem, type RemoteAvailab
 import { useAppData } from "../app/appDataContext";
 import { formatBytes, formatCount, formatDate, formatDuration } from "../lib/format";
 import { Avatar, Spinner } from "../ui/primitives";
+import { AddToAlbumButton, NoteEditor, TagEditor } from "./Organize";
 import { douyinUrl, itemDurationMs, itemTitle, thumbnailCandidates } from "./itemInfo";
 
 const MUTED_KEY = "douzangjia.player.muted";
@@ -67,6 +68,8 @@ export type PlayerProps = {
   onOpenCreator?: (creatorId: string | null, name: string) => void;
   onSearch?: (term: string) => void;
   onOpenSource?: (sourceId: string) => void;
+  onOpenAlbum?: (albumId: number) => void;
+  onOpenTag?: (tag: string) => void;
 };
 
 export function Player({
@@ -80,6 +83,8 @@ export function Player({
   onOpenCreator,
   onSearch,
   onOpenSource,
+  onOpenAlbum,
+  onOpenTag,
 }: PlayerProps) {
   const { toggleStar, toast } = useAppData();
   const item = items[index];
@@ -415,6 +420,9 @@ export function Player({
           onOpenSource={onOpenSource}
           onClose={togglePanel}
           onRemoteChecked={(remote) => onItemPatch?.(item.awemeId, { remoteAvailability: remote })}
+          onPatch={(patch) => onItemPatch?.(item.awemeId, patch)}
+          onOpenAlbum={onOpenAlbum}
+          onOpenTag={onOpenTag}
         />
       ) : null}
     </div>
@@ -431,8 +439,14 @@ function DetailPanel({
   onOpenSource,
   onClose,
   onRemoteChecked,
+  onPatch,
+  onOpenAlbum,
+  onOpenTag,
 }: {
   item: FeedItem;
+  onPatch: (patch: Partial<FeedItem>) => void;
+  onOpenAlbum?: (albumId: number) => void;
+  onOpenTag?: (tag: string) => void;
   onStar: () => void;
   onCopyLink: () => void;
   onDownloadNow: () => void;
@@ -502,6 +516,7 @@ function DetailPanel({
             <Star size={20} weight={item.starred ? "fill" : "regular"} />
             {item.starred ? "已精选" : "精选"}
           </button>
+          <AddToAlbumButton item={item} onItemPatch={onPatch} />
           {downloaded && primary ? (
             <a className="panel-action" href={primary.url} download={primary.relativePath?.split("/").pop() ?? undefined}>
               <DownloadSimple size={20} />
@@ -522,6 +537,30 @@ function DetailPanel({
             复制链接
           </button>
         </div>
+
+        <section className="panel-section">
+          <h3>我的整理</h3>
+          {item.albums?.length ? (
+            <div className="panel-links organize-albums">
+              {item.albums.map((album) => (
+                <button key={album.id} type="button" onClick={() => onOpenAlbum?.(album.id)}>
+                  {album.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <TagEditor item={item} onChange={(tags) => onPatch({ tags })} />
+          {item.tags?.length && onOpenTag ? (
+            <div className="panel-links tag-links">
+              {item.tags.map((tag) => (
+                <button key={tag} type="button" onClick={() => onOpenTag(tag)}>
+                  查看 #{tag}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <NoteEditor item={item} onChange={(note) => onPatch({ note })} />
+        </section>
 
         {stats.length ? (
           <section className="panel-section">

@@ -23,6 +23,14 @@ export function useMediaNavigation() {
         close();
         navigate({ name: "library", sourceId, filters: {} });
       },
+      onOpenAlbum: (albumId: number) => {
+        close();
+        navigate({ name: "album", albumId, filters: {} });
+      },
+      onOpenTag: (tag: string) => {
+        close();
+        navigate({ name: "tag", tag, filters: {} });
+      },
     }),
     [openCreator],
   );

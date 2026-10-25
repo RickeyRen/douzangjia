@@ -1,9 +1,11 @@
-import { CloudArrowDown, MagnifyingGlass, MusicNotes, Star } from "@phosphor-icons/react";
+import { CloudArrowDown, Images, MagnifyingGlass, MusicNotes, PencilSimple, Star, Tag, Trash } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
   archiveSource,
+  deleteAlbum,
   fetchCreators,
+  renameAlbum,
   fetchSourceEntities,
   updateSourceDownloadPolicy,
   type Creator,
@@ -20,7 +22,7 @@ import { ENTITY_SOURCE_KINDS, groupSources, sourceLabel } from "../shell/sourceM
 import { SourceIcon } from "../shell/SourceIcon";
 import { Avatar, EmptyState, ErrorState, PageHeader, Spinner, Switch } from "../ui/primitives";
 
-type LibraryRoute = Extract<Route, { name: "library" | "starred" | "search" }>;
+type LibraryRoute = Extract<Route, { name: "library" | "starred" | "search" | "album" | "tag" }>;
 
 export function LibraryPage({ route }: { route: LibraryRoute }) {
   const { sources } = useAppData();
@@ -29,15 +31,20 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
   const filtersChange = (filters: LibraryFilters) => navigate({ ...route, filters }, { replace: true });
 
   const searchQuery = route.name === "search" ? route.query : "";
+  const albumId = route.name === "album" ? route.albumId : undefined;
+  const tag = route.name === "tag" ? route.tag : undefined;
   const base = useMemo(() => {
     if (route.name === "starred") return { starred: true };
     if (route.name === "search") return { search: searchQuery };
+    if (albumId) return { albumId };
+    if (tag) return { tag };
     return sourceId ? { sourceId } : {};
-  }, [route.name, searchQuery, sourceId]);
+  }, [albumId, route.name, searchQuery, sourceId, tag]);
 
   let sorts: FeedSort[] = ["archived", "published", "random"];
   if (sourceId) sorts = ["source", "archived", "published", "random"];
   if (route.name === "starred") sorts = ["starred", "archived", "published", "random"];
+  if (albumId) sorts = ["album", "archived", "published", "random"];
 
   if (sourceId && source && ENTITY_SOURCE_KINDS.has(source.kind)) {
     return (
@@ -51,7 +58,18 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
   return (
     <>
       <SourceStrip activeId={sourceId} routeName={route.name} />
-      {route.name === "starred" ? (
+      {route.name === "album" ? (
+        <AlbumHeader albumId={route.albumId} />
+      ) : route.name === "tag" ? (
+        <PageHeader
+          title={
+            <span className="title-with-icon">
+              <Tag size={26} />#{route.tag}
+            </span>
+          }
+          subtitle="带这个标签的作品"
+        />
+      ) : route.name === "starred" ? (
         <PageHeader title="精选" subtitle="你在抖藏家里标记的作品，只保存在 NAS 上，不会同步到抖音。" />
       ) : route.name === "search" ? (
         <PageHeader title={route.query ? `“${route.query}”` : "搜索"} subtitle="匹配作品描述、话题、博主昵称和抖音号" />
@@ -69,7 +87,11 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
         sorts={sorts}
         onFiltersChange={filtersChange}
         empty={
-          route.name === "starred" ? (
+          route.name === "album" ? (
+            <EmptyState icon={<Images size={40} weight="duotone" />} title="相册还是空的" body="播放作品时点「加入相册」，或在网格里多选后批量加入。" />
+          ) : route.name === "tag" ? (
+            <EmptyState icon={<Tag size={40} weight="duotone" />} title="没有带这个标签的作品" />
+          ) : route.name === "starred" ? (
             <EmptyState icon={<Star size={40} weight="duotone" />} title="还没有精选作品" body="播放时点星标或按 S 键，就能把喜欢的作品收进这里。" />
           ) : route.name === "search" ? (
             <EmptyState icon={<MagnifyingGlass size={40} weight="duotone" />} title="没有找到相关作品" body="试试更短的关键词，或者博主的抖音号。" />
@@ -77,6 +99,85 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
         }
       />
     </>
+  );
+}
+
+function AlbumHeader({ albumId }: { albumId: number }) {
+  const { albums, refreshAlbums, toast } = useAppData();
+  const album = albums.find((entry) => entry.id === albumId);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState("");
+
+  async function submitRename() {
+    const value = name.trim();
+    if (!album || !value || value === album.name) {
+      setRenaming(false);
+      return;
+    }
+    try {
+      await renameAlbum(album.id, value);
+      await refreshAlbums();
+      setRenaming(false);
+    } catch {
+      toast("重命名失败，可能已有同名相册");
+    }
+  }
+
+  async function remove() {
+    if (!album || !window.confirm(`删除相册「${album.name}」？作品本身不会被删除。`)) return;
+    try {
+      await deleteAlbum(album.id);
+      await refreshAlbums();
+      toast("相册已删除");
+      navigate({ name: "library", filters: {} }, { replace: true });
+    } catch {
+      toast("删除失败");
+    }
+  }
+
+  return (
+    <PageHeader
+      title={
+        renaming ? (
+          <form
+            className="inline-rename"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitRename();
+            }}
+          >
+            <input autoFocus aria-label="相册名称" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} onBlur={() => void submitRename()} onKeyDown={(event) => event.key === "Escape" && setRenaming(false)} />
+          </form>
+        ) : (
+          <span className="title-with-icon">
+            <Images size={26} />
+            {album?.name ?? "相册"}
+          </span>
+        )
+      }
+      subtitle={album ? `${formatInteger(album.itemCount)} 个作品 · 只保存在 NAS 上` : " "}
+      actions={
+        album ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                setName(album.name);
+                setRenaming(true);
+              }}
+            >
+              <PencilSimple size={15} weight="bold" />
+              重命名
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void remove()}>
+              <Trash size={15} weight="bold" />
+              删除相册
+            </button>
+          </>
+        ) : null
+      }
+    />
   );
 }
 

@@ -6,6 +6,8 @@ export function makeAppData(overrides: Partial<AppData> = {}): AppData {
   return {
     sources: [],
     refreshSources: vi.fn(async () => undefined),
+    albums: [],
+    refreshAlbums: vi.fn(async () => undefined),
     health: null,
     refreshHealth: vi.fn(async () => undefined),
     account: null,

@@ -72,6 +72,15 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     star = await database.fetchone(
         "SELECT starred_at FROM item_stars WHERE item_id=?", (row["remote_id"],)
     )
+    albums = await database.fetchall(
+        "SELECT a.id, a.name FROM albums a JOIN album_items ai ON ai.album_id=a.id "
+        "WHERE ai.item_id=? ORDER BY a.position, a.created_at",
+        (row["remote_id"],),
+    )
+    tags = await database.fetchall(
+        "SELECT tag FROM item_tags WHERE item_id=? ORDER BY created_at, tag", (row["remote_id"],)
+    )
+    note = await database.fetchone("SELECT note FROM item_notes WHERE item_id=?", (row["remote_id"],))
     remote_check = await database.fetchone(
         "SELECT status, checked_at, evidence_code, last_available_at "
         "FROM remote_checks WHERE item_id=?",
@@ -113,6 +122,9 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         ),
         "starred": star is not None,
         "starredAt": star["starred_at"] if star is not None else None,
+        "albums": [{"id": album["id"], "name": album["name"]} for album in albums],
+        "tags": [str(entry["tag"]) for entry in tags],
+        "note": note["note"] if note is not None else None,
         "creator": (
             {
                 "id": creator["remote_id"],
@@ -211,7 +223,7 @@ async def collections(request: Request) -> dict[str, object]:
     }
 
 
-FEED_SORTS = {"archived", "published", "source", "starred", "random"}
+FEED_SORTS = {"archived", "published", "source", "starred", "random", "album"}
 
 
 def _encode_feed_cursor(key: object, remote_id: str) -> str:
@@ -252,14 +264,21 @@ async def feed(
     seed: int = Query(default=1, ge=1, le=2_147_483_646),
     downloaded: bool = False,
     starred: bool = False,
+    album_id: int | None = Query(default=None, alias="albumId"),
+    tag: str | None = None,
+    remote: str | None = None,
 ):
-    sort = sort or ("source" if source_id else "starred" if starred else "archived")
+    sort = sort or (
+        "source" if source_id else "album" if album_id else "starred" if starred else "archived"
+    )
     if sort not in FEED_SORTS:
         return _invalid_feed_request("INVALID_SORT", "不支持的排序方式")
     if sort == "source" and not source_id:
         return _invalid_feed_request("INVALID_SORT", "按来源顺序排序需要指定来源")
     if sort == "starred" and not starred:
         return _invalid_feed_request("INVALID_SORT", "按精选时间排序需要只看精选")
+    if sort == "album" and not album_id:
+        return _invalid_feed_request("INVALID_SORT", "按相册顺序排序需要指定相册")
 
     joins: list[str] = []
     conditions: list[str] = []
@@ -269,6 +288,19 @@ async def feed(
         parameters.append(source_id)
     if starred:
         joins.append("JOIN item_stars st ON st.item_id=i.remote_id")
+    if album_id:
+        joins.append("JOIN album_items ai ON ai.item_id=i.remote_id AND ai.album_id=?")
+        parameters.append(album_id)
+    if tag:
+        conditions.append("EXISTS (SELECT 1 FROM item_tags it WHERE it.item_id=i.remote_id AND it.tag=?)")
+        parameters.append(tag)
+    if remote:
+        statuses = [value for value in remote.split(",") if value]
+        placeholders = ",".join("?" for _ in statuses)
+        conditions.append(
+            f"EXISTS (SELECT 1 FROM remote_checks rc WHERE rc.item_id=i.remote_id AND rc.status IN ({placeholders}))"
+        )
+        parameters.extend(statuses)
     if collection_id:
         conditions.append(
             "EXISTS (SELECT 1 FROM collection_items ci "
@@ -288,10 +320,12 @@ async def feed(
         conditions.append(
             "(i.description LIKE ? OR i.author_name LIKE ? OR i.remote_id LIKE ? "
             "OR EXISTS (SELECT 1 FROM creators c WHERE c.remote_id=i.creator_id "
-            "AND (c.nickname LIKE ? OR c.unique_id LIKE ?)))"
+            "AND (c.nickname LIKE ? OR c.unique_id LIKE ?)) "
+            "OR EXISTS (SELECT 1 FROM item_tags it WHERE it.item_id=i.remote_id AND it.tag LIKE ?) "
+            "OR EXISTS (SELECT 1 FROM item_notes n WHERE n.item_id=i.remote_id AND n.note LIKE ?))"
         )
         term = f"%{search}%"
-        parameters.extend((term,) * 5)
+        parameters.extend((term,) * 7)
     if downloaded:
         conditions.append(
             "EXISTS (SELECT 1 FROM media_files mf "
@@ -303,6 +337,7 @@ async def feed(
         "published": "COALESCE(i.published_at, i.first_seen_at)",
         "source": "COALESCE(si.remote_order, '')",
         "starred": "st.starred_at",
+        "album": "ai.added_at",
         # Scatter ids with a large odd multiplier, then permute by a seed-derived
         # factor; both steps are bijections mod a prime, so pages stay stable.
         "random": (

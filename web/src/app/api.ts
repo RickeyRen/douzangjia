@@ -68,6 +68,9 @@ export type FeedItem = {
   thumbnailUrl?: string | null;
   starred?: boolean;
   starredAt?: number | null;
+  albums?: Array<{ id: number; name: string }>;
+  tags?: string[];
+  note?: string | null;
   creator?: { id: string; nickname: string; uniqueId: string | null; avatarUrl: string | null } | null;
   douyin?: {
     statistics: Record<string, number>;
@@ -376,7 +379,19 @@ export type HomeSnapshot = {
   creators: HomeCreator[];
 };
 
-export type FeedSort = "archived" | "published" | "source" | "starred" | "random";
+export type FeedSort = "archived" | "published" | "source" | "starred" | "random" | "album";
+
+export type Album = {
+  id: number;
+  name: string;
+  itemCount: number;
+  createdAt: number;
+  updatedAt: number;
+  lastAddedAt: number | null;
+  covers: string[];
+};
+
+export type TagSummary = { tag: string; itemCount: number };
 
 export type FeedQuery = {
   sourceId?: string;
@@ -389,6 +404,9 @@ export type FeedQuery = {
   seed?: number;
   downloaded?: boolean;
   starred?: boolean;
+  albumId?: number;
+  tag?: string;
+  remote?: string;
   cursor?: string;
   limit?: number;
 };
@@ -498,6 +516,9 @@ export function feedQueryString(query: FeedQuery): string {
     const value = query[key];
     if (typeof value === "string" && value) params.set(name, value);
   }
+  if (query.albumId) params.set("albumId", String(query.albumId));
+  if (query.tag) params.set("tag", query.tag);
+  if (query.remote) params.set("remote", query.remote);
   if (query.sort === "random") params.set("seed", String(query.seed ?? 1));
   if (query.downloaded) params.set("downloaded", "true");
   if (query.starred) params.set("starred", "true");
@@ -521,6 +542,20 @@ export const fetchCreators = ({ search, sort = "items", cursor }: { search?: str
 export const fetchSettings = () => request<SettingsPayload>("/api/settings");
 export const updateSettings = (changes: Partial<RuntimeSettings>) =>
   request<SettingsPayload>("/api/settings", { method: "PUT", body: JSON.stringify(changes) });
+export const fetchAlbums = () => request<{ items: Album[] }>("/api/albums");
+export const createAlbum = (name: string) => request<Album>("/api/albums", { method: "POST", body: JSON.stringify({ name }) });
+export const renameAlbum = (albumId: number, name: string) =>
+  request<Album>(`/api/albums/${albumId}`, { method: "PATCH", body: JSON.stringify({ name }) });
+export const deleteAlbum = (albumId: number) => request<{ deleted: boolean }>(`/api/albums/${albumId}`, { method: "DELETE" });
+export const addToAlbum = (albumId: number, itemIds: string[]) =>
+  request<{ added: number; album: Album }>(`/api/albums/${albumId}/items`, { method: "PUT", body: JSON.stringify({ itemIds }) });
+export const removeFromAlbum = (albumId: number, itemIds: string[]) =>
+  request<{ removed: number; album: Album }>(`/api/albums/${albumId}/items`, { method: "DELETE", body: JSON.stringify({ itemIds }) });
+export const fetchTags = () => request<{ items: TagSummary[] }>("/api/tags");
+export const setItemTags = (remoteId: string, tags: string[]) =>
+  request<{ tags: string[] }>(`/api/items/${encodeURIComponent(remoteId)}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
+export const setItemNote = (remoteId: string, note: string) =>
+  request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
 export const testNotifications = () =>
   request<{ results: Record<string, string> }>("/api/settings/notifications/test", { method: "POST" });
 export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });

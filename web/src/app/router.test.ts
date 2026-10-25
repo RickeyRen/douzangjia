@@ -10,6 +10,8 @@ it.each<Route>([
   { name: "search", query: "旅行 vlog", filters: { type: "video" } },
   { name: "creators", query: "小鹿" },
   { name: "creator", creatorId: "MS4wLjAB/x", filters: {} },
+  { name: "album", albumId: 7, filters: { sort: "album" } },
+  { name: "tag", tag: "做饭 周末", filters: {} },
   { name: "activity" },
   { name: "settings" },
 ])("round-trips %o through the hash", (route) => {
@@ -19,6 +21,7 @@ it.each<Route>([
 it("ignores unknown filter values instead of passing them to the API", () => {
   expect(parseRoute("#/library?type=movie&sort=views&dl=0")).toEqual({ name: "library", filters: {} });
   expect(parseRoute("#/nowhere")).toEqual({ name: "home" });
+  expect(parseRoute("#/album/abc")).toEqual({ name: "library", filters: {} });
 });
 
 it("keeps a section highlighted while its filters change", () => {
