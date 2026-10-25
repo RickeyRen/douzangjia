@@ -966,7 +966,7 @@ video {
   display: grid;
   place-items: center;
   padding: 16px;
-  color: var(--faint);
+  color: rgb(255 255 255 / 55%);
   text-align: center;
 }
 
@@ -974,8 +974,9 @@ video {
   display: -webkit-box;
   margin: 8px 0 0;
   overflow: hidden;
-  color: var(--muted);
+  color: rgb(255 255 255 / 78%);
   font-size: 12px;
+  line-height: 1.4;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
 }
@@ -1686,6 +1687,108 @@ a.stat:hover {
   color: rgb(255 255 255 / 70%);
 }
 
+.vc {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  padding: 28px 16px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgb(0 0 0 / 65%), transparent);
+  transition: opacity 0.25s;
+}
+
+.vc-track {
+  position: relative;
+  height: 14px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.vc-track::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 22%);
+}
+
+.vc-buffered,
+.vc-played {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 35%);
+  pointer-events: none;
+}
+
+.vc-played {
+  background: var(--accent);
+}
+
+.vc-knob {
+  position: absolute;
+  top: 1px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+  transform: translateX(-50%) scale(0);
+  transition: transform 0.15s;
+  pointer-events: none;
+}
+
+.vc-track:hover .vc-knob,
+.vc-track:focus-visible .vc-knob,
+.vc-track:active .vc-knob {
+  transform: translateX(-50%) scale(1);
+}
+
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.vc-clock {
+  color: rgb(255 255 255 / 85%);
+  font-size: 12px;
+}
+
+.vc-sep {
+  color: rgb(255 255 255 / 45%);
+}
+
+.player-stage.is-idle .vc,
+.player-stage.is-idle .player-top,
+.player-stage.is-idle .player-nav,
+.player-stage.is-idle .player-caption {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player-stage.is-idle {
+  cursor: none;
+}
+
+.player-stage.is-idle .popover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.player-top,
+.player-nav,
+.player-caption {
+  transition: opacity 0.25s;
+}
+
 .player-top {
   position: absolute;
   top: 0;
@@ -1771,7 +1874,7 @@ a.stat:hover {
   bottom: 0;
   left: 0;
   z-index: 2;
-  padding: 60px 84px max(22px, env(safe-area-inset-bottom)) 22px;
+  padding: 60px 84px calc(64px + env(safe-area-inset-bottom)) 22px;
   background: linear-gradient(to top, rgb(0 0 0 / 70%), transparent);
   pointer-events: none;
 }

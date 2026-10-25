@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import type { FeedItem } from "../app/api";
 import { formatDuration } from "../lib/format";
-import { itemDurationMs, itemImageCount, itemTitle, thumbnailCandidates } from "./itemInfo";
+import { itemDurationMs, itemImageCount, itemTitle, placeholderStyle, thumbnailCandidates } from "./itemInfo";
 import { Avatar } from "../ui/primitives";
 
 export function Thumbnail({ item, className }: { item: FeedItem; className?: string }) {
@@ -13,7 +13,7 @@ export function Thumbnail({ item, className }: { item: FeedItem; className?: str
   const src = candidates[attempt];
   if (!src) {
     return (
-      <span className="tile-placeholder">
+      <span className="tile-placeholder" style={placeholderStyle(item.awemeId)} data-testid="tile-placeholder">
         <span>
           <ImageSquare size={28} weight="duotone" />
           <p>{itemTitle(item)}</p>

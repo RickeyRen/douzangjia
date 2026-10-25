@@ -17,6 +17,7 @@ it("falls back from the local poster to the Douyin cover, then to text", () => {
   fireEvent.error(image()!);
   expect(image()).toBeNull();
   expect(screen.getAllByText("海边的日落").length).toBeGreaterThan(0);
+  expect(screen.getByTestId("tile-placeholder").style.background).toContain("linear-gradient");
 });
 
 it("marks stars, galleries and items still in the cloud", () => {

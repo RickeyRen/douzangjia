@@ -22,6 +22,7 @@ import { useAppData } from "../app/appDataContext";
 import { formatBytes, formatCount, formatDate, formatDuration } from "../lib/format";
 import { Avatar, Spinner } from "../ui/primitives";
 import { AddToAlbumButton, NoteEditor, TagEditor } from "./Organize";
+import { VideoControls } from "./VideoControls";
 import { douyinUrl, itemDurationMs, itemTitle, thumbnailCandidates } from "./itemInfo";
 
 const MUTED_KEY = "douzangjia.player.muted";
@@ -93,6 +94,8 @@ export function Player({
   const [panelOpen, setPanelOpen] = useState(() => isDesktop() && readFlag(PANEL_KEY, true));
   const [imageIndex, setImageIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [idle, setIdle] = useState(false);
+  const idleTimer = useRef<number | undefined>(undefined);
   const wheelLock = useRef(0);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -143,6 +146,17 @@ export function Player({
     const result = await toggleStar(item);
     if (result !== null) onItemPatch?.(item.awemeId, { starred: result });
   }, [item, onItemPatch, toggleStar]);
+
+  const wake = useCallback(() => {
+    setIdle(false);
+    window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => setIdle(true), 2400);
+  }, []);
+
+  useEffect(() => {
+    wake();
+    return () => window.clearTimeout(idleTimer.current);
+  }, [wake, item?.awemeId]);
 
   const toggleMute = useCallback(() => {
     setMuted((value) => {
@@ -291,7 +305,7 @@ export function Player({
 
   return (
     <div className="player" role="dialog" aria-modal="true" aria-label={`播放：${itemTitle(item)}`}>
-      <div className="player-stage" onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className={`player-stage${idle ? " is-idle" : ""}`} onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onPointerMove={wake} onPointerDown={wake}>
         {backdrop ? <div className="player-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} /> : null}
 
         <div className="player-media">
@@ -303,8 +317,12 @@ export function Player({
               poster={video.posterUrl}
               autoPlay
               playsInline
-              controls
               muted={muted}
+              onClick={(event) => {
+                const element = event.currentTarget;
+                if (element.paused) void element.play().catch(() => undefined);
+                else element.pause();
+              }}
               loop={!autoNext}
               onVolumeChange={(event) => {
                 const element = event.currentTarget;
@@ -336,6 +354,8 @@ export function Player({
             </div>
           )}
         </div>
+
+        {video && downloaded ? <VideoControls videoRef={videoRef} muted={muted} onToggleMute={toggleMute} /> : null}
 
         {images.length > 1 ? (
           <>

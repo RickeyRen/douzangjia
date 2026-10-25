@@ -1,5 +1,14 @@
 import type { FeedItem } from "../app/api";
 
+/** A stable, pleasant hue per item so cover-less tiles look designed, not broken. */
+export function placeholderStyle(id: string): { background: string } {
+  let hash = 7;
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  const hue2 = (hue + 40) % 360;
+  return { background: `linear-gradient(160deg, hsl(${hue} 38% 28%), hsl(${hue2} 42% 16%))` };
+}
+
 export function itemTitle(item: FeedItem): string {
   return item.description.trim() || `@${item.author}`;
 }

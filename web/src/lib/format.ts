@@ -75,3 +75,13 @@ export function greeting(now = new Date()): string {
   if (hour < 18) return "下午好";
   return "晚上好";
 }
+
+/** Player clock: m:ss, or h:mm:ss past an hour. */
+export function formatClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const whole = Math.floor(seconds);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  const rest = (whole % 60).toString().padStart(2, "0");
+  return hours ? `${hours}:${minutes.toString().padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
+}

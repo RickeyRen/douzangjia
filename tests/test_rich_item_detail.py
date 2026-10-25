@@ -123,7 +123,7 @@ def test_item_detail_exposes_douyin_creator_file_and_remote_information(
         "id": "creator-1",
         "nickname": "旅行作者",
         "uniqueId": "travel-user",
-        "avatarUrl": "https://media.test/avatar.jpg",
+        "avatarUrl": "/api/creators/creator-1/avatar",
     }
     assert payload["douyin"]["statistics"]["playCount"] == 1000
     assert payload["douyin"]["durationMs"] == 15_200

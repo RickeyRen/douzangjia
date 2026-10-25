@@ -4,8 +4,9 @@ import base64
 import json
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
+from ..avatars import AvatarCache, avatar_route
 from ..library_repository import LibraryRepository
 from ..provider.base import ProviderError
 
@@ -43,7 +44,7 @@ def _serialize_creator(row) -> dict[str, object]:
         "id": row["remote_id"],
         "nickname": row["nickname"],
         "uniqueId": row["unique_id"],
-        "avatarUrl": row["avatar_url"],
+        "avatarUrl": avatar_route(str(row["remote_id"]), row["avatar_url"]),
         "followerCount": row["follower_count"],
         "postCount": row["post_count"],
         "knownItemCount": int(row["known_item_count"]),
@@ -112,6 +113,23 @@ async def list_creators(
         "items": [_serialize_creator(row) for row in visible],
         "nextCursor": next_cursor,
     }
+
+
+@router.get("/{creator_id}/avatar")
+async def creator_avatar(creator_id: str, request: Request):
+    row = await request.app.state.database.fetchone(
+        "SELECT avatar_url FROM creators WHERE remote_id=?", (creator_id,)
+    )
+    if row is None:
+        return JSONResponse(status_code=404, content={"code": "CREATOR_NOT_FOUND", "message": "创作者不存在"})
+    cache = getattr(request.app.state, "avatar_cache", None)
+    if cache is None:
+        cache = AvatarCache(request.app.state.settings.archive_root)
+        request.app.state.avatar_cache = cache
+    path = await cache.get(creator_id, row["avatar_url"])
+    if path is None:
+        return JSONResponse(status_code=404, content={"code": "AVATAR_UNAVAILABLE", "message": "头像暂不可用"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=604800"})
 
 
 @router.get("/{creator_id}")

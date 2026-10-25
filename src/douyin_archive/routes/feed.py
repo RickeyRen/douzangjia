@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from ..avatars import avatar_route
 from ..remote_availability import RemoteAvailabilityService
 from ..search import RELEVANCE_SQL, fts_query, search_clause
 
@@ -131,7 +132,7 @@ async def _serialize_item(database, row) -> dict[str, Any]:
                 "id": creator["remote_id"],
                 "nickname": creator["nickname"],
                 "uniqueId": creator["unique_id"],
-                "avatarUrl": creator["avatar_url"],
+                "avatarUrl": avatar_route(str(creator["remote_id"]), creator["avatar_url"]),
             }
             if creator is not None
             else None

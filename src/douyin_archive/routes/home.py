@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
+from ..avatars import avatar_route
 from ..sync_health import sync_health_snapshot
 from .feed import _serialize_item
 
@@ -126,7 +127,7 @@ async def home(request: Request) -> dict[str, Any]:
                 "id": row["remote_id"],
                 "nickname": row["nickname"],
                 "uniqueId": row["unique_id"],
-                "avatarUrl": row["avatar_url"],
+                "avatarUrl": avatar_route(str(row["remote_id"]), row["avatar_url"]),
                 "itemCount": row["items"],
             }
             for row in creator_rows
