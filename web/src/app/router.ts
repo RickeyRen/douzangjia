@@ -17,6 +17,7 @@ export type Route =
   | { name: "creator"; creatorId: string; filters: LibraryFilters }
   | { name: "album"; albumId: number; filters: LibraryFilters }
   | { name: "tag"; tag: string; filters: LibraryFilters }
+  | { name: "gone"; filters: LibraryFilters }
   | { name: "activity" }
   | { name: "settings" };
 
@@ -61,6 +62,8 @@ export function parseRoute(hash: string): Route {
     }
     case "tag":
       return segments[1] ? { name: "tag", tag: segments[1], filters } : { name: "library", filters };
+    case "gone":
+      return { name: "gone", filters };
     case "activity":
       return { name: "activity" };
     case "settings":
@@ -103,6 +106,10 @@ export function routeHref(route: Route): string {
       break;
     case "tag":
       path = `/tag/${encodeURIComponent(route.tag)}`;
+      writeFilters(params, route.filters);
+      break;
+    case "gone":
+      path = "/gone";
       writeFilters(params, route.filters);
       break;
     case "activity":

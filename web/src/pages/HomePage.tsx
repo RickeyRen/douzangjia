@@ -1,4 +1,4 @@
-import { CaretRight, CloudCheck, FilmStrip, Shuffle, Star, Users } from "@phosphor-icons/react";
+import { CaretRight, CloudCheck, CloudSlash, FilmStrip, Shuffle, Star, Users } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchHome, type FeedItem, type HomeSnapshot } from "../app/api";
@@ -38,7 +38,7 @@ export function HomePage() {
   const patchShelfItem = useCallback((awemeId: string, patch: Partial<FeedItem>) => {
     const apply = (items: FeedItem[]) => items.map((item) => (item.awemeId === awemeId ? { ...item, ...patch } : item));
     setShelf((current) => (current ? { ...current, items: apply(current.items) } : current));
-    setHome((current) => (current ? { ...current, recent: apply(current.recent), starred: apply(current.starred) } : current));
+    setHome((current) => (current ? { ...current, recent: apply(current.recent), starred: apply(current.starred), gone: apply(current.gone) } : current));
   }, []);
 
   const name = account?.account?.nickname;
@@ -99,6 +99,13 @@ export function HomePage() {
           <strong>{home ? formatInteger(home.stats.creators) : "—"}</strong>
           <small>收藏涉及的创作者</small>
         </a>
+        <a className="stat stat-gone" href={routeHref({ name: "gone", filters: {} })}>
+          <span>
+            <CloudSlash size={15} /> 已在抖音消失
+          </span>
+          <strong>{home ? formatInteger(home.stats.gone) : "—"}</strong>
+          <small>{home ? `已抽查 ${formatInteger(home.stats.remoteChecked)} 个` : " "}</small>
+        </a>
       </div>
 
       <section className="section">
@@ -116,6 +123,22 @@ export function HomePage() {
             : Array.from({ length: 8 }, (_, index) => <TileSkeleton key={index} />)}
         </div>
       </section>
+
+      {home && home.gone.length ? (
+        <section className="section">
+          <div className="section-header">
+            <h2>这些已经从抖音消失了</h2>
+            <a href={routeHref({ name: "gone", filters: {} })}>
+              全部 <CaretRight size={13} weight="bold" />
+            </a>
+          </div>
+          <div className="shelf">
+            {home.gone.map((item, index) => (
+              <MediaTile key={item.awemeId} item={item} onOpen={() => setShelf({ items: home.gone, index })} onOpenCreator={handlers.openCreator} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {home && home.starred.length ? (
         <section className="section">

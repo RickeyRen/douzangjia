@@ -1017,6 +1017,14 @@ video {
   background: var(--accent);
 }
 
+.tile-tag.is-gone {
+  background: rgb(96 165 250 / 85%);
+}
+
+.stat-gone strong {
+  color: var(--info);
+}
+
 .tile-tag.is-cloud {
   background: rgb(0 0 0 / 40%);
   color: rgb(255 255 255 / 75%);
@@ -1138,7 +1146,7 @@ video {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
 }
 

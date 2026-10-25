@@ -12,6 +12,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 
 const INTERVALS = [120, 300, 600, 900, 1800, 3600];
 const WORKERS = [1, 2, 3, 4, 6, 8];
+const REMOTE_QUOTAS = [0, 50, 200, 500, 1000];
 
 function intervalLabel(seconds: number): string {
   return seconds >= 3600 ? `${seconds / 3600} 小时` : `${Math.round(seconds / 60)} 分钟`;
@@ -79,6 +80,18 @@ export function SyncSettingsPanel() {
           value={String(values?.download_workers ?? 2)}
           options={WORKERS.map((count) => ({ value: String(count), label: `${count} 个` }))}
           onChange={(value) => void change("download_workers", Number(value))}
+        />
+      </div>
+      <div className="setting">
+        <div className="setting-text">
+          <strong>每天抽查多少个作品是否还在抖音上</strong>
+          <small>发现已删除或设为私密的作品会出现在「已在抖音消失」里；0 表示关闭</small>
+        </div>
+        <Select
+          label="远端抽查数量"
+          value={String(values?.remote_check_per_day ?? 200)}
+          options={REMOTE_QUOTAS.map((count) => ({ value: String(count), label: count === 0 ? "关闭" : `${count} 个 / 天` }))}
+          onChange={(value) => void change("remote_check_per_day", Number(value))}
         />
       </div>
       {saving ? <p className="setting-note">正在保存…</p> : null}

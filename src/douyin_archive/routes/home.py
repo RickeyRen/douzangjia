@@ -43,9 +43,20 @@ async def home(request: Request) -> dict[str, Any]:
     )
     creators = await database.fetchone("SELECT COUNT(*) AS total FROM creators")
     stars = await database.fetchone("SELECT COUNT(*) AS total FROM item_stars")
+    gone = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM remote_checks WHERE status IN ('deleted', 'private')"
+    )
+    checked = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM remote_checks WHERE checked_at IS NOT NULL"
+    )
 
     recent_rows = await database.fetchall(
         "SELECT * FROM items ORDER BY first_seen_at DESC, remote_id DESC LIMIT ?",
+        (HOME_SHELF_SIZE,),
+    )
+    gone_rows = await database.fetchall(
+        "SELECT i.* FROM items i JOIN remote_checks rc ON rc.item_id=i.remote_id "
+        "WHERE rc.status IN ('deleted', 'private') ORDER BY rc.checked_at DESC, i.remote_id DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
     starred_rows = await database.fetchall(
@@ -102,10 +113,13 @@ async def home(request: Request) -> dict[str, Any]:
             "archivedBytes": local["bytes"],
             "creators": creators["total"],
             "starred": stars["total"],
+            "gone": gone["total"],
+            "remoteChecked": checked["total"],
         },
         "health": await sync_health(request),
         "recent": [await _serialize_item(database, row) for row in recent_rows],
         "starred": [await _serialize_item(database, row) for row in starred_rows],
+        "gone": [await _serialize_item(database, row) for row in gone_rows],
         "shelves": shelves,
         "creators": [
             {

@@ -1,4 +1,4 @@
-import { CloudArrowDown, Images, MagnifyingGlass, MusicNotes, PencilSimple, Star, Tag, Trash } from "@phosphor-icons/react";
+import { CloudArrowDown, CloudSlash, Images, MagnifyingGlass, MusicNotes, PencilSimple, Star, Tag, Trash } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -22,7 +22,7 @@ import { ENTITY_SOURCE_KINDS, groupSources, sourceLabel } from "../shell/sourceM
 import { SourceIcon } from "../shell/SourceIcon";
 import { Avatar, EmptyState, ErrorState, PageHeader, Spinner, Switch } from "../ui/primitives";
 
-type LibraryRoute = Extract<Route, { name: "library" | "starred" | "search" | "album" | "tag" }>;
+type LibraryRoute = Extract<Route, { name: "library" | "starred" | "search" | "album" | "tag" | "gone" }>;
 
 export function LibraryPage({ route }: { route: LibraryRoute }) {
   const { sources } = useAppData();
@@ -36,6 +36,7 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
   const base = useMemo(() => {
     if (route.name === "starred") return { starred: true };
     if (route.name === "search") return { search: searchQuery };
+    if (route.name === "gone") return { remote: "deleted,private" };
     if (albumId) return { albumId };
     if (tag) return { tag };
     return sourceId ? { sourceId } : {};
@@ -69,6 +70,16 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
           }
           subtitle="带这个标签的作品"
         />
+      ) : route.name === "gone" ? (
+        <PageHeader
+          title={
+            <span className="title-with-icon">
+              <CloudSlash size={26} />
+              已在抖音消失
+            </span>
+          }
+          subtitle="抖音上已经删除或设为私密的作品。只要存到了 NAS，这里就永远能看。"
+        />
       ) : route.name === "starred" ? (
         <PageHeader title="精选" subtitle="你在抖藏家里标记的作品，只保存在 NAS 上，不会同步到抖音。" />
       ) : route.name === "search" ? (
@@ -91,6 +102,8 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
             <EmptyState icon={<Images size={40} weight="duotone" />} title="相册还是空的" body="播放作品时点「加入相册」，或在网格里多选后批量加入。" />
           ) : route.name === "tag" ? (
             <EmptyState icon={<Tag size={40} weight="duotone" />} title="没有带这个标签的作品" />
+          ) : route.name === "gone" ? (
+            <EmptyState icon={<CloudSlash size={40} weight="duotone" />} title="还没发现消失的作品" body="抖藏家会在后台慢慢抽查每个作品是否还在抖音上，抽查到的会出现在这里。" />
           ) : route.name === "starred" ? (
             <EmptyState icon={<Star size={40} weight="duotone" />} title="还没有精选作品" body="播放时点星标或按 S 键，就能把喜欢的作品收进这里。" />
           ) : route.name === "search" ? (

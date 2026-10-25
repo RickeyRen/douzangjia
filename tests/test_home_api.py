@@ -72,6 +72,8 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
         "archivedBytes": 2048,
         "creators": 1,
         "starred": 1,
+        "gone": 0,
+        "remoteChecked": 0,
     }
     assert [item["awemeId"] for item in body["recent"]] == ["703", "702", "701"]
     assert [item["awemeId"] for item in body["starred"]] == ["701"]

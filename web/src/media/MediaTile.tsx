@@ -1,4 +1,4 @@
-import { CloudArrowDown, ImageSquare, Images, Play, Star } from "@phosphor-icons/react";
+import { CloudArrowDown, CloudSlash, ImageSquare, Images, Play, Star } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { FeedItem } from "../app/api";
@@ -65,6 +65,12 @@ export function MediaTile({
             {item.starred ? (
               <span className="tile-tag is-star" title="精选">
                 <Star size={11} weight="fill" />
+              </span>
+            ) : null}
+            {item.remoteAvailability && ["deleted", "private"].includes(item.remoteAvailability.status) ? (
+              <span className="tile-tag is-gone" title="抖音上已消失">
+                <CloudSlash size={11} weight="bold" />
+                已消失
               </span>
             ) : null}
           </span>

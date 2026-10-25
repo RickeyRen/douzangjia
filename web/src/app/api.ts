@@ -371,10 +371,13 @@ export type HomeSnapshot = {
     archivedBytes: number;
     creators: number;
     starred: number;
+    gone: number;
+    remoteChecked: number;
   };
   health: SyncHealth;
   recent: FeedItem[];
   starred: FeedItem[];
+  gone: FeedItem[];
   shelves: HomeShelf[];
   creators: HomeCreator[];
 };

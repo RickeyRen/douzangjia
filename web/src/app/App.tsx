@@ -91,6 +91,7 @@ function RoutedPage() {
     case "search":
     case "album":
     case "tag":
+    case "gone":
       return <LibraryPage route={route} />;
     case "creators":
       return <CreatorsPage query={route.query} />;

@@ -40,10 +40,11 @@ beforeEach(() => {
   vi.mocked(api.fetchLibrarySources).mockResolvedValue({ items: [] });
   vi.mocked(api.fetchSyncHealth).mockResolvedValue(makeHealth());
   vi.mocked(api.fetchHome).mockResolvedValue({
-    stats: { items: 3, videos: 2, galleries: 1, downloadedItems: 1, archivedBytes: 1024, creators: 1, starred: 0 },
+    stats: { items: 3, videos: 2, galleries: 1, downloadedItems: 1, archivedBytes: 1024, creators: 1, starred: 0, gone: 0, remoteChecked: 0 },
     health: makeHealth(),
     recent: [makeItem()],
     starred: [],
+    gone: [],
     shelves: [],
     creators: [],
   });

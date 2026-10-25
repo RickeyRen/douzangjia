@@ -26,6 +26,7 @@ from .media_probe import MediaProbe, MediaProbeBackfill
 from .notifier import NotificationWatcher, Notifier
 from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
+from .remote_sampler import RUN_EVERY_SECONDS, RemoteCheckSampler
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
 from .scheduler import configure_scheduler, reschedule_sync
 from .settings_store import RuntimeSettings, SettingsStore
@@ -414,6 +415,9 @@ class ArchiveRuntime:
             defaults=RuntimeSettings(sync_interval_seconds=settings.sync_interval_seconds),
         )
         self.runtime_settings = self.settings_store.defaults
+        self.remote_sampler = RemoteCheckSampler(
+            database, self.sync.check_item_availability, per_day=self.runtime_settings.remote_check_per_day
+        )
         self.notification_watcher = NotificationWatcher(
             database,
             settings.archive_root,
@@ -453,6 +457,15 @@ class ArchiveRuntime:
             coalesce=True,
             replace_existing=True,
         )
+        self._scheduler.add_job(
+            self.remote_sampler.run_batch,
+            "interval",
+            seconds=RUN_EVERY_SECONDS,
+            id="remote-check-sampler",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
         self._scheduler.start()
         if await self.auth_service.load_cookies():
             await self.sync.trigger_sync(full_scan=False)
@@ -488,6 +501,7 @@ class ArchiveRuntime:
     def _refresh_watcher(self, values: RuntimeSettings) -> None:
         self.notification_watcher.notifier = Notifier(values.notifications)
         self.notification_watcher.interval_seconds = values.sync_interval_seconds
+        self.remote_sampler.per_day = values.remote_check_per_day
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
         return await self.sync.trigger_sync(full_scan=full_scan)

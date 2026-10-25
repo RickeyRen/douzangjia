@@ -41,3 +41,10 @@ it("opens the creator from the caption", () => {
 
   expect(onOpenCreator).toHaveBeenCalledWith("c1", "小鹿");
 });
+
+it("flags items that are gone from Douyin", () => {
+  const item = makeItem({ remoteAvailability: { status: "deleted", checkedAt: 1, evidenceCode: "ITEM_NOT_FOUND", lastAvailableAt: null } });
+  render(<MediaTile item={item} onOpen={vi.fn()} />);
+
+  expect(screen.getByTitle("抖音上已消失")).toBeInTheDocument();
+});

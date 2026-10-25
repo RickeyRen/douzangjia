@@ -2,6 +2,7 @@ import {
   ArrowClockwise,
   CaretDown,
   CaretUp,
+  CloudSlash,
   GearSix,
   House,
   Images,
@@ -90,6 +91,7 @@ function Sidebar({ route }: { route: Route }) {
           <NavLink to={{ name: "library", filters: {} }} current={route} icon={<SquaresFour size={18} />} label="全部作品" />
           <NavLink to={{ name: "starred", filters: {} }} current={route} icon={<Star size={18} />} label="精选" />
           <NavLink to={{ name: "creators", query: "" }} current={route} icon={<Users size={18} />} label="博主" />
+          <NavLink to={{ name: "gone", filters: {} }} current={route} icon={<CloudSlash size={18} />} label="已在抖音消失" />
         </div>
         <div className="nav-group">
           <div className="nav-label">

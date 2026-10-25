@@ -12,6 +12,7 @@ it.each<Route>([
   { name: "creator", creatorId: "MS4wLjAB/x", filters: {} },
   { name: "album", albumId: 7, filters: { sort: "album" } },
   { name: "tag", tag: "做饭 周末", filters: {} },
+  { name: "gone", filters: { type: "video" } },
   { name: "activity" },
   { name: "settings" },
 ])("round-trips %o through the hash", (route) => {
