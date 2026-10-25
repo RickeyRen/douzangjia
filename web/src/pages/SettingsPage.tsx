@@ -1,11 +1,89 @@
 import { QrCode, SignOut } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 
+import { fetchSettings, updateSettings, type RuntimeSettings } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { formatRelative } from "../lib/format";
 import { describeHealth } from "../lib/health";
 import { useTheme } from "../theme/theme-context";
 import type { ThemePreference } from "../theme/theme-context";
-import { Avatar, PageHeader, Segmented } from "../ui/primitives";
+import { Avatar, PageHeader, Segmented, Select } from "../ui/primitives";
+
+const INTERVALS = [120, 300, 600, 900, 1800, 3600];
+const WORKERS = [1, 2, 3, 4, 6, 8];
+
+function intervalLabel(seconds: number): string {
+  return seconds >= 3600 ? `${seconds / 3600} 小时` : `${Math.round(seconds / 60)} 分钟`;
+}
+
+export function SyncSettingsPanel() {
+  const { toast, refreshHealth } = useAppData();
+  const [values, setValues] = useState<RuntimeSettings | null>(null);
+  const [saving, setSaving] = useState<keyof RuntimeSettings | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchSettings()
+      .then((payload) => active && setValues(payload.values))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function change<K extends keyof RuntimeSettings>(key: K, value: RuntimeSettings[K]) {
+    if (!values) return;
+    const previous = values;
+    setValues({ ...values, [key]: value });
+    setSaving(key);
+    try {
+      const payload = await updateSettings({ [key]: value });
+      setValues(payload.values);
+      toast("设置已生效");
+      void refreshHealth();
+    } catch {
+      setValues(previous);
+      toast("保存失败，请稍后重试");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  const intervals = values && !INTERVALS.includes(values.sync_interval_seconds) ? [values.sync_interval_seconds, ...INTERVALS] : INTERVALS;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>同步与下载</h2>
+        <p>修改后立即生效，不需要重启容器</p>
+      </div>
+      <div className="setting">
+        <div className="setting-text">
+          <strong>检查新收藏的间隔</strong>
+          <small>太频繁容易触发抖音风控；5 到 15 分钟比较稳妥</small>
+        </div>
+        <Select
+          label="同步间隔"
+          value={String(values?.sync_interval_seconds ?? 300)}
+          options={intervals.map((seconds) => ({ value: String(seconds), label: intervalLabel(seconds) }))}
+          onChange={(value) => void change("sync_interval_seconds", Number(value))}
+        />
+      </div>
+      <div className="setting">
+        <div className="setting-text">
+          <strong>同时下载的任务数</strong>
+          <small>NAS 带宽和磁盘够用时可以调高，默认 2 个</small>
+        </div>
+        <Select
+          label="下载并发数"
+          value={String(values?.download_workers ?? 2)}
+          options={WORKERS.map((count) => ({ value: String(count), label: `${count} 个` }))}
+          onChange={(value) => void change("download_workers", Number(value))}
+        />
+      </div>
+      {saving ? <p className="setting-note">正在保存…</p> : null}
+    </section>
+  );
+}
 
 const ACCOUNT_STATUS: Record<string, { text: string; tone: string }> = {
   healthy: { text: "已连接", tone: "badge-success" },
@@ -69,6 +147,8 @@ export function SettingsPage() {
             />
           </div>
         </section>
+
+        <SyncSettingsPanel />
 
         <section className="panel">
           <div className="panel-head">

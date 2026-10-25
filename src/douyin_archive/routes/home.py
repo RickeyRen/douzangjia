@@ -20,7 +20,12 @@ async def sync_health(request: Request, *, now: int | None = None) -> dict[str, 
     """Summarize whether discovery is actually keeping up, for the alert banner."""
     database = request.app.state.database
     now = int(time.time()) if now is None else now
-    interval = int(request.app.state.settings.sync_interval_seconds)
+    store = getattr(request.app.state, "settings_store", None)
+    interval = int(
+        (await store.load()).sync_interval_seconds
+        if store is not None
+        else request.app.state.settings.sync_interval_seconds
+    )
     account = await AccountHealthService(database).snapshot()
     latest = await database.fetchone(
         "SELECT status, error_code, started_at, finished_at FROM sync_runs "

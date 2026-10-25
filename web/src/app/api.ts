@@ -395,6 +395,19 @@ export type FeedQuery = {
 
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
+export type RuntimeSettings = {
+  sync_interval_seconds: number;
+  download_workers: number;
+  remote_check_per_day: number;
+  notifications: Record<string, unknown>;
+};
+
+export type SettingsPayload = {
+  values: RuntimeSettings;
+  defaults: RuntimeSettings;
+  overridden: string[];
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -505,6 +518,9 @@ export const fetchCreators = ({ search, sort = "items", cursor }: { search?: str
   if (cursor) params.set("cursor", cursor);
   return request<Page<Creator>>(`/api/creators?${params}`);
 };
+export const fetchSettings = () => request<SettingsPayload>("/api/settings");
+export const updateSettings = (changes: Partial<RuntimeSettings>) =>
+  request<SettingsPayload>("/api/settings", { method: "PUT", body: JSON.stringify(changes) });
 export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
 export const refreshCreator = (creatorId: string) =>

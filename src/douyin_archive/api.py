@@ -25,6 +25,7 @@ from .login_guard import LoginGuard
 from .repositories import ArchiveRepository, JobRepository
 from .security import CookieCipher, PasswordHasher
 from .session_auth import SessionCodec
+from .settings_store import RuntimeSettings, SettingsStore
 
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
@@ -144,6 +145,10 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         application.state.library_repository = library_repository
         application.state.job_repository = JobRepository(owned_database)
         application.state.dashboard_events = DashboardEventBus()
+        application.state.settings_store = SettingsStore(
+            owned_database,
+            defaults=RuntimeSettings(sync_interval_seconds=settings.sync_interval_seconds),
+        )
         browser_coordinator = BrowserCoordinator(BrowserProfileStore(settings.archive_root))
         application.state.browser_coordinator = browser_coordinator
         owns_auth_service = auth_service is None
@@ -542,6 +547,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     from .routes.jobs import router as jobs_router
     from .routes.library import router as library_router
     from .routes.media import router as media_router
+    from .routes.settings import router as settings_router
 
     app.include_router(archive_router)
     app.include_router(creators_router)
@@ -551,6 +557,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app.include_router(jobs_router)
     app.include_router(library_router)
     app.include_router(media_router)
+    app.include_router(settings_router)
 
     if settings.web_dist is not None and (settings.web_dist / "index.html").is_file():
         assets = settings.web_dist / "assets"

@@ -26,13 +26,30 @@ from .media_probe import MediaProbe, MediaProbeBackfill
 from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
-from .scheduler import configure_scheduler
+from .scheduler import configure_scheduler, reschedule_sync
+from .settings_store import RuntimeSettings, SettingsStore
 from .storage import CollectionProjector, ObjectStore
 from .sync_service import SyncResult, SyncService
 from .telemetry import TelemetrySampler
 from .worker import Worker
 
 logger = logging.getLogger(__name__)
+
+
+def resize_workers(
+    workers: list[Any],
+    tasks: list[asyncio.Task[None]],
+    make_worker: Callable[[int], Any],
+    count: int,
+) -> None:
+    """Grow or shrink the download pool in place; surplus workers stop after their job."""
+    while len(workers) < count:
+        worker = make_worker(len(workers))
+        workers.append(worker)
+        tasks.append(asyncio.create_task(worker.run_forever()))
+    while len(workers) > count:
+        workers.pop()
+        tasks.pop().cancel()
 
 
 async def start_browser_without_blocking_app(coordinator: Any) -> bool:
@@ -386,10 +403,16 @@ class ArchiveRuntime:
             media_probe=self.media_probe,
         )
         worker_prefix = f"{socket.gethostname()}-{os.getpid()}"
-        self.workers = [
-            Worker(self.jobs, handler, worker_id=f"{worker_prefix}-{index}") for index in range(2)
-        ]
+        self._make_worker = lambda index: Worker(
+            self.jobs, handler, worker_id=f"{worker_prefix}-{index}"
+        )
+        self.workers: list[Worker] = []
         self._worker_tasks: list[asyncio.Task[None]] = []
+        self.settings_store = SettingsStore(
+            database,
+            defaults=RuntimeSettings(sync_interval_seconds=settings.sync_interval_seconds),
+        )
+        self.runtime_settings = self.settings_store.defaults
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
 
@@ -401,7 +424,8 @@ class ArchiveRuntime:
         await DownloadProgressRepository(self.database).backfill_parts(self.store)
         await start_browser_without_blocking_app(self.browser_coordinator)
         self.auth_service.on_authenticated = self._initial_sync
-        self._worker_tasks = [asyncio.create_task(worker.run_forever()) for worker in self.workers]
+        self.runtime_settings = await self.settings_store.load()
+        resize_workers(self.workers, self._worker_tasks, self._make_worker, self.runtime_settings.download_workers)
         self._probe_task = asyncio.create_task(self._probe_existing_media())
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         configure_scheduler(
@@ -409,6 +433,7 @@ class ArchiveRuntime:
             self.sync,
             self.settings,
             telemetry=self.telemetry,
+            sync_interval_seconds=self.runtime_settings.sync_interval_seconds,
         )
         self._scheduler.start()
         if await self.auth_service.load_cookies():
@@ -432,6 +457,14 @@ class ArchiveRuntime:
             self._probe_task = None
         await self.sync.close()
         await self.http.aclose()
+
+    async def apply_settings(self, values: RuntimeSettings) -> None:
+        """Make UI changes effective now: reschedule syncs and resize the pool."""
+        previous = self.runtime_settings
+        self.runtime_settings = values
+        if self._scheduler is not None and values.sync_interval_seconds != previous.sync_interval_seconds:
+            reschedule_sync(self._scheduler, values.sync_interval_seconds)
+        resize_workers(self.workers, self._worker_tasks, self._make_worker, values.download_workers)
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
         return await self.sync.trigger_sync(full_scan=full_scan)

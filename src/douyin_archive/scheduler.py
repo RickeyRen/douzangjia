@@ -11,11 +11,13 @@ def configure_scheduler(
     settings: Settings,
     *,
     telemetry: Any | None = None,
+    sync_interval_seconds: int | None = None,
 ) -> None:
+    interval = sync_interval_seconds or settings.sync_interval_seconds
     scheduler.add_job(
         sync_service.run_incremental,
         "interval",
-        seconds=settings.sync_interval_seconds,
+        seconds=interval,
         id="incremental-sync",
         max_instances=1,
         coalesce=True,
@@ -24,7 +26,7 @@ def configure_scheduler(
     scheduler.add_job(
         sync_service.run_creator_subscriptions,
         "interval",
-        seconds=settings.sync_interval_seconds,
+        seconds=interval,
         id="creator-subscriptions",
         max_instances=1,
         coalesce=True,
@@ -80,3 +82,11 @@ def configure_scheduler(
             coalesce=True,
             replace_existing=True,
         )
+
+
+SYNC_JOB_IDS = ("incremental-sync", "creator-subscriptions")
+
+
+def reschedule_sync(scheduler: Any, seconds: int) -> None:
+    for job_id in SYNC_JOB_IDS:
+        scheduler.reschedule_job(job_id, trigger="interval", seconds=seconds)
