@@ -27,6 +27,14 @@ from .security import CookieCipher, PasswordHasher
 from .session_auth import SessionCodec
 from .settings_store import RuntimeSettings, SettingsStore
 
+
+class CachedStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs):  # type: ignore[override]
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -564,14 +572,24 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app.include_router(settings_router)
 
     if settings.web_dist is not None and (settings.web_dist / "index.html").is_file():
-        assets = settings.web_dist / "assets"
+        web_dist = settings.web_dist.resolve()
+        assets = web_dist / "assets"
         if assets.is_dir():
-            app.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+            # Vite hashes asset names, so browsers may keep them for a year.
+            app.mount("/assets", CachedStaticFiles(directory=assets), name="web-assets")
 
         @app.get("/{spa_path:path}", include_in_schema=False)
         async def spa(spa_path: str):
             if spa_path.startswith(("api/", "health/")):
                 return JSONResponse(status_code=404, content={"code": "NOT_FOUND"})
-            return FileResponse(settings.web_dist / "index.html")
+            # Files copied from web/public (manifest, icons) live beside index.html.
+            if spa_path and "/" not in spa_path:
+                candidate = (web_dist / spa_path).resolve()
+                if candidate.parent == web_dist and candidate.is_file():
+                    return FileResponse(candidate, headers={"Cache-Control": "public, max-age=86400"})
+            # The shell must be revalidated on every load or deploys never show up.
+            return FileResponse(
+                web_dist / "index.html", headers={"Cache-Control": "no-cache"}
+            )
 
     return app
