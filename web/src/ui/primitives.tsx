@@ -1,5 +1,6 @@
 import { CaretDown, CircleNotch, WarningCircle } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
+import { t } from "../i18n/t";
 
 export function Avatar({ src, name, size }: { src?: string | null; name?: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
@@ -91,15 +92,15 @@ export function EmptyState({ icon, title, body, action }: { icon: ReactNode; tit
   );
 }
 
-export function ErrorState({ onRetry, message = "加载失败，请检查 NAS 服务是否正常。" }: { onRetry: () => void; message?: string }) {
+export function ErrorState({ onRetry, message = t("加载失败，请检查 NAS 服务是否正常。") }: { onRetry: () => void; message?: string }) {
   return (
     <EmptyState
       icon={<WarningCircle size={40} weight="duotone" />}
-      title="出了点问题"
+      title={t("出了点问题")}
       body={message}
       action={
         <button type="button" className="btn btn-secondary" onClick={onRetry}>
-          重试
+          {t("重试")}
         </button>
       }
     />

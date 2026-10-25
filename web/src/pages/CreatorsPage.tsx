@@ -14,6 +14,7 @@ import { navigate, routeHref, type LibraryFilters, type Route } from "../app/rou
 import { formatCount, formatInteger, formatRelative } from "../lib/format";
 import { FeedBrowser } from "../media/FeedBrowser";
 import { Avatar, EmptyState, ErrorState, PageHeader, Segmented, Spinner, Switch } from "../ui/primitives";
+import { t } from "../i18n/t";
 
 export function CreatorsPage({ query }: { query: string }) {
   const [search, setSearch] = useState(query);
@@ -67,18 +68,18 @@ export function CreatorsPage({ query }: { query: string }) {
 
   return (
     <>
-      <PageHeader title="博主" subtitle="收藏里出现过的所有创作者" />
+      <PageHeader title={t("博主")} subtitle="收藏里出现过的所有创作者" />
       <div className="toolbar">
         <form className="search search-inline" onSubmit={(event) => event.preventDefault()}>
           <MagnifyingGlass size={16} weight="bold" />
-          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="按昵称或抖音号查找" aria-label="查找博主" />
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("按昵称或抖音号查找")} aria-label={t("查找博主")} />
         </form>
         <Segmented
-          label="博主排序"
+          label={t("博主排序")}
           value={sort}
           options={[
-            { value: "items", label: "作品最多" },
-            { value: "recent", label: "最近出现" },
+            { value: "items", label: t("作品最多") },
+            { value: "recent", label: t("最近出现") },
           ]}
           onChange={setSort}
         />
@@ -90,7 +91,7 @@ export function CreatorsPage({ query }: { query: string }) {
           <Spinner size={24} />
         </div>
       ) : creators.length === 0 ? (
-        <EmptyState icon={<Users size={40} weight="duotone" />} title="没有找到博主" body={debounced ? "换个关键词试试。" : undefined} />
+        <EmptyState icon={<Users size={40} weight="duotone" />} title={t("没有找到博主")} body={debounced ? t("换个关键词试试。") : undefined} />
       ) : (
         <>
           <div className="creator-grid">
@@ -99,7 +100,7 @@ export function CreatorsPage({ query }: { query: string }) {
                 <Avatar src={creator.avatarUrl} name={creator.nickname} />
                 <div>
                   <strong>{creator.nickname}</strong>
-                  <small>{creator.uniqueId ? `抖音号 ${creator.uniqueId}` : "抖音号未知"}</small>
+                  <small>{creator.uniqueId ? t("抖音号 {id}", { id: creator.uniqueId }) : t("抖音号未知")}</small>
                   <small>
                     {formatInteger(creator.knownItemCount)} 个作品 · 已存 {formatInteger(creator.archivedItemCount)}
                   </small>
@@ -148,9 +149,9 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
     try {
       const subscription = await updateCreatorSubscription(creator.id, enabled);
       setCreator({ ...creator, subscription });
-      toast(enabled ? "会定期收录这位博主的新作品" : "已停止自动收录");
+      toast(enabled ? t("会定期收录这位博主的新作品") : t("已停止自动收录"));
     } catch {
-      toast("设置失败，请稍后重试");
+      toast(t("设置失败，请稍后重试"));
     }
   }
 
@@ -159,9 +160,9 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
     setQueueing(true);
     try {
       await archiveCreator(creator.id);
-      toast("已开始收录这位博主的全部作品");
+      toast(t("已开始收录这位博主的全部作品"));
     } catch {
-      toast("收录失败，请检查抖音登录状态");
+      toast(t("收录失败，请检查抖音登录状态"));
     } finally {
       setQueueing(false);
     }
@@ -175,8 +176,8 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
       <section className="profile">
         <Avatar src={creator?.avatarUrl} name={creator?.nickname ?? "?"} />
         <div className="profile-body">
-          <h1>{creator?.nickname ?? "加载中…"}</h1>
-          <div className="profile-id">{creator?.uniqueId ? `抖音号 ${creator.uniqueId}` : creator ? "抖音号暂未获取" : " "}</div>
+          <h1>{creator?.nickname ?? t("加载中…")}</h1>
+          <div className="profile-id">{creator?.uniqueId ? t("抖音号 {id}", { id: creator.uniqueId }) : creator ? t("抖音号暂未获取") : " "}</div>
           {creator ? (
             <div className="profile-stats">
               <span>
@@ -200,16 +201,16 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
         </div>
         {creator ? (
           <div className="profile-actions">
-            <label className="chip chip-switch" title={creator.subscription?.lastScanAt ? `上次检查 ${formatRelative(creator.subscription.lastScanAt)}` : undefined}>
-              自动收录新作品
-              <Switch checked={subscribed} onChange={(value) => void toggleSubscription(value)} label="自动收录这位博主的新作品" />
+            <label className="chip chip-switch" title={creator.subscription?.lastScanAt ? t("上次检查 {when}", { when: formatRelative(creator.subscription.lastScanAt) }) : undefined}>
+              {t("自动收录新作品")}
+              <Switch checked={subscribed} onChange={(value) => void toggleSubscription(value)} label={t("自动收录这位博主的新作品")} />
             </label>
             <button type="button" className="btn btn-secondary btn-sm" disabled={queueing} onClick={() => void downloadAll()}>
               {queueing ? <Spinner size={14} /> : <CloudArrowDown size={16} weight="bold" />}
-              收录全部作品
+              {t("收录全部作品")}
             </button>
             <a className="btn btn-ghost btn-sm" href={`https://www.douyin.com/user/${creator.id}`} target="_blank" rel="noreferrer">
-              抖音主页
+              {t("抖音主页")}
             </a>
           </div>
         ) : null}

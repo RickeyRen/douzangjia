@@ -13,6 +13,7 @@ import { sourceLabel } from "../shell/sourceMeta";
 import { SourceIcon } from "../shell/SourceIcon";
 import { Avatar, ErrorState, Spinner } from "../ui/primitives";
 import { FirstSync } from "./FirstSync";
+import { t } from "../i18n/t";
 
 export function HomePage() {
   const { account, toast } = useAppData();
@@ -44,14 +45,14 @@ export function HomePage() {
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   async function downloadMissing() {
-    if (!missing || !window.confirm(`把 ${formatInteger(missing.missing)} 个作品全部存到 NAS？${missing.estimatedBytes ? `预计需要 ${formatBytes(missing.estimatedBytes)}。` : ""}`)) return;
+    if (!missing || !window.confirm(t("把 {n} 个作品全部存到 NAS？", { n: formatInteger(missing.missing) }) + (missing.estimatedBytes ? t("预计需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : ""))) return;
     setQueueing(true);
     try {
       const result = await archiveMissing();
-      toast(result.skipped ? `已加入下载，${result.skipped} 个要等下次同步后才能下载` : "已加入下载队列，可在状态页查看进度");
+      toast(result.skipped ? t("已加入下载，{n} 个要等下次同步后才能下载", { n: result.skipped }) : t("已加入下载队列，可在状态页查看进度"));
       setMissing(null);
     } catch {
-      toast("加入下载队列失败");
+      toast(t("加入下载队列失败"));
     } finally {
       setQueueing(false);
     }
@@ -77,7 +78,7 @@ export function HomePage() {
             {hello}
             {name ? `，${name}` : ""}
           </h1>
-          <p>{home ? `你的抖音收藏都在这里 · ${formatInteger(home.stats.items)} 个作品` : "正在整理你的收藏…"}</p>
+          <p>{home ? t("你的抖音收藏都在这里 · {n} 个作品", { n: formatInteger(home.stats.items) }) : t("正在整理你的收藏…")}</p>
         </div>
         <button
           type="button"
@@ -89,7 +90,7 @@ export function HomePage() {
           }}
         >
           <Shuffle size={17} weight="bold" />
-          随便看看
+          {t("随便看看")}
         </button>
       </section>
 
@@ -99,54 +100,54 @@ export function HomePage() {
             <FilmStrip size={15} /> 收藏作品
           </span>
           <strong>{home ? formatInteger(home.stats.items) : "—"}</strong>
-          <small>{home ? `视频 ${formatInteger(home.stats.videos)} · 图集 ${formatInteger(home.stats.galleries)}` : " "}</small>
+          <small>{home ? t("视频 {videos} · 图集 {galleries}", { videos: formatInteger(home.stats.videos), galleries: formatInteger(home.stats.galleries) }) : " "}</small>
         </a>
         <a className="stat" href={routeHref({ name: "library", filters: { downloaded: true } })}>
           <span>
             <CloudCheck size={15} /> 已存到 NAS
           </span>
           <strong>{home ? formatInteger(home.stats.downloadedItems) : "—"}</strong>
-          <small>{home ? `占用 ${formatBytes(home.stats.archivedBytes)}` : " "}</small>
+          <small>{home ? t("占用 {size}", { size: formatBytes(home.stats.archivedBytes) }) : " "}</small>
         </a>
         <a className="stat" href={routeHref({ name: "starred", filters: {} })}>
           <span>
             <Star size={15} /> 精选
           </span>
           <strong>{home ? formatInteger(home.stats.starred) : "—"}</strong>
-          <small>按 S 键或点星标加入</small>
+          <small>{t("按 S 键或点星标加入")}</small>
         </a>
         <a className="stat" href={routeHref({ name: "creators", query: "" })}>
           <span>
             <Users size={15} /> 博主
           </span>
           <strong>{home ? formatInteger(home.stats.creators) : "—"}</strong>
-          <small>收藏涉及的创作者</small>
+          <small>{t("收藏涉及的创作者")}</small>
         </a>
         <a className="stat stat-gone" href={routeHref({ name: "gone", filters: {} })}>
           <span>
             <CloudSlash size={15} /> 已在抖音消失
           </span>
           <strong>{home ? formatInteger(home.stats.gone) : "—"}</strong>
-          <small>{home ? `已抽查 ${formatInteger(home.stats.remoteChecked)} 个` : " "}</small>
+          <small>{home ? t("已抽查 {n} 个", { n: formatInteger(home.stats.remoteChecked) }) : " "}</small>
         </a>
       </div>
 
       {missing && missing.missing > 0 ? (
         <section className="cta">
           <div>
-            <strong>还有 {formatInteger(missing.missing)} 个作品没有存到 NAS</strong>
-            <p>{missing.estimatedBytes ? `按已下载作品的平均大小估算，大约需要 ${formatBytes(missing.estimatedBytes)}。` : "它们目前只有抖音上的链接，作者删除后就看不到了。"}</p>
+            <strong>{t("还有 {n} 个作品没有存到 NAS", { n: formatInteger(missing.missing) })}</strong>
+            <p>{missing.estimatedBytes ? t("按已下载作品的平均大小估算，大约需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : t("它们目前只有抖音上的链接，作者删除后就看不到了。")}</p>
           </div>
           <button type="button" className="btn btn-primary btn-sm" disabled={queueing} onClick={() => void downloadMissing()}>
             {queueing ? <Spinner size={14} /> : <CloudCheck size={15} weight="bold" />}
-            全部存到 NAS
+            {t("全部存到 NAS")}
           </button>
         </section>
       ) : null}
 
       <section className="section">
         <div className="section-header">
-          <h2>最近收藏</h2>
+          <h2>{t("最近收藏")}</h2>
           <a href={routeHref({ name: "library", filters: {} })}>
             全部 <CaretRight size={13} weight="bold" />
           </a>
@@ -163,7 +164,7 @@ export function HomePage() {
       {home && home.gone.length ? (
         <section className="section">
           <div className="section-header">
-            <h2>这些已经从抖音消失了</h2>
+            <h2>{t("这些已经从抖音消失了")}</h2>
             <a href={routeHref({ name: "gone", filters: {} })}>
               全部 <CaretRight size={13} weight="bold" />
             </a>
@@ -179,7 +180,7 @@ export function HomePage() {
       {home && home.starred.length ? (
         <section className="section">
           <div className="section-header">
-            <h2>精选</h2>
+            <h2>{t("精选")}</h2>
             <a href={routeHref({ name: "starred", filters: {} })}>
               全部 <CaretRight size={13} weight="bold" />
             </a>
@@ -195,7 +196,7 @@ export function HomePage() {
       {home && home.shelves.length ? (
         <section className="section">
           <div className="section-header">
-            <h2>收藏夹与来源</h2>
+            <h2>{t("收藏夹与来源")}</h2>
           </div>
           <div className="collections">
             {home.shelves.map((shelfInfo) => {
@@ -227,7 +228,7 @@ export function HomePage() {
       {home && home.creators.length ? (
         <section className="section">
           <div className="section-header">
-            <h2>收藏最多的博主</h2>
+            <h2>{t("收藏最多的博主")}</h2>
             <a href={routeHref({ name: "creators", query: "" })}>
               全部 <CaretRight size={13} weight="bold" />
             </a>

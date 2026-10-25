@@ -1,5 +1,6 @@
 import type { SyncHealth } from "../app/api";
 import { formatRelative } from "./format";
+import { t } from "../i18n/t";
 
 export type HealthTone = "ok" | "busy" | "warning" | "danger";
 
@@ -45,7 +46,7 @@ export function errorSuffix(code: string | null | undefined): string {
 
 export function describeHealth(health: SyncHealth | null, now = Date.now()): HealthView {
   if (!health) {
-    return { tone: "busy", label: "正在检查", title: "正在检查同步状态", body: "", alert: false, action: null };
+    return { tone: "busy", label: t("正在检查"), title: t("正在检查同步状态"), body: "", alert: false, action: null };
   }
   const last = formatRelative(health.lastSuccessAt, now);
   const reason = describeError(health.lastErrorCode);
@@ -53,47 +54,47 @@ export function describeHealth(health: SyncHealth | null, now = Date.now()): Hea
     case "ok":
       return {
         tone: "ok",
-        label: "同步正常",
-        title: "同步正常",
-        body: `上次同步 ${last}，每 ${Math.round(health.intervalSeconds / 60)} 分钟检查一次新收藏`,
+        label: t("同步正常"),
+        title: t("同步正常"),
+        body: t("上次同步 {last}，每 {minutes} 分钟检查一次新收藏", { last, minutes: Math.round(health.intervalSeconds / 60) }),
         alert: false,
         action: null,
       };
     case "syncing":
-      return { tone: "busy", label: "正在同步", title: "正在同步收藏", body: `上次完成 ${last}`, alert: false, action: null };
+      return { tone: "busy", label: t("正在同步"), title: t("正在同步收藏"), body: t("上次完成 {last}", { last }), alert: false, action: null };
     case "never":
       return {
         tone: "warning",
-        label: "尚未同步",
-        title: "还没有完成过同步",
-        body: "扫码登录后会自动开始第一次全量同步。",
+        label: t("尚未同步"),
+        title: t("还没有完成过同步"),
+        body: t("扫码登录后会自动开始第一次全量同步。"),
         alert: true,
         action: "sync",
       };
     case "login_required":
       return {
         tone: "danger",
-        label: "需要登录",
-        title: "抖音登录已失效，新收藏不会再同步",
-        body: `上次成功同步 ${last}。重新扫码登录后会自动恢复。`,
+        label: t("需要登录"),
+        title: t("抖音登录已失效，新收藏不会再同步"),
+        body: t("上次成功同步 {last}。重新扫码登录后会自动恢复。", { last }),
         alert: true,
         action: "login",
       };
     case "failing":
       return {
         tone: "danger",
-        label: "同步失败",
-        title: "同步连续失败",
-        body: `${reason ? `${reason}。` : ""}上次成功同步 ${last}，已连续失败 ${Math.max(health.consecutiveFailures, 1)} 次。`,
+        label: t("同步失败"),
+        title: t("同步连续失败"),
+        body: (reason ? `${reason}。` : "") + t("上次成功同步 {last}，已连续失败 {n} 次。", { last, n: Math.max(health.consecutiveFailures, 1) }),
         alert: true,
         action: "sync",
       };
     case "stale":
       return {
         tone: "danger",
-        label: "同步停滞",
-        title: "同步已经停止",
-        body: `上次成功同步是 ${last}，之后没有新的同步完成${reason && reason !== ERROR_TEXT.SYNC_STALLED ? `（${reason}）` : ""}。`,
+        label: t("同步停滞"),
+        title: t("同步已经停止"),
+        body: t("上次成功同步是 {last}，之后没有新的同步完成{reason}。", { last, reason: reason && reason !== ERROR_TEXT.SYNC_STALLED ? `（${reason}）` : "" }),
         alert: true,
         action: "sync",
       };

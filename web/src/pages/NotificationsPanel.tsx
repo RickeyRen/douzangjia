@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchSettings, testNotifications, updateSettings } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { Spinner, Switch } from "../ui/primitives";
+import { t } from "../i18n/t";
 
 type Config = {
   bark: { url: string };
@@ -13,11 +14,11 @@ type Config = {
 };
 
 const EVENTS: Array<{ key: string; label: string }> = [
-  { key: "login_required", label: "抖音登录失效" },
-  { key: "failing", label: "同步连续失败" },
-  { key: "stale", label: "同步停止超过半小时" },
-  { key: "disk_low", label: "NAS 剩余空间不足" },
-  { key: "recovered", label: "问题恢复后通知一次" },
+  { key: "login_required", label: t("抖音登录失效") },
+  { key: "failing", label: t("同步连续失败") },
+  { key: "stale", label: t("同步停止超过半小时") },
+  { key: "disk_low", label: t("NAS 剩余空间不足") },
+  { key: "recovered", label: t("问题恢复后通知一次") },
 ];
 
 const EMPTY: Config = { bark: { url: "" }, telegram: { bot_token: "", chat_id: "" }, webhook: { url: "" }, events: {} };
@@ -64,9 +65,9 @@ export function NotificationsPanel() {
       const value = normalize(payload.values.notifications);
       setConfig(value);
       setSaved(value);
-      toast("通知设置已保存");
+      toast(t("通知设置已保存"));
     } catch {
-      toast("保存失败，请检查填写的地址");
+      toast(t("保存失败，请检查填写的地址"));
     } finally {
       setBusy(null);
     }
@@ -79,7 +80,7 @@ export function NotificationsPanel() {
       if (dirty) await save();
       setResults((await testNotifications()).results);
     } catch {
-      toast("测试发送失败");
+      toast(t("测试发送失败"));
     } finally {
       setBusy(null);
     }
@@ -89,16 +90,16 @@ export function NotificationsPanel() {
     <section className="panel">
       <div className="panel-head">
         <div>
-          <h2>通知</h2>
-          <p>登录失效、同步停止时推送到手机，不用天天打开网页检查</p>
+          <h2>{t("通知")}</h2>
+          <p>{t("登录失效、同步停止时推送到手机，不用天天打开网页检查")}</p>
         </div>
         <BellRinging size={20} className="panel-icon" />
       </div>
       <div className="fields">
         <label className="field">
-          <span>Bark 推送地址</span>
-          <input aria-label="Bark 推送地址" type="url" placeholder="https://api.day.app/你的设备Key" value={config.bark.url} onChange={(event) => setConfig({ ...config, bark: { url: event.target.value } })} />
-          <small>iPhone 装 Bark 后，把 App 里显示的地址粘贴到这里</small>
+          <span>{t("Bark 推送地址")}</span>
+          <input aria-label={t("Bark 推送地址")} type="url" placeholder={t("https://api.day.app/你的设备Key")} value={config.bark.url} onChange={(event) => setConfig({ ...config, bark: { url: event.target.value } })} />
+          <small>{t("iPhone 装 Bark 后，把 App 里显示的地址粘贴到这里")}</small>
         </label>
         <div className="field-row">
           <label className="field">
@@ -107,13 +108,13 @@ export function NotificationsPanel() {
           </label>
           <label className="field">
             <span>Telegram Chat ID</span>
-            <input aria-label="Telegram Chat ID" type="text" inputMode="numeric" placeholder="例如 123456789" value={config.telegram.chat_id} onChange={(event) => setConfig({ ...config, telegram: { ...config.telegram, chat_id: event.target.value } })} />
+            <input aria-label="Telegram Chat ID" type="text" inputMode="numeric" placeholder={t("例如 123456789")} value={config.telegram.chat_id} onChange={(event) => setConfig({ ...config, telegram: { ...config.telegram, chat_id: event.target.value } })} />
           </label>
         </div>
         <label className="field">
-          <span>通用 Webhook</span>
-          <input aria-label="通用 Webhook" type="url" placeholder="https://…（会收到 JSON：event、title、body、level）" value={config.webhook.url} onChange={(event) => setConfig({ ...config, webhook: { url: event.target.value } })} />
-          <small>适合飞书、企业微信、Home Assistant 等自定义接入</small>
+          <span>{t("通用 Webhook")}</span>
+          <input aria-label={t("通用 Webhook")} type="url" placeholder={t("https://…（会收到 JSON：event、title、body、level）")} value={config.webhook.url} onChange={(event) => setConfig({ ...config, webhook: { url: event.target.value } })} />
+          <small>{t("适合飞书、企业微信、Home Assistant 等自定义接入")}</small>
         </label>
       </div>
       <div className="rows events">
@@ -129,17 +130,17 @@ export function NotificationsPanel() {
       <div className="action-row">
         <button type="button" className="btn btn-primary btn-sm" disabled={!dirty || busy !== null} onClick={() => void save()}>
           {busy === "save" ? <Spinner size={14} /> : null}
-          保存
+          {t("保存")}
         </button>
         <button type="button" className="btn btn-secondary btn-sm" disabled={!configured || busy !== null} onClick={() => void sendTest()}>
           {busy === "test" ? <Spinner size={14} /> : <PaperPlaneTilt size={15} weight="bold" />}
-          发送测试
+          {t("发送测试")}
         </button>
         {results ? (
           <span className="test-results">
             {Object.entries(results).map(([channel, result]) => (
               <span key={channel} className={`badge ${result === "ok" ? "badge-success" : "badge-danger"}`}>
-                {channel} {result === "ok" ? "已送达" : "失败"}
+                {channel} {result === "ok" ? t("已送达") : t("失败")}
               </span>
             ))}
           </span>

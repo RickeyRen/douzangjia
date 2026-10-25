@@ -1,7 +1,15 @@
+import { currentLocale } from "../i18n/t";
+
 const integer = new Intl.NumberFormat("zh-CN");
+const en = () => currentLocale() === "en";
 
 export function formatCount(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  if (en()) {
+    if (value >= 1_000_000) return `${trim(value / 1_000_000)}M`;
+    if (value >= 10_000) return `${trim(value / 1_000)}K`;
+    return integer.format(value);
+  }
   if (value >= 100_000_000) return `${trim(value / 100_000_000)} 亿`;
   if (value >= 10_000) return `${trim(value / 10_000)} 万`;
   return integer.format(value);
@@ -38,25 +46,35 @@ export function formatDuration(milliseconds: number | null | undefined): string 
 
 export function formatEta(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || seconds <= 0) return "—";
-  if (seconds < 60) return `${Math.round(seconds)} 秒`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)} 分钟`;
-  return `${(seconds / 3600).toFixed(1)} 小时`;
+  if (seconds < 60) return en() ? `${Math.round(seconds)}s` : `${Math.round(seconds)} 秒`;
+  if (seconds < 3600) return en() ? `${Math.round(seconds / 60)} min` : `${Math.round(seconds / 60)} 分钟`;
+  return en() ? `${(seconds / 3600).toFixed(1)} h` : `${(seconds / 3600).toFixed(1)} 小时`;
 }
 
 /** Relative time in Chinese for unix seconds, e.g. "3 分钟前", "29 天前". */
 export function formatRelative(unixSeconds: number | null | undefined, now = Date.now()): string {
-  if (!unixSeconds) return "从未";
+  if (!unixSeconds) return en() ? "never" : "从未";
   const delta = Math.round(now / 1000 - unixSeconds);
-  if (delta < 45) return "刚刚";
-  if (delta < 3600) return `${Math.max(1, Math.round(delta / 60))} 分钟前`;
-  if (delta < 86_400) return `${Math.round(delta / 3600)} 小时前`;
-  if (delta < 86_400 * 30) return `${Math.round(delta / 86_400)} 天前`;
+  if (delta < 45) return en() ? "just now" : "刚刚";
+  if (delta < 3600) {
+    const minutes = Math.max(1, Math.round(delta / 60));
+    return en() ? `${minutes} min ago` : `${minutes} 分钟前`;
+  }
+  if (delta < 86_400) {
+    const hours = Math.round(delta / 3600);
+    return en() ? `${hours} h ago` : `${hours} 小时前`;
+  }
+  if (delta < 86_400 * 30) {
+    const days = Math.round(delta / 86_400);
+    return en() ? `${days} d ago` : `${days} 天前`;
+  }
   return formatDate(unixSeconds);
 }
 
 export function formatDate(unixSeconds: number | null | undefined): string {
   if (!unixSeconds) return "—";
   const date = new Date(unixSeconds * 1000);
+  if (en()) return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
@@ -64,11 +82,13 @@ export function formatDateTime(unixSeconds: number | null | undefined): string {
   if (!unixSeconds) return "—";
   const date = new Date(unixSeconds * 1000);
   const time = `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+  if (en()) return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`;
   return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
 }
 
 export function greeting(now = new Date()): string {
   const hour = now.getHours();
+  if (en()) return hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   if (hour < 5) return "夜深了";
   if (hour < 11) return "早上好";
   if (hour < 13) return "中午好";

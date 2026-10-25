@@ -2,6 +2,7 @@ import { ArrowsOut, Pause, Play, SpeakerHigh, SpeakerSlash } from "@phosphor-ico
 import { useEffect, useState, type PointerEvent, type RefObject } from "react";
 
 import { formatClock } from "../lib/format";
+import { t } from "../i18n/t";
 
 /** Minimal controls over a <video>: scrubber, clock, mute and fullscreen. */
 export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: RefObject<HTMLVideoElement | null>; muted: boolean; onToggleMute: () => void }) {
@@ -60,7 +61,7 @@ export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: Ref
       <div
         className="vc-track"
         role="slider"
-        aria-label="播放进度"
+        aria-label={t("播放进度")}
         aria-valuemin={0}
         aria-valuemax={Math.round(duration)}
         aria-valuenow={Math.round(time)}
@@ -83,17 +84,17 @@ export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: Ref
         <span className="vc-knob" style={{ left: `${played}%` }} />
       </div>
       <div className="vc-row">
-        <button type="button" className="icon-btn icon-btn-sm" aria-label={playing ? "暂停" : "播放"} onClick={toggle}>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label={playing ? t("暂停") : t("播放")} onClick={toggle}>
           {playing ? <Pause size={18} weight="fill" /> : <Play size={18} weight="fill" />}
         </button>
         <span className="vc-clock num">
           {formatClock(time)} <span className="vc-sep">/</span> {formatClock(duration)}
         </span>
         <span className="toolbar-spacer" />
-        <button type="button" className="icon-btn icon-btn-sm" aria-label={muted ? "取消静音" : "静音"} onClick={onToggleMute}>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label={muted ? t("取消静音") : t("静音")} onClick={onToggleMute}>
           {muted ? <SpeakerSlash size={18} /> : <SpeakerHigh size={18} />}
         </button>
-        <button type="button" className="icon-btn icon-btn-sm" aria-label="全屏" onClick={fullscreen}>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label={t("全屏")} onClick={fullscreen}>
           <ArrowsOut size={18} />
         </button>
       </div>

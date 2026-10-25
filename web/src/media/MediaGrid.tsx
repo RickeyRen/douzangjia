@@ -5,6 +5,7 @@ import { useGridPrefs } from "../lib/useGridPrefs";
 import { aspectOf } from "./itemInfo";
 import { Spinner } from "../ui/primitives";
 import { MediaTile, TileSkeleton } from "./MediaTile";
+import { t } from "../i18n/t";
 
 const ROW_UNIT = 8;
 
@@ -72,7 +73,7 @@ export function MediaGrid({
 
   if (loading) {
     return (
-      <div className="grid" aria-busy="true" aria-label="正在加载">
+      <div className="grid" aria-busy="true" aria-label={t("正在加载")}>
         {Array.from({ length: 12 }, (_, index) => (
           <TileSkeleton key={index} />
         ))}
@@ -105,7 +106,7 @@ export function MediaGrid({
       <div ref={sentinel} className="grid-footer">
         {error ? (
           <button type="button" className="btn btn-secondary btn-sm" onClick={onRetry}>
-            加载失败，点此重试
+            {t("加载失败，点此重试")}
           </button>
         ) : loadingMore ? (
           <Spinner />

@@ -30,6 +30,7 @@ import { CommandPalette } from "./CommandPalette";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { groupSources, sourceLabel } from "./sourceMeta";
 import { SourceIcon } from "./SourceIcon";
+import { t } from "../i18n/t";
 
 export function Shell({ children }: { children: ReactNode }) {
   const route = useRoute();
@@ -94,7 +95,7 @@ function Sidebar({ route }: { route: Route }) {
       await refreshAlbums();
       navigate({ name: "album", albumId: album.id, filters: {} });
     } catch {
-      toast("创建相册失败，可能已有同名相册");
+      toast(t("创建相册失败，可能已有同名相册"));
     }
   }
   const groups = groupSources(sources);
@@ -105,20 +106,20 @@ function Sidebar({ route }: { route: Route }) {
         <span className="brand-mark">
           <BrandGlyph />
         </span>
-        <strong>抖藏家</strong>
+        <strong>{t("抖藏家")}</strong>
       </a>
-      <nav className="sidebar-scroll" aria-label="主导航">
+      <nav className="sidebar-scroll" aria-label={t("主导航")}>
         <div className="nav-group">
-          <NavLink to={{ name: "home" }} current={route} icon={<House size={18} />} label="首页" />
-          <NavLink to={{ name: "library", filters: {} }} current={route} icon={<SquaresFour size={18} />} label="全部作品" />
-          <NavLink to={{ name: "starred", filters: {} }} current={route} icon={<Star size={18} />} label="精选" />
-          <NavLink to={{ name: "creators", query: "" }} current={route} icon={<Users size={18} />} label="博主" />
-          <NavLink to={{ name: "gone", filters: {} }} current={route} icon={<CloudSlash size={18} />} label="已在抖音消失" />
+          <NavLink to={{ name: "home" }} current={route} icon={<House size={18} />} label={t("首页")} />
+          <NavLink to={{ name: "library", filters: {} }} current={route} icon={<SquaresFour size={18} />} label={t("全部作品")} />
+          <NavLink to={{ name: "starred", filters: {} }} current={route} icon={<Star size={18} />} label={t("精选")} />
+          <NavLink to={{ name: "creators", query: "" }} current={route} icon={<Users size={18} />} label={t("博主")} />
+          <NavLink to={{ name: "gone", filters: {} }} current={route} icon={<CloudSlash size={18} />} label={t("已在抖音消失")} />
         </div>
         <div className="nav-group">
           <div className="nav-label">
-            相册
-            <button type="button" className="nav-label-action" aria-label="新建相册" onClick={() => setNewAlbum("")}>
+            {t("相册")}
+            <button type="button" className="nav-label-action" aria-label={t("新建相册")} onClick={() => setNewAlbum("")}>
               <Plus size={14} weight="bold" />
             </button>
           </div>
@@ -127,18 +128,18 @@ function Sidebar({ route }: { route: Route }) {
           ))}
           {newAlbum !== null ? (
             <form className="nav-create" onSubmit={(event) => void submitAlbum(event)}>
-              <input autoFocus aria-label="新相册名称" placeholder="相册名称，回车创建" maxLength={60} value={newAlbum} onChange={(event) => setNewAlbum(event.target.value)} onBlur={() => !newAlbum && setNewAlbum(null)} onKeyDown={(event) => event.key === "Escape" && setNewAlbum(null)} />
+              <input autoFocus aria-label={t("新相册名称")} placeholder={t("相册名称，回车创建")} maxLength={60} value={newAlbum} onChange={(event) => setNewAlbum(event.target.value)} onBlur={() => !newAlbum && setNewAlbum(null)} onKeyDown={(event) => event.key === "Escape" && setNewAlbum(null)} />
             </form>
           ) : albums.length === 0 ? (
             <button type="button" className="nav-item nav-item-hint" onClick={() => setNewAlbum("")}>
               <Plus size={18} />
-              <span className="nav-text">把作品整理进相册</span>
+              <span className="nav-text">{t("把作品整理进相册")}</span>
             </button>
           ) : null}
         </div>
         {groups.collections.length ? (
           <div className="nav-group">
-            <div className="nav-label">收藏夹</div>
+            <div className="nav-label">{t("收藏夹")}</div>
             {groups.collections.map((source) => (
               <NavLink
                 key={source.id}
@@ -152,7 +153,7 @@ function Sidebar({ route }: { route: Route }) {
           </div>
         ) : null}
         <div className="nav-group">
-          <div className="nav-label">抖音账号</div>
+          <div className="nav-label">{t("抖音账号")}</div>
           {groups.accountActive.map((source) => (
             <NavLink key={source.id} to={{ name: "library", sourceId: source.id, filters: {} }} current={route} icon={<SourceIcon source={source} />} label={source.name} count={source.discoveredCount} />
           ))}
@@ -164,7 +165,7 @@ function Sidebar({ route }: { route: Route }) {
           {groups.accountEmpty.length ? (
             <button type="button" className="nav-item" onClick={() => setShowEmpty((value) => !value)} aria-expanded={showEmpty}>
               {showEmpty ? <CaretUp size={18} /> : <CaretDown size={18} />}
-              <span className="nav-text">{showEmpty ? "收起空来源" : `还有 ${groups.accountEmpty.length} 个空来源`}</span>
+              <span className="nav-text">{showEmpty ? t("收起空来源") : t("还有 {n} 个空来源", { n: groups.accountEmpty.length })}</span>
             </button>
           ) : null}
         </div>
@@ -174,10 +175,10 @@ function Sidebar({ route }: { route: Route }) {
           <span className="dot" />
           <span>
             <strong>{view.label}</strong>
-            <small>同步与下载</small>
+            <small>{t("同步与下载")}</small>
           </span>
         </a>
-        <NavLink to={{ name: "settings" }} current={route} icon={<GearSix size={18} />} label="设置" />
+        <NavLink to={{ name: "settings" }} current={route} icon={<GearSix size={18} />} label={t("设置")} />
       </div>
     </aside>
   );
@@ -238,7 +239,7 @@ function TopBar({ route, onOpenPalette }: { route: Route; onOpenPalette: () => v
 
   return (
     <header className={`topbar${scrolled ? " is-scrolled" : ""}`}>
-      <a className="topbar-brand brand-mark" href="#/" aria-label="抖藏家首页">
+      <a className="topbar-brand brand-mark" href="#/" aria-label={t("抖藏家首页")}>
         <BrandGlyph />
       </a>
       <form className="search" role="search" onSubmit={submit}>
@@ -248,12 +249,12 @@ function TopBar({ route, onOpenPalette }: { route: Route; onOpenPalette: () => v
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索作品描述、博主或抖音号"
-          aria-label="搜索资料库"
+          placeholder={t("搜索作品描述、博主或抖音号")}
+          aria-label={t("搜索资料库")}
           enterKeyHint="search"
         />
         {query ? (
-          <button type="button" className="icon-btn icon-btn-sm search-clear" aria-label="清空搜索" onClick={() => setQuery("")}>
+          <button type="button" className="icon-btn icon-btn-sm search-clear" aria-label={t("清空搜索")} onClick={() => setQuery("")}>
             <X size={14} weight="bold" />
           </button>
         ) : (
@@ -263,13 +264,13 @@ function TopBar({ route, onOpenPalette }: { route: Route; onOpenPalette: () => v
         )}
       </form>
       <div className="topbar-actions">
-        <button type="button" className="icon-btn" aria-label="命令面板" title="命令面板 ⌘K" onClick={onOpenPalette}>
+        <button type="button" className="icon-btn" aria-label={t("命令面板")} title={t("命令面板 ⌘K")} onClick={onOpenPalette}>
           <CommandIcon />
         </button>
-        <a className="icon-btn" href={routeHref({ name: "library", filters: { sort: "random" } })} aria-label="随机浏览" title="随机浏览">
+        <a className="icon-btn" href={routeHref({ name: "library", filters: { sort: "random" } })} aria-label={t("随机浏览")} title={t("随机浏览")}>
           <Shuffle size={19} />
         </a>
-        <button type="button" className="icon-btn" aria-label={theme === "dark" ? "切换到浅色" : "切换到深色"} title="切换主题" onClick={toggleTheme}>
+        <button type="button" className="icon-btn" aria-label={theme === "dark" ? t("切换到浅色") : t("切换到深色")} title={t("切换主题")} onClick={toggleTheme}>
           {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
         </button>
       </div>
@@ -281,19 +282,19 @@ function TabBar({ route }: { route: Route }) {
   const { health } = useAppData();
   const alert = describeHealth(health).alert;
   const tabs: Array<{ to: Route; label: string; icon: ReactNode; match: (route: Route) => boolean }> = [
-    { to: { name: "home" }, label: "首页", icon: <House size={22} />, match: (r) => r.name === "home" },
-    { to: { name: "library", filters: {} }, label: "资料库", icon: <SquaresFour size={22} />, match: (r) => r.name === "library" || r.name === "search" },
-    { to: { name: "starred", filters: {} }, label: "精选", icon: <Star size={22} />, match: (r) => r.name === "starred" },
-    { to: { name: "creators", query: "" }, label: "博主", icon: <Users size={22} />, match: (r) => r.name === "creators" || r.name === "creator" },
-    { to: { name: "activity" }, label: "状态", icon: <Pulse size={22} />, match: (r) => r.name === "activity" || r.name === "settings" },
+    { to: { name: "home" }, label: t("首页"), icon: <House size={22} />, match: (r) => r.name === "home" },
+    { to: { name: "library", filters: {} }, label: t("资料库"), icon: <SquaresFour size={22} />, match: (r) => r.name === "library" || r.name === "search" },
+    { to: { name: "starred", filters: {} }, label: t("精选"), icon: <Star size={22} />, match: (r) => r.name === "starred" },
+    { to: { name: "creators", query: "" }, label: t("博主"), icon: <Users size={22} />, match: (r) => r.name === "creators" || r.name === "creator" },
+    { to: { name: "activity" }, label: t("状态"), icon: <Pulse size={22} />, match: (r) => r.name === "activity" || r.name === "settings" },
   ];
   return (
-    <nav className="tabbar" aria-label="底部导航">
+    <nav className="tabbar" aria-label={t("底部导航")}>
       {tabs.map((tab) => (
         <a key={tab.label} href={routeHref(tab.to)} aria-current={tab.match(route) ? "page" : undefined}>
           {tab.icon}
           {tab.label}
-          {tab.label === "状态" && alert ? <span className="tab-alert" aria-label="同步异常" /> : null}
+          {tab.label === t("状态") && alert ? <span className="tab-alert" aria-label={t("同步异常")} /> : null}
         </a>
       ))}
     </nav>
@@ -311,10 +312,10 @@ export function HealthBanner() {
     setBusy(true);
     try {
       await triggerSync(false);
-      toast("已开始同步");
+      toast(t("已开始同步"));
       window.setTimeout(() => void refreshHealth(), 3000);
     } catch {
-      toast("无法开始同步，请查看状态页");
+      toast(t("无法开始同步，请查看状态页"));
     } finally {
       setBusy(false);
     }
@@ -333,16 +334,16 @@ export function HealthBanner() {
         {view.action === "login" ? (
           <button type="button" className="btn btn-primary btn-sm" onClick={requestDouyinLogin}>
             <QrCode size={16} weight="bold" />
-            重新扫码
+            {t("重新扫码")}
           </button>
         ) : view.action === "sync" ? (
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void syncNow()}>
             <ArrowClockwise size={16} weight="bold" className={busy ? "spinner" : undefined} />
-            立即同步
+            {t("立即同步")}
           </button>
         ) : null}
         <a className="btn btn-secondary btn-sm" href={routeHref({ name: "activity" })}>
-          查看详情
+          {t("查看详情")}
         </a>
       </div>
     </div>

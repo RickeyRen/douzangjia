@@ -6,17 +6,18 @@ import { useAppData } from "../app/appDataContext";
 import { navigate, type Route } from "../app/router";
 import { SourceIcon } from "./SourceIcon";
 import { groupSources, sourceLabel } from "./sourceMeta";
+import { t } from "../i18n/t";
 
 type Entry = { id: string; label: string; hint?: string; icon: ReactNode; route: Route };
 
 const PAGES: Entry[] = [
-  { id: "home", label: "首页", icon: <House size={16} />, route: { name: "home" } },
-  { id: "library", label: "全部作品", icon: <SquaresFour size={16} />, route: { name: "library", filters: {} } },
-  { id: "starred", label: "精选", icon: <Star size={16} />, route: { name: "starred", filters: {} } },
-  { id: "creators", label: "博主", icon: <Users size={16} />, route: { name: "creators", query: "" } },
-  { id: "gone", label: "已在抖音消失", icon: <CloudSlash size={16} />, route: { name: "gone", filters: {} } },
-  { id: "activity", label: "同步与下载", icon: <Pulse size={16} />, route: { name: "activity" } },
-  { id: "settings", label: "设置", icon: <GearSix size={16} />, route: { name: "settings" } },
+  { id: "home", label: t("首页"), icon: <House size={16} />, route: { name: "home" } },
+  { id: "library", label: t("全部作品"), icon: <SquaresFour size={16} />, route: { name: "library", filters: {} } },
+  { id: "starred", label: t("精选"), icon: <Star size={16} />, route: { name: "starred", filters: {} } },
+  { id: "creators", label: t("博主"), icon: <Users size={16} />, route: { name: "creators", query: "" } },
+  { id: "gone", label: t("已在抖音消失"), icon: <CloudSlash size={16} />, route: { name: "gone", filters: {} } },
+  { id: "activity", label: t("同步与下载"), icon: <Pulse size={16} />, route: { name: "activity" } },
+  { id: "settings", label: t("设置"), icon: <GearSix size={16} />, route: { name: "settings" } },
 ];
 
 function matches(label: string, query: string): boolean {
@@ -57,28 +58,28 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     const sourceEntries: Entry[] = [...groups.collections, ...groups.accountActive].map((source) => ({
       id: `source:${source.id}`,
       label: sourceLabel(source),
-      hint: `${source.discoveredCount} 个作品`,
+      hint: t("{n} 个作品", { n: source.discoveredCount }),
       icon: <SourceIcon source={source} size={16} />,
       route: { name: "library", sourceId: source.id, filters: {} },
     }));
     const albumEntries: Entry[] = albums.map((album) => ({
       id: `album:${album.id}`,
       label: album.name,
-      hint: `相册 · ${album.itemCount}`,
+      hint: t("相册 · {n}", { n: album.itemCount }),
       icon: <Images size={16} />,
       route: { name: "album", albumId: album.id, filters: {} },
     }));
     const creatorEntries: Entry[] = creators.map((creator) => ({
       id: `creator:${creator.id}`,
       label: creator.nickname,
-      hint: creator.uniqueId ? `博主 · ${creator.uniqueId}` : "博主",
+      hint: creator.uniqueId ? t("博主 · {id}", { id: creator.uniqueId }) : t("博主"),
       icon: <User size={16} />,
       route: { name: "creator", creatorId: creator.id, filters: {} },
     }));
     const all = [...PAGES, ...albumEntries, ...sourceEntries];
     const filtered = term ? all.filter((entry) => matches(entry.label, term)) : all;
     const search: Entry[] = term
-      ? [{ id: "search", label: `搜索“${term}”`, hint: "作品描述、话题、标签、备注", icon: <MagnifyingGlass size={16} />, route: { name: "search", query: term, filters: {} } }]
+      ? [{ id: "search", label: t("搜索“{term}”", { term }), hint: t("作品描述、话题、标签、备注"), icon: <MagnifyingGlass size={16} />, route: { name: "search", query: term, filters: {} } }]
       : [];
     return [...filtered, ...creatorEntries, ...search];
   }, [albums, creators, query, sources]);
@@ -112,14 +113,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="scrim scrim-top" onClick={onClose}>
-      <div className="palette" role="dialog" aria-modal="true" aria-label="命令面板" onClick={(event) => event.stopPropagation()}>
+      <div className="palette" role="dialog" aria-modal="true" aria-label={t("命令面板")} onClick={(event) => event.stopPropagation()}>
         <div className="palette-input">
           <MagnifyingGlass size={18} weight="bold" />
-          <input ref={input} aria-label="跳转或搜索" placeholder="跳到收藏夹、相册、博主，或搜索作品…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKey} />
+          <input ref={input} aria-label={t("跳转或搜索")} placeholder={t("跳到收藏夹、相册、博主，或搜索作品…")} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKey} />
           <span className="kbd">Esc</span>
         </div>
-        <div ref={list} className="palette-list" role="listbox" aria-label="结果">
-          {entries.length === 0 ? <p className="empty-note">没有匹配的内容</p> : null}
+        <div ref={list} className="palette-list" role="listbox" aria-label={t("结果")}>
+          {entries.length === 0 ? <p className="empty-note">{t("没有匹配的内容")}</p> : null}
           {entries.map((entry, index) => (
             <button key={entry.id} type="button" role="option" aria-selected={index === active} data-index={index} className={`palette-item${index === active ? " is-active" : ""}`} onMouseEnter={() => setActive(index)} onClick={() => choose(entry)}>
               <span className="palette-icon">{entry.icon}</span>

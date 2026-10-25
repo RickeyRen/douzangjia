@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 
 import type { LibrarySource } from "../app/api";
+import { t } from "../i18n/t";
 
 export const SOURCE_ICONS: Record<LibrarySource["kind"], Icon> = {
   favorite_collection: FolderSimple,
@@ -70,5 +71,5 @@ export function sourceLabel(source: SourceLike): string {
   // The icon already shows a leading emoji, so the label keeps only the words.
   if (source.kind !== "favorite_collection") return source.name;
   const words = source.name.replace(EMOJI_PREFIX, "").replace(/^[\uFE0F\s]+/u, "").trim();
-  return words || "收藏夹";
+  return words || t("收藏夹");
 }

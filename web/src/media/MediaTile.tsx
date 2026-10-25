@@ -5,6 +5,7 @@ import type { FeedItem } from "../app/api";
 import { formatDuration } from "../lib/format";
 import { itemDurationMs, itemImageCount, itemTitle, placeholderStyle, thumbnailCandidates } from "./itemInfo";
 import { Avatar } from "../ui/primitives";
+import { t } from "../i18n/t";
 
 export function Thumbnail({ item, className }: { item: FeedItem; className?: string }) {
   const candidates = thumbnailCandidates(item);
@@ -89,7 +90,7 @@ export function MediaTile({
         className="tile-media"
         style={aspect ? { aspectRatio: String(aspect) } : undefined}
         onClick={(event) => onOpen({ shiftKey: event.shiftKey })}
-        aria-label={`${selectable ? (selected ? "取消选择：" : "选择：") : "打开作品："}${itemTitle(item)}`}
+        aria-label={`${selectable ? (selected ? t("取消选择：") : t("选择：")) : t("打开作品：")}${itemTitle(item)}`}
         aria-pressed={selectable ? selected : undefined}
       >
         {selectable ? <span className="tile-check">{selected ? <CheckGlyph /> : null}</span> : null}
@@ -98,20 +99,20 @@ export function MediaTile({
         <span className="tile-tags">
           <span>
             {item.starred ? (
-              <span className="tile-tag is-star" title="精选">
+              <span className="tile-tag is-star" title={t("精选")}>
                 <Star size={11} weight="fill" />
               </span>
             ) : null}
             {item.remoteAvailability && ["deleted", "private"].includes(item.remoteAvailability.status) ? (
-              <span className="tile-tag is-gone" title="抖音上已消失">
+              <span className="tile-tag is-gone" title={t("抖音上已消失")}>
                 <CloudSlash size={11} weight="bold" />
-                已消失
+                {t("已消失")}
               </span>
             ) : null}
           </span>
           <span>
             {!local ? (
-              <span className="tile-tag is-cloud" title="尚未下载到 NAS">
+              <span className="tile-tag is-cloud" title={t("尚未下载到 NAS")}>
                 <CloudArrowDown size={12} weight="bold" />
               </span>
             ) : null}

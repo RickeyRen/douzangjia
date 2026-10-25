@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { addToAlbum, createAlbum, removeFromAlbum, setItemNote, setItemTags, type FeedItem } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { Spinner } from "../ui/primitives";
+import { t } from "../i18n/t";
 
 /** Checkbox list of albums for one or many items, with inline creation. */
 export function AlbumPicker({
@@ -35,10 +36,10 @@ export function AlbumPicker({
       if (member) await removeFromAlbum(albumId, itemIds);
       else await addToAlbum(albumId, itemIds);
       onChange?.(albumId, !member, albumName);
-      toast(member ? `已从「${albumName}」移除` : `已加入「${albumName}」`);
+      toast(member ? t("已从「{name}」移除", { name: albumName }) : t("已加入「{name}」", { name: albumName }));
       void refreshAlbums();
     } catch {
-      toast("操作失败，请稍后重试");
+      toast(t("操作失败，请稍后重试"));
     } finally {
       setBusy(null);
     }
@@ -52,27 +53,27 @@ export function AlbumPicker({
       const album = await createAlbum(value);
       await addToAlbum(album.id, itemIds);
       onChange?.(album.id, true, album.name);
-      toast(`已创建「${album.name}」并加入`);
+      toast(t("已创建「{name}」并加入", { name: album.name }));
       void refreshAlbums();
       setName("");
       setCreating(false);
     } catch {
-      toast("创建相册失败，可能已有同名相册");
+      toast(t("创建相册失败，可能已有同名相册"));
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <div className="popover" role="dialog" aria-label="加入相册">
+    <div className="popover" role="dialog" aria-label={t("加入相册")}>
       <div className="popover-head">
-        <strong>{itemIds.length > 1 ? `把 ${itemIds.length} 个作品加入相册` : "加入相册"}</strong>
-        <button type="button" className="icon-btn icon-btn-sm" aria-label="关闭" onClick={onClose}>
+        <strong>{itemIds.length > 1 ? t("把 {n} 个作品加入相册", { n: itemIds.length }) : t("加入相册")}</strong>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label={t("关闭")} onClick={onClose}>
           <X size={14} />
         </button>
       </div>
       <div className="popover-list">
-        {albums.length === 0 && !creating ? <p className="empty-note">还没有相册，先创建一个。</p> : null}
+        {albums.length === 0 && !creating ? <p className="empty-note">{t("还没有相册，先创建一个。")}</p> : null}
         {albums.map((album) => {
           const member = selected?.includes(album.id) ?? false;
           return (
@@ -92,15 +93,15 @@ export function AlbumPicker({
             void create();
           }}
         >
-          <input ref={input} aria-label="新相册名称" placeholder="相册名称" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} />
+          <input ref={input} aria-label={t("新相册名称")} placeholder={t("相册名称")} maxLength={60} value={name} onChange={(event) => setName(event.target.value)} />
           <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim() || busy === "new"}>
-            {busy === "new" ? <Spinner size={14} /> : "创建"}
+            {busy === "new" ? <Spinner size={14} /> : t("创建")}
           </button>
         </form>
       ) : (
         <button type="button" className="popover-footer" onClick={() => setCreating(true)}>
           <FolderPlus size={16} />
-          新建相册
+          {t("新建相册")}
         </button>
       )}
     </div>
@@ -119,7 +120,7 @@ export function TagEditor({ item, onChange }: { item: FeedItem; onChange: (tags:
       const result = await setItemTags(item.awemeId, next);
       onChange(result.tags);
     } catch {
-      toast("标签保存失败");
+      toast(t("标签保存失败"));
     } finally {
       setSaving(false);
     }
@@ -145,14 +146,14 @@ export function TagEditor({ item, onChange }: { item: FeedItem; onChange: (tags:
       {tags.map((tag) => (
         <span key={tag} className="tag-chip">
           #{tag}
-          <button type="button" aria-label={`移除标签 ${tag}`} onClick={() => void commit(tags.filter((entry) => entry !== tag))}>
+          <button type="button" aria-label={t("移除标签 {tag}", { tag })} onClick={() => void commit(tags.filter((entry) => entry !== tag))}>
             <X size={11} weight="bold" />
           </button>
         </span>
       ))}
       <input
-        aria-label="添加标签"
-        placeholder={tags.length ? "继续添加…" : "输入标签，回车添加"}
+        aria-label={t("添加标签")}
+        placeholder={tags.length ? t("继续添加…") : t("输入标签，回车添加")}
         value={draft}
         disabled={saving}
         onChange={(event) => setDraft(event.target.value)}
@@ -181,7 +182,7 @@ export function NoteEditor({ item, onChange }: { item: FeedItem; onChange: (note
       const result = await setItemNote(item.awemeId, draft);
       onChange(result.note);
     } catch {
-      toast("备注保存失败");
+      toast(t("备注保存失败"));
     } finally {
       setSaving(false);
     }
@@ -189,7 +190,7 @@ export function NoteEditor({ item, onChange }: { item: FeedItem; onChange: (note
 
   return (
     <div className="note-editor">
-      <textarea aria-label="备注" placeholder="写点什么，只有你能看到" rows={3} maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
+      <textarea aria-label={t("备注")} placeholder={t("写点什么，只有你能看到")} rows={3} maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => void save()} />
       {saving ? <Spinner size={12} /> : null}
     </div>
   );
@@ -202,7 +203,7 @@ export function AddToAlbumButton({ item, onItemPatch }: { item: FeedItem; onItem
     <span className="popover-anchor">
       <button type="button" className={`panel-action${selected.length ? " is-active" : ""}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <Plus size={20} />
-        {selected.length ? `相册 ${selected.length}` : "加入相册"}
+        {selected.length ? t("相册 {n}", { n: selected.length }) : t("加入相册")}
       </button>
       {open ? (
         <AlbumPicker

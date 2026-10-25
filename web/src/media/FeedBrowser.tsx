@@ -10,6 +10,7 @@ import { MediaGrid } from "./MediaGrid";
 import { Player } from "./Player";
 import { SelectionBar } from "./SelectionBar";
 import { useMediaNavigation } from "./useMediaNavigation";
+import { t } from "../i18n/t";
 
 const DURATION_LABELS: Record<"all" | DurationBucket, string> = { all: "任意时长", short: "1 分钟内", medium: "1–5 分钟", long: "5 分钟以上" };
 const PERIOD_LABELS: Record<"all" | PeriodBucket, string> = { all: "任意时间", week: "最近一周", month: "最近一月", quarter: "最近三月", year: "今年" };
@@ -98,56 +99,56 @@ export function FeedBrowser({
     <>
       <div className="toolbar">
         <Segmented<TypeFilter>
-          label="作品类型"
+          label={t("作品类型")}
           value={filters.type ?? "all"}
           options={[
-            { value: "all", label: "全部" },
-            { value: "video", label: "视频" },
-            { value: "gallery", label: "图集" },
+            { value: "all", label: t("全部") },
+            { value: "video", label: t("视频") },
+            { value: "gallery", label: t("图集") },
           ]}
           onChange={(value) => update({ type: value === "all" ? undefined : value })}
         />
-        <Select<FeedSort> label="排序方式" value={sort} options={sorts.map((value) => ({ value, label: SORT_LABELS[value] }))} onChange={(value) => update({ sort: value })} />
+        <Select<FeedSort> label={t("排序方式")} value={sort} options={sorts.map((value) => ({ value, label: SORT_LABELS[value] }))} onChange={(value) => update({ sort: value })} />
         <Select<"all" | DurationBucket>
-          label="时长"
+          label={t("时长")}
           value={filters.duration ?? "all"}
           options={(Object.keys(DURATION_LABELS) as Array<"all" | DurationBucket>).map((value) => ({ value, label: DURATION_LABELS[value] }))}
           onChange={(value) => update({ duration: value === "all" ? undefined : value })}
         />
         <Select<"all" | PeriodBucket>
-          label="收藏时间"
+          label={t("收藏时间")}
           value={filters.period ?? "all"}
           options={(Object.keys(PERIOD_LABELS) as Array<"all" | PeriodBucket>).map((value) => ({ value, label: PERIOD_LABELS[value] }))}
           onChange={(value) => update({ period: value === "all" ? undefined : value })}
         />
         <button type="button" className="chip" aria-pressed={Boolean(filters.downloaded)} onClick={() => update({ downloaded: filters.downloaded ? undefined : true })}>
-          仅看已存到 NAS
+          {t("仅看已存到 NAS")}
         </button>
         {sort === "random" ? (
           <button type="button" className="chip" onClick={() => setSeed(1 + Math.floor(Math.random() * 65_000))}>
             <ArrowsClockwise size={15} weight="bold" />
-            换一批
+            {t("换一批")}
           </button>
         ) : null}
         <span className="toolbar-spacer" />
-        <span className="seg seg-icons" role="group" aria-label="网格密度">
-          <button type="button" aria-label="舒适" title="舒适" aria-pressed={gridPrefs.density === "comfortable"} onClick={() => setGridPrefs({ density: "comfortable" })}>
+        <span className="seg seg-icons" role="group" aria-label={t("网格密度")}>
+          <button type="button" aria-label={t("舒适")} title={t("舒适")} aria-pressed={gridPrefs.density === "comfortable"} onClick={() => setGridPrefs({ density: "comfortable" })}>
             <SquaresFour size={16} />
           </button>
-          <button type="button" aria-label="紧凑" title="紧凑" aria-pressed={gridPrefs.density === "compact"} onClick={() => setGridPrefs({ density: "compact" })}>
+          <button type="button" aria-label={t("紧凑")} title={t("紧凑")} aria-pressed={gridPrefs.density === "compact"} onClick={() => setGridPrefs({ density: "compact" })}>
             <GridFour size={16} />
           </button>
         </span>
-        <button type="button" className="icon-btn" aria-label={gridPrefs.aspect === "natural" ? "切换为统一裁切" : "切换为原始比例"} title={gridPrefs.aspect === "natural" ? "原始比例" : "统一裁切"} aria-pressed={gridPrefs.aspect === "natural"} onClick={() => setGridPrefs({ aspect: gridPrefs.aspect === "natural" ? "crop" : "natural" })}>
+        <button type="button" className="icon-btn" aria-label={gridPrefs.aspect === "natural" ? t("切换为统一裁切") : t("切换为原始比例")} title={gridPrefs.aspect === "natural" ? t("原始比例") : t("统一裁切")} aria-pressed={gridPrefs.aspect === "natural"} onClick={() => setGridPrefs({ aspect: gridPrefs.aspect === "natural" ? "crop" : "natural" })}>
           <Crop size={17} weight={gridPrefs.aspect === "natural" ? "fill" : "regular"} />
         </button>
         <button type="button" className={`btn btn-secondary btn-sm${selected ? " is-active" : ""}`} aria-pressed={selected !== null} disabled={feed.items.length === 0} onClick={() => (selected ? clearSelection() : setSelected(new Set()))}>
           <CheckSquare size={15} weight={selected ? "fill" : "bold"} />
-          {selected ? "完成" : "选择"}
+          {selected ? t("完成") : t("选择")}
         </button>
         <button type="button" className="btn btn-primary btn-sm" disabled={feed.items.length === 0} onClick={() => setPlaying(0)}>
           <Play size={14} weight="fill" />
-          播放
+          {t("播放")}
         </button>
       </div>
 
@@ -157,16 +158,16 @@ export function FeedBrowser({
         filtered ? (
           <EmptyState
             icon={<MagnifyingGlass size={40} weight="duotone" />}
-            title="没有符合条件的作品"
+            title={t("没有符合条件的作品")}
             body="换个筛选条件试试。"
             action={
               <button type="button" className="btn btn-secondary" onClick={() => onFiltersChange({ sort: filters.sort })}>
-                清除筛选
+                {t("清除筛选")}
               </button>
             }
           />
         ) : (
-          empty ?? <EmptyState icon={<MagnifyingGlass size={40} weight="duotone" />} title="这里还没有作品" />
+          empty ?? <EmptyState icon={<MagnifyingGlass size={40} weight="duotone" />} title={t("这里还没有作品")} />
         )
       ) : (
         <MediaGrid
