@@ -1,4 +1,5 @@
 import asyncio
+import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -10,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
+from . import __version__
 from .account_health import AccountHealthService
 from .admin_store import AdminStore, normalize_username
 from .browser_coordinator import BrowserCoordinator
@@ -19,6 +21,7 @@ from .config import Settings
 from .dashboard_events import DashboardEventBus
 from .db import Database
 from .library_repository import LibraryRepository
+from .login_guard import LoginGuard
 from .repositories import ArchiveRepository, JobRepository
 from .security import CookieCipher, PasswordHasher
 from .session_auth import SessionCodec
@@ -112,6 +115,21 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     session_codec = SessionCodec(cipher)
     password_hasher = PasswordHasher()
     admin_store = AdminStore(settings.archive_root / "data" / "admin.json")
+    login_guard = LoginGuard()
+
+    def client_key(request: Request) -> str:
+        return f"ip:{request.client.host if request.client else 'unknown'}"
+
+    def locked_response(seconds: int) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(seconds)},
+            content={
+                "code": "TOO_MANY_ATTEMPTS",
+                "message": f"登录尝试过于频繁，请 {seconds} 秒后再试",
+                "retryAfterSeconds": seconds,
+            },
+        )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
@@ -299,6 +317,8 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             "ownerSetupRequired": admin_store.owner_setup_required,
             "authenticated": authenticated,
             "douyinAuthenticated": douyin is not None,
+            "version": __version__,
+            "commit": os.environ.get("APP_COMMIT", "unknown"),
         }
         if authenticated:
             result["douyinHealth"] = await AccountHealthService(
@@ -307,18 +327,26 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         return result
 
     @app.post("/api/session")
-    async def login(payload: SessionRequest, response: Response):
+    async def login(payload: SessionRequest, request: Request, response: Response):
+        keys = (client_key(request), f"user:{payload.username}")
+        if wait := login_guard.retry_after(*keys):
+            return locked_response(wait)
         account = admin_store.account(payload.username)
         if account is None or not password_hasher.verify(account.password_hash, payload.password):
+            login_guard.record_failure(*keys)
             return JSONResponse(
                 status_code=401,
                 content={"code": "INVALID_CREDENTIALS", "message": "用户名或密码不正确"},
             )
+        login_guard.record_success(*keys)
         issue_session(response)
         return {"authenticated": True, "username": account.username}
 
     @app.post("/api/admin/migrate-owner")
-    async def migrate_owner(payload: OwnerMigrationRequest, response: Response):
+    async def migrate_owner(payload: OwnerMigrationRequest, request: Request, response: Response):
+        keys = (client_key(request), "user:__legacy_owner__")
+        if wait := login_guard.retry_after(*keys):
+            return locked_response(wait)
         encoded = admin_store.legacy_password_hash()
         if not admin_store.owner_setup_required:
             return JSONResponse(
@@ -326,10 +354,12 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
                 content={"code": "MIGRATION_NOT_REQUIRED", "message": "账户迁移已完成"},
             )
         if encoded is None or not password_hasher.verify(encoded, payload.current_password):
+            login_guard.record_failure(*keys)
             return JSONResponse(
                 status_code=401,
                 content={"code": "INVALID_CREDENTIALS", "message": "用户名或密码不正确"},
             )
+        login_guard.record_success(*keys)
         try:
             account = admin_store.migrate_owner(payload.username, encoded)
         except FileExistsError:

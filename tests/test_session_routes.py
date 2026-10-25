@@ -136,6 +136,8 @@ def test_public_status_reports_only_setup_and_session_booleans(
         "ownerSetupRequired": False,
         "authenticated": False,
         "douyinAuthenticated": False,
+        "version": "0.2.0",
+        "commit": "unknown",
     }
     assert {
         key: authenticated.json()[key]

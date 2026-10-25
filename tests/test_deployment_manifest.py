@@ -33,11 +33,26 @@ def test_docker_image_exposes_the_installed_full_chromium() -> None:
     assert "chrome-linux*/chrome" in dockerfile
 
 
-def test_docker_image_bypasses_the_broken_nas_hub_mirror() -> None:
+def test_docker_image_defaults_to_official_registries_with_mirror_overrides() -> None:
+    """Catches hard-coded China mirrors breaking builds for everyone else."""
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    manifest = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
+    build_args = manifest["services"]["archive"]["build"]["args"]
 
-    assert "FROM docker.m.daocloud.io/library/node:22-bookworm-slim" in dockerfile
-    assert "FROM docker.m.daocloud.io/library/python:3.13-slim-bookworm" in dockerfile
+    assert "daocloud" not in dockerfile and "aliyun" not in dockerfile and "npmmirror" not in dockerfile
+    assert "ARG NODE_IMAGE=node:22-bookworm-slim" in dockerfile
+    assert "ARG PYTHON_IMAGE=python:3.13-slim-bookworm" in dockerfile
+    for name in ("NODE_IMAGE", "PYTHON_IMAGE", "NPM_REGISTRY", "PIP_INDEX_URL", "DEBIAN_MIRROR", "PLAYWRIGHT_DOWNLOAD_HOST", "APP_COMMIT"):
+        assert name in build_args, name
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "# NPM_REGISTRY=https://registry.npmmirror.com/" in example
+
+
+def test_release_metadata_is_in_place() -> None:
+    assert (ROOT / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
+    assert (ROOT / ".github" / "workflows" / "ci.yml").is_file()
+    package = (ROOT / "web" / "package.json").read_text(encoding="utf-8")
+    assert '"latest"' not in package
 
 
 def test_chromium_shared_memory_and_sqlite_temp_files_do_not_compete() -> None:
