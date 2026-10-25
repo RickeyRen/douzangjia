@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { makeItem } from "../test/fixtures";
@@ -48,4 +48,22 @@ it("flags items that are gone from Douyin", () => {
   render(<MediaTile item={item} onOpen={vi.fn()} />);
 
   expect(screen.getByTitle("抖音上已消失")).toBeInTheDocument();
+});
+
+it("previews downloaded videos after hovering on a pointer device", () => {
+  vi.useFakeTimers();
+  const matchMedia = window.matchMedia;
+  window.matchMedia = ((query: string) => ({ matches: query.includes("hover"), media: query, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof window.matchMedia;
+  try {
+    const { container } = render(<MediaTile item={makeItem()} onOpen={vi.fn()} />);
+    fireEvent.mouseEnter(container.querySelector(".tile")!);
+    expect(screen.queryByTestId("tile-preview")).toBeNull();
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByTestId("tile-preview")).toHaveAttribute("src", makeItem().media[0].url);
+    fireEvent.mouseLeave(container.querySelector(".tile")!);
+    expect(screen.queryByTestId("tile-preview")).toBeNull();
+  } finally {
+    window.matchMedia = matchMedia;
+    vi.useRealTimers();
+  }
 });

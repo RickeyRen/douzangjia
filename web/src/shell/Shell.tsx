@@ -26,22 +26,44 @@ import { useAppData } from "../app/appDataContext";
 import { navigate, routeHref, sameSection, useRoute, type Route } from "../app/router";
 import { describeHealth } from "../lib/health";
 import { useTheme } from "../theme/theme-context";
+import { CommandPalette } from "./CommandPalette";
+import { ShortcutsHelp } from "./ShortcutsHelp";
 import { groupSources, sourceLabel } from "./sourceMeta";
 import { SourceIcon } from "./SourceIcon";
 
 export function Shell({ children }: { children: ReactNode }) {
   const route = useRoute();
+  const [overlay, setOverlay] = useState<"palette" | "help" | null>(null);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing = Boolean(target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOverlay((current) => (current === "palette" ? null : "palette"));
+      } else if (event.key === "?" && !typing && !document.querySelector(".player")) {
+        event.preventDefault();
+        setOverlay((current) => (current === "help" ? null : "help"));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="shell">
       <Sidebar route={route} />
       <div className="main">
-        <TopBar route={route} />
-        <main className="content" key={routeHref(route).split("?")[0]}>
+        <TopBar route={route} onOpenPalette={() => setOverlay("palette")} />
+        <main className="content page-enter" key={routeHref(route).split("?")[0]}>
           <HealthBanner />
           {children}
         </main>
       </div>
       <TabBar route={route} />
+      {overlay === "palette" ? <CommandPalette onClose={() => setOverlay(null)} /> : null}
+      {overlay === "help" ? <ShortcutsHelp onClose={() => setOverlay(null)} /> : null}
     </div>
   );
 }
@@ -161,6 +183,14 @@ function Sidebar({ route }: { route: Route }) {
   );
 }
 
+function CommandIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
+    </svg>
+  );
+}
+
 export function BrandGlyph({ size = 17 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -170,7 +200,7 @@ export function BrandGlyph({ size = 17 }: { size?: number }) {
   );
 }
 
-function TopBar({ route }: { route: Route }) {
+function TopBar({ route, onOpenPalette }: { route: Route; onOpenPalette: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const initial = route.name === "search" ? route.query : "";
   const [query, setQuery] = useState(initial);
@@ -233,6 +263,9 @@ function TopBar({ route }: { route: Route }) {
         )}
       </form>
       <div className="topbar-actions">
+        <button type="button" className="icon-btn" aria-label="命令面板" title="命令面板 ⌘K" onClick={onOpenPalette}>
+          <CommandIcon />
+        </button>
         <a className="icon-btn" href={routeHref({ name: "library", filters: { sort: "random" } })} aria-label="随机浏览" title="随机浏览">
           <Shuffle size={19} />
         </a>

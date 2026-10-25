@@ -1,9 +1,10 @@
-import { ArrowsClockwise, CheckSquare, MagnifyingGlass, Play } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckSquare, Crop, GridFour, MagnifyingGlass, Play, SquaresFour } from "@phosphor-icons/react";
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { DurationBucket, FeedItem, FeedQuery, FeedSort, PeriodBucket } from "../app/api";
 import type { LibraryFilters } from "../app/router";
 import { useFeed } from "../lib/useFeed";
+import { useGridPrefs } from "../lib/useGridPrefs";
 import { EmptyState, ErrorState, Segmented, Select } from "../ui/primitives";
 import { MediaGrid } from "./MediaGrid";
 import { Player } from "./Player";
@@ -50,6 +51,7 @@ export function FeedBrowser({
   const feed = useFeed(query);
   const [playing, setPlaying] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [gridPrefs, setGridPrefs] = useGridPrefs();
   const anchor = useRef<number | null>(null);
   const navigation = useMediaNavigation();
 
@@ -128,6 +130,17 @@ export function FeedBrowser({
           </button>
         ) : null}
         <span className="toolbar-spacer" />
+        <span className="seg seg-icons" role="group" aria-label="网格密度">
+          <button type="button" aria-label="舒适" title="舒适" aria-pressed={gridPrefs.density === "comfortable"} onClick={() => setGridPrefs({ density: "comfortable" })}>
+            <SquaresFour size={16} />
+          </button>
+          <button type="button" aria-label="紧凑" title="紧凑" aria-pressed={gridPrefs.density === "compact"} onClick={() => setGridPrefs({ density: "compact" })}>
+            <GridFour size={16} />
+          </button>
+        </span>
+        <button type="button" className="icon-btn" aria-label={gridPrefs.aspect === "natural" ? "切换为统一裁切" : "切换为原始比例"} title={gridPrefs.aspect === "natural" ? "原始比例" : "统一裁切"} aria-pressed={gridPrefs.aspect === "natural"} onClick={() => setGridPrefs({ aspect: gridPrefs.aspect === "natural" ? "crop" : "natural" })}>
+          <Crop size={17} weight={gridPrefs.aspect === "natural" ? "fill" : "regular"} />
+        </button>
         <button type="button" className={`btn btn-secondary btn-sm${selected ? " is-active" : ""}`} aria-pressed={selected !== null} disabled={feed.items.length === 0} onClick={() => (selected ? clearSelection() : setSelected(new Set()))}>
           <CheckSquare size={15} weight={selected ? "fill" : "bold"} />
           {selected ? "完成" : "选择"}

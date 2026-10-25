@@ -32,3 +32,10 @@ export function thumbnailCandidates(item: FeedItem): string[] {
 export function douyinUrl(item: FeedItem): string {
   return item.sourceUrl || `https://www.douyin.com/${item.type === "gallery" ? "note" : "video"}/${item.awemeId}`;
 }
+
+/** Width / height from probed media, clamped so odd files stay tidy. */
+export function aspectOf(item: FeedItem): number {
+  const technical = item.media[0]?.technical;
+  if (technical?.width && technical.height) return Math.min(1.78, Math.max(0.56, technical.width / technical.height));
+  return 0.75;
+}

@@ -1,8 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { FeedItem } from "../app/api";
+import { useGridPrefs } from "../lib/useGridPrefs";
+import { aspectOf } from "./itemInfo";
 import { Spinner } from "../ui/primitives";
 import { MediaTile, TileSkeleton } from "./MediaTile";
+
+const ROW_UNIT = 8;
 
 export function MediaGrid({
   items,
@@ -35,6 +39,23 @@ export function MediaGrid({
   const sentinel = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef(onLoadMore);
   loadMoreRef.current = onLoadMore;
+  const [prefs] = useGridPrefs();
+  const grid = useRef<HTMLDivElement>(null);
+  const [columnWidth, setColumnWidth] = useState(0);
+  const natural = prefs.aspect === "natural";
+
+  useEffect(() => {
+    const element = grid.current;
+    if (!element || !natural || !("ResizeObserver" in window)) return;
+    const measure = () => {
+      const first = element.firstElementChild as HTMLElement | null;
+      if (first) setColumnWidth(first.getBoundingClientRect().width);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [natural, items.length]);
 
   useEffect(() => {
     const target = sentinel.current;
@@ -61,18 +82,25 @@ export function MediaGrid({
 
   return (
     <>
-      <div className="grid" data-testid="media-grid">
-        {items.map((item, index) => (
-          <MediaTile
-            key={item.awemeId}
-            item={item}
-            onOpen={(event) => (selected ? onToggleSelect?.(index, event.shiftKey) : onOpen(index))}
-            onOpenCreator={onOpenCreator}
-            showMeta={showMeta}
-            selectable={selected !== undefined}
-            selected={selected?.has(item.awemeId) ?? false}
-          />
-        ))}
+      <div ref={grid} className={`grid is-${prefs.density}${natural ? " is-natural" : ""}`} data-testid="media-grid" data-density={prefs.density}>
+        {items.map((item, index) => {
+          const aspect = natural ? aspectOf(item) : undefined;
+          const meta = showMeta && prefs.density === "comfortable" ? 30 : 0;
+          const span = natural && columnWidth ? Math.ceil((columnWidth / (aspect ?? 0.75) + meta + 12) / ROW_UNIT) : undefined;
+          return (
+            <div key={item.awemeId} style={span ? { gridRowEnd: `span ${span}` } : undefined}>
+              <MediaTile
+                item={item}
+                onOpen={(event) => (selected ? onToggleSelect?.(index, event.shiftKey) : onOpen(index))}
+                onOpenCreator={onOpenCreator}
+                showMeta={showMeta && prefs.density === "comfortable"}
+                selectable={selected !== undefined}
+                selected={selected?.has(item.awemeId) ?? false}
+                aspect={aspect}
+              />
+            </div>
+          );
+        })}
       </div>
       <div ref={sentinel} className="grid-footer">
         {error ? (
