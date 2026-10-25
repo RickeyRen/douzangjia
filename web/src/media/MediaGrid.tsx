@@ -15,6 +15,8 @@ export function MediaGrid({
   onOpen,
   onOpenCreator,
   showMeta = true,
+  selected,
+  onToggleSelect,
 }: {
   items: FeedItem[];
   loading: boolean;
@@ -26,6 +28,9 @@ export function MediaGrid({
   onOpen: (index: number) => void;
   onOpenCreator?: (creatorId: string | null, name: string) => void;
   showMeta?: boolean;
+  /** When present the grid is in selection mode and tiles toggle instead of opening. */
+  selected?: Set<string>;
+  onToggleSelect?: (index: number, range: boolean) => void;
 }) {
   const sentinel = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef(onLoadMore);
@@ -58,7 +63,15 @@ export function MediaGrid({
     <>
       <div className="grid" data-testid="media-grid">
         {items.map((item, index) => (
-          <MediaTile key={item.awemeId} item={item} onOpen={() => onOpen(index)} onOpenCreator={onOpenCreator} showMeta={showMeta} />
+          <MediaTile
+            key={item.awemeId}
+            item={item}
+            onOpen={(event) => (selected ? onToggleSelect?.(index, event.shiftKey) : onOpen(index))}
+            onOpenCreator={onOpenCreator}
+            showMeta={showMeta}
+            selectable={selected !== undefined}
+            selected={selected?.has(item.awemeId) ?? false}
+          />
         ))}
       </div>
       <div ref={sentinel} className="grid-footer">

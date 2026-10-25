@@ -48,7 +48,7 @@ const RUN_STATUS: Record<string, { text: string; tone: string }> = {
   partial: { text: "部分完成", tone: "badge-warning" },
 };
 
-const BATCH_KIND: Record<string, string> = { item: "单个作品", source: "来源", creator: "博主" };
+const BATCH_KIND: Record<string, string> = { item: "单个作品", source: "来源", creator: "博主", selection: "手动选择", missing: "全部未存作品" };
 
 function usePolling<T>(load: () => Promise<T>, intervalMs: number): T | null {
   const [value, setValue] = useState<T | null>(null);

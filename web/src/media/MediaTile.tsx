@@ -46,19 +46,30 @@ export function MediaTile({
   onOpen,
   onOpenCreator,
   showMeta = true,
+  selectable = false,
+  selected = false,
 }: {
   item: FeedItem;
-  onOpen: () => void;
+  onOpen: (event: { shiftKey: boolean }) => void;
   onOpenCreator?: (creatorId: string | null, name: string) => void;
   showMeta?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
 }) {
   const duration = formatDuration(itemDurationMs(item));
   const images = item.type === "gallery" ? itemImageCount(item) : 0;
   const local = item.local.state === "downloaded";
   const name = item.creator?.nickname || item.author;
   return (
-    <article className="tile">
-      <button type="button" className="tile-media" onClick={onOpen} aria-label={`打开作品：${itemTitle(item)}`}>
+    <article className={`tile${selectable ? " is-selectable" : ""}${selected ? " is-selected" : ""}`}>
+      <button
+        type="button"
+        className="tile-media"
+        onClick={(event) => onOpen({ shiftKey: event.shiftKey })}
+        aria-label={`${selectable ? (selected ? "取消选择：" : "选择：") : "打开作品："}${itemTitle(item)}`}
+        aria-pressed={selectable ? selected : undefined}
+      >
+        {selectable ? <span className="tile-check">{selected ? <CheckGlyph /> : null}</span> : null}
         <Thumbnail item={item} />
         <span className="tile-tags">
           <span>
@@ -110,6 +121,14 @@ export function MediaTile({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function CheckGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M2.5 6.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

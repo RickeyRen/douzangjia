@@ -980,6 +980,136 @@ video {
   -webkit-box-orient: vertical;
 }
 
+.tile.is-selectable .tile-media {
+  cursor: pointer;
+}
+
+.tile.is-selectable .tile-media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0 var(--accent);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+
+.tile.is-selected .tile-media::before {
+  background: rgb(255 68 102 / 18%);
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+
+.tile-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 45%);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 85%);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+
+.tile.is-selected .tile-check {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.tile.is-selectable .tile-tags > span:first-child {
+  margin-left: 26px;
+}
+
+.selection-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 20px;
+  left: calc(var(--sidebar-width) + 16px);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lg);
+  animation: toast-in 0.2s var(--ease);
+}
+
+.selection-album {
+  position: relative;
+  display: inline-block;
+}
+
+.selection-album .popover {
+  top: auto;
+  bottom: calc(100% + 10px);
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.cta > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.cta strong {
+  display: block;
+}
+
+.cta p {
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.first-sync {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 520px;
+  margin: 12vh auto 0;
+  text-align: center;
+}
+
+.first-sync-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.first-sync h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.first-sync p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.first-sync .progress {
+  width: 100%;
+}
+
 .tile-tags {
   position: absolute;
   top: 8px;
@@ -2567,6 +2697,18 @@ a.stat:hover {
   .source-strip .chip {
     flex: none;
     height: 32px;
+  }
+
+  .selection-bar {
+    right: 8px;
+    bottom: calc(var(--tabbar-height) + 10px + env(safe-area-inset-bottom));
+    left: 8px;
+    flex-wrap: wrap;
+    border-radius: var(--radius-lg);
+  }
+
+  .cta {
+    flex-wrap: wrap;
   }
 
   .tabbar {

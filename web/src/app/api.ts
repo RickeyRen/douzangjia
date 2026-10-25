@@ -120,7 +120,7 @@ export type Creator = {
 
 export type ArchiveBatch = {
   id: number;
-  kind: "item" | "source" | "creator";
+  kind: "item" | "source" | "creator" | "selection" | "missing";
   targetId: string;
   status: string;
   discoveredCount?: number;
@@ -583,6 +583,12 @@ export const setItemTags = (remoteId: string, tags: string[]) =>
   request<{ tags: string[] }>(`/api/items/${encodeURIComponent(remoteId)}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
 export const setItemNote = (remoteId: string, note: string) =>
   request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
+export const archiveSelection = (itemIds: string[]) =>
+  request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/selection", { method: "POST", body: JSON.stringify({ itemIds }) });
+export const fetchMissingSummary = () => request<{ missing: number; estimatedBytes: number | null }>("/api/archive/missing");
+export const archiveMissing = () => request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/missing", { method: "POST" });
+export const bulkStar = (itemIds: string[], starred: boolean) =>
+  request<{ starred: string[] }>("/api/items/bulk-star", { method: "POST", body: JSON.stringify({ itemIds, starred }) });
 export const testNotifications = () =>
   request<{ results: Record<string, string> }>("/api/settings/notifications/test", { method: "POST" });
 export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });

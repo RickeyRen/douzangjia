@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterable
 
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
@@ -64,10 +65,48 @@ class ArchiveService:
             "creator", creator_id, (str(row["remote_id"]) for row in rows)
         )
 
+    async def archive_selection(self, item_ids: Iterable[str]) -> tuple[ArchiveBatch, int]:
+        """Queue a hand-picked set; items without a synced payload are skipped, not fatal."""
+        wanted = list(dict.fromkeys(item_ids))
+        placeholders = ",".join("?" for _ in wanted)
+        rows = await self.db.fetchall(
+            f"SELECT remote_id FROM items WHERE remote_id IN ({placeholders})", tuple(wanted)
+        ) if wanted else []
+        known = {str(row["remote_id"]) for row in rows}
+        ordered = [item_id for item_id in wanted if item_id in known]
+        if not ordered:
+            raise ArchiveTargetNotFound("selection")
+        return await self._archive_ids("selection", f"sel-{int(time.time())}", ordered, strict=False)
+
+    async def missing_summary(self) -> dict[str, int | None]:
+        row = await self.db.fetchone(
+            "SELECT COUNT(*) AS missing FROM items i WHERE NOT EXISTS "
+            "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready')"
+        )
+        sizes = await self.db.fetchone(
+            "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
+            "FROM media_files WHERE status='ready'"
+        )
+        missing = int(row["missing"]) if row else 0
+        average = int(sizes["bytes"]) / int(sizes["items"]) if sizes and int(sizes["items"]) else None
+        return {"missing": missing, "estimatedBytes": int(average * missing) if average else None}
+
+    async def archive_missing(self) -> tuple[ArchiveBatch, int]:
+        """Queue every item that has no ready media yet, newest first."""
+        rows = await self.db.fetchall(
+            "SELECT remote_id FROM items i WHERE NOT EXISTS "
+            "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready') "
+            "ORDER BY first_seen_at DESC, remote_id DESC"
+        )
+        return await self._archive_ids(
+            "missing", "all", (str(row["remote_id"]) for row in rows), strict=False
+        )
+
     async def _archive_ids(
-        self, kind: str, target_id: str, item_ids: Iterable[str]
-    ) -> ArchiveBatch:
+        self, kind: str, target_id: str, item_ids: Iterable[str], *, strict: bool = True
+    ) -> ArchiveBatch | tuple[ArchiveBatch, int]:
         batch = await self.batches.create_batch(kind, target_id)
+        skipped = 0
         for item_id in item_ids:
             job = await self.jobs.get_by_key("download", item_id)
             if job is None:
@@ -80,6 +119,9 @@ class ArchiveService:
                     continue
                 payload = await self._synced_payload(item_id)
                 if payload is None:
+                    if not strict:
+                        skipped += 1
+                        continue
                     await self.batches.set_status(
                         batch.id, "failed", error_code="ITEM_PAYLOAD_UNAVAILABLE"
                     )
@@ -98,7 +140,7 @@ class ArchiveService:
         refreshed = await self.batches.refresh_batch(batch.id)
         if refreshed is None:
             raise RuntimeError("archive batch disappeared during expansion")
-        return refreshed
+        return (refreshed, skipped) if not strict else refreshed
 
     async def _synced_payload(self, item_id: str) -> dict[str, object] | None:
         rows = await self.db.fetchall(

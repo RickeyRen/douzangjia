@@ -1,12 +1,13 @@
-import { ArrowsClockwise, MagnifyingGlass, Play } from "@phosphor-icons/react";
-import { useMemo, useState, type ReactNode } from "react";
+import { ArrowsClockwise, CheckSquare, MagnifyingGlass, Play } from "@phosphor-icons/react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
-import type { DurationBucket, FeedQuery, FeedSort, PeriodBucket } from "../app/api";
+import type { DurationBucket, FeedItem, FeedQuery, FeedSort, PeriodBucket } from "../app/api";
 import type { LibraryFilters } from "../app/router";
 import { useFeed } from "../lib/useFeed";
 import { EmptyState, ErrorState, Segmented, Select } from "../ui/primitives";
 import { MediaGrid } from "./MediaGrid";
 import { Player } from "./Player";
+import { SelectionBar } from "./SelectionBar";
 import { useMediaNavigation } from "./useMediaNavigation";
 
 const DURATION_LABELS: Record<"all" | DurationBucket, string> = { all: "任意时长", short: "1 分钟内", medium: "1–5 分钟", long: "5 分钟以上" };
@@ -48,7 +49,40 @@ export function FeedBrowser({
   );
   const feed = useFeed(query);
   const [playing, setPlaying] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const anchor = useRef<number | null>(null);
   const navigation = useMediaNavigation();
+
+  const toggleSelect = useCallback(
+    (index: number, range: boolean) => {
+      const items = feed.items;
+      setSelected((current) => {
+        const next = new Set(current ?? []);
+        if (range && anchor.current !== null) {
+          const [from, to] = [Math.min(anchor.current, index), Math.max(anchor.current, index)];
+          for (let position = from; position <= to; position += 1) next.add(items[position].awemeId);
+        } else {
+          const id = items[index].awemeId;
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          anchor.current = index;
+        }
+        return next;
+      });
+    },
+    [feed.items],
+  );
+  const selectAll = useCallback(() => setSelected(new Set(feed.items.map((item) => item.awemeId))), [feed.items]);
+  const clearSelection = useCallback(() => {
+    setSelected(null);
+    anchor.current = null;
+  }, []);
+  const patchMany = useCallback(
+    (ids: string[], patch: Partial<FeedItem>) => {
+      for (const id of ids) feed.updateItem(id, patch);
+    },
+    [feed],
+  );
 
   function update(patch: Partial<LibraryFilters>) {
     const next = { ...filters, ...patch };
@@ -94,6 +128,10 @@ export function FeedBrowser({
           </button>
         ) : null}
         <span className="toolbar-spacer" />
+        <button type="button" className={`btn btn-secondary btn-sm${selected ? " is-active" : ""}`} aria-pressed={selected !== null} disabled={feed.items.length === 0} onClick={() => (selected ? clearSelection() : setSelected(new Set()))}>
+          <CheckSquare size={15} weight={selected ? "fill" : "bold"} />
+          {selected ? "完成" : "选择"}
+        </button>
         <button type="button" className="btn btn-primary btn-sm" disabled={feed.items.length === 0} onClick={() => setPlaying(0)}>
           <Play size={14} weight="fill" />
           播放
@@ -129,8 +167,12 @@ export function FeedBrowser({
           onOpen={setPlaying}
           onOpenCreator={navigation.openCreator}
           showMeta={showMeta}
+          selected={selected ?? undefined}
+          onToggleSelect={toggleSelect}
         />
       )}
+
+      {selected ? <SelectionBar items={feed.items} selected={selected} onSelectAll={selectAll} onClear={clearSelection} onItemsPatched={patchMany} /> : null}
 
       {playing !== null ? (
         <Player

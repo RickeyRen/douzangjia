@@ -1,7 +1,7 @@
 import { CaretRight, CloudCheck, CloudSlash, FilmStrip, Shuffle, Star, Users } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchHome, type FeedItem, type HomeSnapshot } from "../app/api";
+import { archiveMissing, fetchHome, fetchMissingSummary, type FeedItem, type HomeSnapshot } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
 import { formatBytes, formatInteger, greeting } from "../lib/format";
@@ -11,10 +11,13 @@ import { Player } from "../media/Player";
 import { useMediaNavigation } from "../media/useMediaNavigation";
 import { sourceLabel } from "../shell/sourceMeta";
 import { SourceIcon } from "../shell/SourceIcon";
-import { Avatar, ErrorState } from "../ui/primitives";
+import { Avatar, ErrorState, Spinner } from "../ui/primitives";
+import { FirstSync } from "./FirstSync";
 
 export function HomePage() {
-  const { account } = useAppData();
+  const { account, toast } = useAppData();
+  const [missing, setMissing] = useState<{ missing: number; estimatedBytes: number | null } | null>(null);
+  const [queueing, setQueueing] = useState(false);
   const [home, setHome] = useState<HomeSnapshot | null>(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -30,10 +33,29 @@ export function HomePage() {
     fetchHome()
       .then((value) => active && setHome(value))
       .catch(() => active && setError(true));
+    fetchMissingSummary()
+      .then((value) => active && setMissing(value))
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [attempt]);
+
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
+
+  async function downloadMissing() {
+    if (!missing || !window.confirm(`把 ${formatInteger(missing.missing)} 个作品全部存到 NAS？${missing.estimatedBytes ? `预计需要 ${formatBytes(missing.estimatedBytes)}。` : ""}`)) return;
+    setQueueing(true);
+    try {
+      const result = await archiveMissing();
+      toast(result.skipped ? `已加入下载，${result.skipped} 个要等下次同步后才能下载` : "已加入下载队列，可在状态页查看进度");
+      setMissing(null);
+    } catch {
+      toast("加入下载队列失败");
+    } finally {
+      setQueueing(false);
+    }
+  }
 
   const patchShelfItem = useCallback((awemeId: string, patch: Partial<FeedItem>) => {
     const apply = (items: FeedItem[]) => items.map((item) => (item.awemeId === awemeId ? { ...item, ...patch } : item));
@@ -44,7 +66,8 @@ export function HomePage() {
   const name = account?.account?.nickname;
   const hello = useMemo(() => greeting(), []);
 
-  if (error) return <ErrorState onRetry={() => setAttempt((value) => value + 1)} />;
+  if (error) return <ErrorState onRetry={reload} />;
+  if (home && home.stats.items === 0) return <FirstSync onReady={reload} />;
 
   return (
     <>
@@ -107,6 +130,19 @@ export function HomePage() {
           <small>{home ? `已抽查 ${formatInteger(home.stats.remoteChecked)} 个` : " "}</small>
         </a>
       </div>
+
+      {missing && missing.missing > 0 ? (
+        <section className="cta">
+          <div>
+            <strong>还有 {formatInteger(missing.missing)} 个作品没有存到 NAS</strong>
+            <p>{missing.estimatedBytes ? `按已下载作品的平均大小估算，大约需要 ${formatBytes(missing.estimatedBytes)}。` : "它们目前只有抖音上的链接，作者删除后就看不到了。"}</p>
+          </div>
+          <button type="button" className="btn btn-primary btn-sm" disabled={queueing} onClick={() => void downloadMissing()}>
+            {queueing ? <Spinner size={14} /> : <CloudCheck size={15} weight="bold" />}
+            全部存到 NAS
+          </button>
+        </section>
+      ) : null}
 
       <section className="section">
         <div className="section-header">

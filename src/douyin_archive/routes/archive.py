@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 
 from fastapi import APIRouter, Query, Request
@@ -15,6 +16,15 @@ from ..archive_service import (
 from ..repositories import JobRepository
 
 router = APIRouter(prefix="/api")
+
+
+class SelectionRequest(BaseModel):
+    item_ids: list[str] = Field(alias="itemIds", min_length=1, max_length=2000)
+
+
+class BulkStarRequest(BaseModel):
+    item_ids: list[str] = Field(alias="itemIds", min_length=1, max_length=2000)
+    starred: bool = True
 
 
 class SubscriptionRequest(BaseModel):
@@ -101,6 +111,51 @@ async def archive_source(source_id: str, request: Request):
 @router.post("/archive/creators/{creator_id}", status_code=202)
 async def archive_creator(creator_id: str, request: Request):
     return await _archive_target(request, "creator", creator_id)
+
+
+@router.post("/archive/selection", status_code=202)
+async def archive_selection(body: SelectionRequest, request: Request):
+    try:
+        batch, skipped = await _service(request).archive_selection(body.item_ids)
+    except ArchiveTargetNotFound:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "ARCHIVE_TARGET_NOT_FOUND", "message": "所选作品不存在"},
+        )
+    return {"batch": _serialize_batch(batch), "skipped": skipped}
+
+
+@router.get("/archive/missing")
+async def missing_summary(request: Request):
+    return await _service(request).missing_summary()
+
+
+@router.post("/archive/missing", status_code=202)
+async def archive_missing(request: Request):
+    batch, skipped = await _service(request).archive_missing()
+    return {"batch": _serialize_batch(batch), "skipped": skipped}
+
+
+@router.post("/items/bulk-star")
+async def bulk_star(body: BulkStarRequest, request: Request):
+    database = request.app.state.database
+    now = int(time.time())
+    placeholders = ",".join("?" for _ in body.item_ids)
+    async with database.transaction(immediate=True):
+        if body.starred:
+            await database.execute(
+                f"INSERT OR IGNORE INTO item_stars (item_id, starred_at) "
+                f"SELECT remote_id, ? FROM items WHERE remote_id IN ({placeholders})",
+                (now, *body.item_ids),
+            )
+        else:
+            await database.execute(
+                f"DELETE FROM item_stars WHERE item_id IN ({placeholders})", tuple(body.item_ids)
+            )
+    rows = await database.fetchall(
+        f"SELECT item_id FROM item_stars WHERE item_id IN ({placeholders})", tuple(body.item_ids)
+    )
+    return {"starred": sorted(str(row["item_id"]) for row in rows)}
 
 
 @router.get("/archive/batches")
