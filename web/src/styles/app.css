@@ -1346,6 +1346,7 @@ video {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
   height: 22px;
   padding: 0 7px;
   border-radius: 999px;
@@ -3039,9 +3040,7 @@ a.stat:hover {
     height: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--line);
-    background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-    backdrop-filter: saturate(160%) blur(18px);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    background: var(--bg-elevated);
   }
 
   .tabbar a {
