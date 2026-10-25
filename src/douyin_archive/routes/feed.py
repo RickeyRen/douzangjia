@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from ..remote_availability import RemoteAvailabilityService
+from ..search import RELEVANCE_SQL, fts_query, search_clause
 
 router = APIRouter(prefix="/api")
 
@@ -223,7 +224,7 @@ async def collections(request: Request) -> dict[str, object]:
     }
 
 
-FEED_SORTS = {"archived", "published", "source", "starred", "random", "album"}
+FEED_SORTS = {"archived", "published", "source", "starred", "random", "album", "relevance"}
 
 
 def _encode_feed_cursor(key: object, remote_id: str) -> str:
@@ -267,10 +268,26 @@ async def feed(
     album_id: int | None = Query(default=None, alias="albumId"),
     tag: str | None = None,
     remote: str | None = None,
+    since: int | None = Query(default=None, ge=0),
+    until: int | None = Query(default=None, ge=0),
+    min_duration: int | None = Query(default=None, alias="minDuration", ge=0),
+    max_duration: int | None = Query(default=None, alias="maxDuration", ge=0),
 ):
+    search = (search or "").strip() or None
+    fts = fts_query(search) if search else None
     sort = sort or (
-        "source" if source_id else "album" if album_id else "starred" if starred else "archived"
+        "source"
+        if source_id
+        else "album"
+        if album_id
+        else "starred"
+        if starred
+        else "relevance"
+        if fts
+        else "archived"
     )
+    if sort == "relevance" and not fts:
+        sort = "archived"
     if sort not in FEED_SORTS:
         return _invalid_feed_request("INVALID_SORT", "不支持的排序方式")
     if sort == "source" and not source_id:
@@ -317,15 +334,21 @@ async def feed(
         conditions.append("i.author_name=?")
         parameters.append(author)
     if search:
-        conditions.append(
-            "(i.description LIKE ? OR i.author_name LIKE ? OR i.remote_id LIKE ? "
-            "OR EXISTS (SELECT 1 FROM creators c WHERE c.remote_id=i.creator_id "
-            "AND (c.nickname LIKE ? OR c.unique_id LIKE ?)) "
-            "OR EXISTS (SELECT 1 FROM item_tags it WHERE it.item_id=i.remote_id AND it.tag LIKE ?) "
-            "OR EXISTS (SELECT 1 FROM item_notes n WHERE n.item_id=i.remote_id AND n.note LIKE ?))"
-        )
-        term = f"%{search}%"
-        parameters.extend((term,) * 7)
+        clause, clause_params, _ = search_clause(search)
+        conditions.append(clause)
+        parameters.extend(clause_params)
+    if since is not None:
+        conditions.append("i.first_seen_at >= ?")
+        parameters.append(since)
+    if until is not None:
+        conditions.append("i.first_seen_at < ?")
+        parameters.append(until)
+    if min_duration is not None:
+        conditions.append("i.duration_ms >= ?")
+        parameters.append(min_duration * 1000)
+    if max_duration is not None:
+        conditions.append("i.duration_ms < ?")
+        parameters.append(max_duration * 1000)
     if downloaded:
         conditions.append(
             "EXISTS (SELECT 1 FROM media_files mf "
@@ -338,6 +361,7 @@ async def feed(
         "source": "COALESCE(si.remote_order, '')",
         "starred": "st.starred_at",
         "album": "ai.added_at",
+        "relevance": RELEVANCE_SQL.format(alias="i"),
         # Scatter ids with a large odd multiplier, then permute by a seed-derived
         # factor; both steps are bijections mod a prime, so pages stay stable.
         "random": (
@@ -346,6 +370,7 @@ async def feed(
         ),
     }[sort]
     expects_text_key = sort == "source"
+    select_params: list[object] = [fts] if sort == "relevance" else []
     if cursor:
         try:
             before_key, before_id = _decode_feed_cursor(cursor)
@@ -356,13 +381,14 @@ async def feed(
         conditions.append(
             f"({sort_expression} < ? OR ({sort_expression} = ? AND i.remote_id < ?))"
         )
-        parameters.extend((before_key, before_key, before_id))
+        # Each sort expression occurrence re-binds its own parameters.
+        parameters.extend((*select_params, before_key, *select_params, before_key, before_id))
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = await request.app.state.database.fetchall(
         f"SELECT i.*, {sort_expression} AS feed_sort_key FROM items i {' '.join(joins)} "
         f"{where} ORDER BY feed_sort_key DESC, i.remote_id DESC LIMIT ?",
-        (*parameters, limit + 1),
+        (*select_params, *parameters, limit + 1),
     )
     has_more = len(rows) > limit
     visible = rows[:limit]

@@ -30,10 +30,14 @@ it("turns toolbar choices into filters and feed queries", async () => {
   await user.click(screen.getByRole("button", { name: "图集" }));
   await user.click(screen.getByRole("button", { name: "仅看已存到 NAS" }));
   await user.selectOptions(screen.getByLabelText("排序方式"), "published");
+  await user.selectOptions(screen.getByLabelText("时长"), "long");
+  await user.selectOptions(screen.getByLabelText("收藏时间"), "month");
 
   expect(onFiltersChange).toHaveBeenNthCalledWith(1, { type: "gallery" });
   expect(onFiltersChange).toHaveBeenNthCalledWith(2, { downloaded: true });
   expect(onFiltersChange).toHaveBeenNthCalledWith(3, { sort: "published" });
+  expect(onFiltersChange).toHaveBeenNthCalledWith(4, { duration: "long" });
+  expect(onFiltersChange).toHaveBeenNthCalledWith(5, { period: "month" });
 
   rerender(
     <WithAppData value={makeAppData()}>

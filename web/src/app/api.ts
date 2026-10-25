@@ -382,7 +382,9 @@ export type HomeSnapshot = {
   creators: HomeCreator[];
 };
 
-export type FeedSort = "archived" | "published" | "source" | "starred" | "random" | "album";
+export type FeedSort = "archived" | "published" | "source" | "starred" | "random" | "album" | "relevance";
+export type DurationBucket = "short" | "medium" | "long";
+export type PeriodBucket = "week" | "month" | "quarter" | "year";
 
 export type Album = {
   id: number;
@@ -410,9 +412,25 @@ export type FeedQuery = {
   albumId?: number;
   tag?: string;
   remote?: string;
+  duration?: DurationBucket;
+  period?: PeriodBucket;
   cursor?: string;
   limit?: number;
 };
+
+const DURATION_BOUNDS: Record<DurationBucket, [number | null, number | null]> = {
+  short: [null, 60],
+  medium: [60, 300],
+  long: [300, null],
+};
+
+export function periodStart(period: PeriodBucket, now = new Date()): number {
+  const start = new Date(now);
+  if (period === "year") start.setMonth(0, 1);
+  else start.setDate(start.getDate() - { week: 7, month: 30, quarter: 90 }[period]);
+  start.setHours(0, 0, 0, 0);
+  return Math.floor(start.getTime() / 1000);
+}
 
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -522,6 +540,12 @@ export function feedQueryString(query: FeedQuery): string {
   if (query.albumId) params.set("albumId", String(query.albumId));
   if (query.tag) params.set("tag", query.tag);
   if (query.remote) params.set("remote", query.remote);
+  if (query.duration) {
+    const [min, max] = DURATION_BOUNDS[query.duration];
+    if (min !== null) params.set("minDuration", String(min));
+    if (max !== null) params.set("maxDuration", String(max));
+  }
+  if (query.period) params.set("since", String(periodStart(query.period)));
   if (query.sort === "random") params.set("seed", String(query.seed ?? 1));
   if (query.downloaded) params.set("downloaded", "true");
   if (query.starred) params.set("starred", "true");

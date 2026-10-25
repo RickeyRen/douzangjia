@@ -43,6 +43,7 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
   }, [albumId, route.name, searchQuery, sourceId, tag]);
 
   let sorts: FeedSort[] = ["archived", "published", "random"];
+  if (route.name === "search" && searchQuery.trim().split(/\s+/).every((token) => token.length >= 3)) sorts = ["relevance", "archived", "published", "random"];
   if (sourceId) sorts = ["source", "archived", "published", "random"];
   if (route.name === "starred") sorts = ["starred", "archived", "published", "random"];
   if (albumId) sorts = ["album", "archived", "published", "random"];
@@ -83,7 +84,7 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
       ) : route.name === "starred" ? (
         <PageHeader title="精选" subtitle="你在抖藏家里标记的作品，只保存在 NAS 上，不会同步到抖音。" />
       ) : route.name === "search" ? (
-        <PageHeader title={route.query ? `“${route.query}”` : "搜索"} subtitle="匹配作品描述、话题、博主昵称和抖音号" />
+        <PageHeader title={route.query ? `“${route.query}”` : "搜索"} subtitle="匹配作品描述、话题、博主、标签和备注；多个词用空格隔开" />
       ) : source ? (
         <SourceHeader source={source} />
       ) : sourceId ? (

@@ -1,7 +1,7 @@
 import { ArrowsClockwise, MagnifyingGlass, Play } from "@phosphor-icons/react";
 import { useMemo, useState, type ReactNode } from "react";
 
-import type { FeedQuery, FeedSort } from "../app/api";
+import type { DurationBucket, FeedQuery, FeedSort, PeriodBucket } from "../app/api";
 import type { LibraryFilters } from "../app/router";
 import { useFeed } from "../lib/useFeed";
 import { EmptyState, ErrorState, Segmented, Select } from "../ui/primitives";
@@ -9,7 +9,11 @@ import { MediaGrid } from "./MediaGrid";
 import { Player } from "./Player";
 import { useMediaNavigation } from "./useMediaNavigation";
 
+const DURATION_LABELS: Record<"all" | DurationBucket, string> = { all: "任意时长", short: "1 分钟内", medium: "1–5 分钟", long: "5 分钟以上" };
+const PERIOD_LABELS: Record<"all" | PeriodBucket, string> = { all: "任意时间", week: "最近一周", month: "最近一月", quarter: "最近三月", year: "今年" };
+
 const SORT_LABELS: Record<FeedSort, string> = {
+  relevance: "最相关",
   source: "收藏顺序",
   album: "加入顺序",
   starred: "精选时间",
@@ -28,7 +32,7 @@ export function FeedBrowser({
   empty,
   showMeta = true,
 }: {
-  base: Omit<FeedQuery, "sort" | "type" | "downloaded" | "cursor" | "seed">;
+  base: Omit<FeedQuery, "sort" | "type" | "downloaded" | "cursor" | "seed" | "duration" | "period">;
   filters: LibraryFilters;
   /** Allowed sorts; the first one is the default. */
   sorts: FeedSort[];
@@ -39,8 +43,8 @@ export function FeedBrowser({
   const sort = filters.sort && sorts.includes(filters.sort) ? filters.sort : sorts[0];
   const [seed, setSeed] = useState(() => 1 + Math.floor(Math.random() * 65_000));
   const query = useMemo<FeedQuery>(
-    () => ({ ...base, sort, seed, type: filters.type, downloaded: filters.downloaded }),
-    [base, filters.downloaded, filters.type, seed, sort],
+    () => ({ ...base, sort, seed, type: filters.type, downloaded: filters.downloaded, duration: filters.duration, period: filters.period }),
+    [base, filters.downloaded, filters.duration, filters.period, filters.type, seed, sort],
   );
   const feed = useFeed(query);
   const [playing, setPlaying] = useState<number | null>(null);
@@ -52,7 +56,7 @@ export function FeedBrowser({
     onFiltersChange(next);
   }
 
-  const filtered = Boolean(filters.type || filters.downloaded);
+  const filtered = Boolean(filters.type || filters.downloaded || filters.duration || filters.period);
 
   return (
     <>
@@ -68,6 +72,18 @@ export function FeedBrowser({
           onChange={(value) => update({ type: value === "all" ? undefined : value })}
         />
         <Select<FeedSort> label="排序方式" value={sort} options={sorts.map((value) => ({ value, label: SORT_LABELS[value] }))} onChange={(value) => update({ sort: value })} />
+        <Select<"all" | DurationBucket>
+          label="时长"
+          value={filters.duration ?? "all"}
+          options={(Object.keys(DURATION_LABELS) as Array<"all" | DurationBucket>).map((value) => ({ value, label: DURATION_LABELS[value] }))}
+          onChange={(value) => update({ duration: value === "all" ? undefined : value })}
+        />
+        <Select<"all" | PeriodBucket>
+          label="收藏时间"
+          value={filters.period ?? "all"}
+          options={(Object.keys(PERIOD_LABELS) as Array<"all" | PeriodBucket>).map((value) => ({ value, label: PERIOD_LABELS[value] }))}
+          onChange={(value) => update({ period: value === "all" ? undefined : value })}
+        />
         <button type="button" className="chip" aria-pressed={Boolean(filters.downloaded)} onClick={() => update({ downloaded: filters.downloaded ? undefined : true })}>
           仅看已存到 NAS
         </button>

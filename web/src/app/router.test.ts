@@ -13,6 +13,7 @@ it.each<Route>([
   { name: "album", albumId: 7, filters: { sort: "album" } },
   { name: "tag", tag: "做饭 周末", filters: {} },
   { name: "gone", filters: { type: "video" } },
+  { name: "search", query: "西湖", filters: { sort: "relevance", duration: "long", period: "month" } },
   { name: "activity" },
   { name: "settings" },
 ])("round-trips %o through the hash", (route) => {
@@ -20,7 +21,7 @@ it.each<Route>([
 });
 
 it("ignores unknown filter values instead of passing them to the API", () => {
-  expect(parseRoute("#/library?type=movie&sort=views&dl=0")).toEqual({ name: "library", filters: {} });
+  expect(parseRoute("#/library?type=movie&sort=views&dl=0&dur=huge&in=decade")).toEqual({ name: "library", filters: {} });
   expect(parseRoute("#/nowhere")).toEqual({ name: "home" });
   expect(parseRoute("#/album/abc")).toEqual({ name: "library", filters: {} });
 });

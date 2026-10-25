@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
 
-import type { FeedSort } from "./api";
+import type { DurationBucket, FeedSort, PeriodBucket } from "./api";
 
 export type LibraryFilters = {
   type?: "video" | "gallery";
   sort?: FeedSort;
   downloaded?: boolean;
+  duration?: DurationBucket;
+  period?: PeriodBucket;
 };
 
 export type Route =
@@ -21,15 +23,21 @@ export type Route =
   | { name: "activity" }
   | { name: "settings" };
 
-const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random", "album"]);
+const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random", "album", "relevance"]);
+const DURATIONS = new Set<DurationBucket>(["short", "medium", "long"]);
+const PERIODS = new Set<PeriodBucket>(["week", "month", "quarter", "year"]);
 
 function readFilters(params: URLSearchParams): LibraryFilters {
   const type = params.get("type");
   const sort = params.get("sort") as FeedSort | null;
+  const duration = params.get("dur") as DurationBucket | null;
+  const period = params.get("in") as PeriodBucket | null;
   return {
     type: type === "video" || type === "gallery" ? type : undefined,
     sort: sort && SORTS.has(sort) ? sort : undefined,
     downloaded: params.get("dl") === "1" || undefined,
+    duration: duration && DURATIONS.has(duration) ? duration : undefined,
+    period: period && PERIODS.has(period) ? period : undefined,
   };
 }
 
@@ -37,6 +45,8 @@ function writeFilters(params: URLSearchParams, filters: LibraryFilters) {
   if (filters.type) params.set("type", filters.type);
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.downloaded) params.set("dl", "1");
+  if (filters.duration) params.set("dur", filters.duration);
+  if (filters.period) params.set("in", filters.period);
 }
 
 export function parseRoute(hash: string): Route {
