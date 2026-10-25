@@ -73,7 +73,7 @@ export function App() {
     );
   }
   return (
-    <AppDataProvider account={status.douyinHealth ?? null} onRequestDouyinLogin={() => setRelogin(true)} onLogout={() => void logout()}>
+    <AppDataProvider account={status.douyinHealth ?? null} about={{ version: status.version ?? "dev", commit: status.commit ?? "unknown" }} onRequestDouyinLogin={() => setRelogin(true)} onLogout={() => void logout()}>
       <Shell>
         <RoutedPage />
       </Shell>

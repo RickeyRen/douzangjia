@@ -10,6 +10,7 @@ export type AppData = {
   health: SyncHealth | null;
   refreshHealth: () => Promise<void>;
   account: DouyinHealth | null;
+  about: { version: string; commit: string };
   toast: (message: string) => void;
   toggleStar: (item: FeedItem) => Promise<boolean | null>;
   requestDouyinLogin: () => void;

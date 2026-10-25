@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import * as api from "../app/api";
 import { WithAppData } from "../test/appData";
+import { ThemeProvider } from "../theme/ThemeProvider";
 import { makeAppData } from "../test/makeAppData";
 import { SyncSettingsPanel } from "./SettingsPage";
 
@@ -57,4 +58,18 @@ it("rolls the control back when saving fails", async () => {
 
   await waitFor(() => expect(appData.toast).toHaveBeenCalledWith("保存失败，请稍后重试"));
   expect(screen.getByLabelText("下载并发数")).toHaveValue("2");
+});
+
+it("shows the running version and a database backup link", async () => {
+  const { SettingsPage } = await import("./SettingsPage");
+  render(
+    <ThemeProvider>
+      <WithAppData value={makeAppData({ about: { version: "0.2.0", commit: "deadbeefcafe" } })}>
+        <SettingsPage />
+      </WithAppData>
+    </ThemeProvider>,
+  );
+
+  expect(screen.getByText("版本 0.2.0 · 构建 deadbee · MIT 开源")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "下载" })).toHaveAttribute("href", "/api/backup/database");
 });

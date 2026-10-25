@@ -1,7 +1,7 @@
-import { QrCode, SignOut } from "@phosphor-icons/react";
+import { DownloadSimple, GithubLogo, QrCode, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import { fetchSettings, updateSettings, type RuntimeSettings } from "../app/api";
+import { fetchSettings, REPO_URL, updateSettings, type RuntimeSettings } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { formatRelative } from "../lib/format";
 import { describeHealth } from "../lib/health";
@@ -108,7 +108,7 @@ const ACCOUNT_STATUS: Record<string, { text: string; tone: string }> = {
 };
 
 export function SettingsPage() {
-  const { account, health, requestDouyinLogin, logout } = useAppData();
+  const { account, health, requestDouyinLogin, logout, about } = useAppData();
   const { preference, setPreference } = useTheme();
   const status = ACCOUNT_STATUS[account?.status ?? "unknown"] ?? ACCOUNT_STATUS.unknown;
   const nickname = account?.account?.nickname;
@@ -187,6 +187,42 @@ export function SettingsPage() {
               <strong>精选只在本地</strong>
               <small>精选标记保存在 NAS 的数据库里，不会改动你在抖音上的收藏。</small>
             </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h2>数据与备份</h2>
+          </div>
+          <div className="setting">
+            <div className="setting-text">
+              <strong>下载数据库备份</strong>
+              <small>收藏记录、相册、标签、备注和精选都在这一个文件里；媒体文件在归档目录的 objects/ 下，请用 NAS 自己的备份工具。</small>
+            </div>
+            <a className="btn btn-secondary btn-sm" href="/api/backup/database" download>
+              <DownloadSimple size={15} weight="bold" />
+              下载
+            </a>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h2>关于</h2>
+            <span className="badge num">v{about.version}</span>
+          </div>
+          <div className="setting">
+            <div className="setting-text">
+              <strong>抖藏家</strong>
+              <small>
+                版本 {about.version}
+                {about.commit && about.commit !== "unknown" ? ` · 构建 ${about.commit.slice(0, 7)}` : ""} · MIT 开源
+              </small>
+            </div>
+            <a className="btn btn-ghost btn-sm" href={REPO_URL} target="_blank" rel="noreferrer">
+              <GithubLogo size={16} weight="bold" />
+              GitHub
+            </a>
           </div>
         </section>
 

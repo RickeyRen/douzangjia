@@ -17,11 +17,13 @@ const HEALTH_REFRESH_MS = 30_000;
 
 export function AppDataProvider({
   account,
+  about,
   onRequestDouyinLogin,
   onLogout,
   children,
 }: {
   account: DouyinHealth | null;
+  about: { version: string; commit: string };
   onRequestDouyinLogin: () => void;
   onLogout: () => void;
   children: ReactNode;
@@ -94,12 +96,13 @@ export function AppDataProvider({
       health,
       refreshHealth,
       account,
+      about,
       toast,
       toggleStar,
       requestDouyinLogin: onRequestDouyinLogin,
       logout: onLogout,
     }),
-    [account, albums, health, onLogout, onRequestDouyinLogin, refreshAlbums, refreshHealth, refreshSources, sources, toast, toggleStar],
+    [about, account, albums, health, onLogout, onRequestDouyinLogin, refreshAlbums, refreshHealth, refreshSources, sources, toast, toggleStar],
   );
 
   return (

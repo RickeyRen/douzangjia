@@ -269,7 +269,11 @@ export type BootstrapStatus = {
   authenticated: boolean;
   douyinAuthenticated: boolean;
   douyinHealth?: DouyinHealth;
+  version?: string;
+  commit?: string;
 };
+
+export const REPO_URL = "https://github.com/renjiawei/douzangjia";
 
 export type DownloadJob = {
   id: number;

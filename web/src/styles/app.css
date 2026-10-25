@@ -372,7 +372,23 @@ video {
 .card {
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-sm);
+}
+
+:root[data-theme="light"] .stat,
+:root[data-theme="light"] .panel,
+:root[data-theme="light"] .creator-card,
+:root[data-theme="light"] .entity {
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-sm);
+}
+
+:root[data-theme="light"] .tile-media::after {
+  background: linear-gradient(to top, rgb(0 0 0 / 66%), transparent);
+}
+
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .toolbar {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
 }
 
 .kbd {

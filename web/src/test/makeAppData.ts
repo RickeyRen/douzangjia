@@ -11,6 +11,7 @@ export function makeAppData(overrides: Partial<AppData> = {}): AppData {
     health: null,
     refreshHealth: vi.fn(async () => undefined),
     account: null,
+    about: { version: "0.2.0", commit: "abcdef1" },
     toast: vi.fn(),
     toggleStar: vi.fn(async (item) => !item.starred),
     requestDouyinLogin: vi.fn(),

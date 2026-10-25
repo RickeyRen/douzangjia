@@ -541,6 +541,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     from .routes.albums import router as albums_router
     from .routes.archive import router as archive_router
+    from .routes.backup import router as backup_router
     from .routes.creators import router as creators_router
     from .routes.dashboard import router as dashboard_router
     from .routes.feed import router as feed_router
@@ -552,6 +553,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
     app.include_router(albums_router)
     app.include_router(archive_router)
+    app.include_router(backup_router)
     app.include_router(creators_router)
     app.include_router(dashboard_router)
     app.include_router(feed_router)
