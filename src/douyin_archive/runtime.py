@@ -23,6 +23,7 @@ from .downloader import MediaDownloader
 from .library_models import CreatorRecord
 from .library_repository import LibraryRepository
 from .media_probe import MediaProbe, MediaProbeBackfill
+from .notifier import NotificationWatcher, Notifier
 from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
@@ -413,6 +414,13 @@ class ArchiveRuntime:
             defaults=RuntimeSettings(sync_interval_seconds=settings.sync_interval_seconds),
         )
         self.runtime_settings = self.settings_store.defaults
+        self.notification_watcher = NotificationWatcher(
+            database,
+            settings.archive_root,
+            notifier=Notifier({}),
+            interval_seconds=settings.sync_interval_seconds,
+            coordinator=browser_coordinator,
+        )
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
 
@@ -425,6 +433,7 @@ class ArchiveRuntime:
         await start_browser_without_blocking_app(self.browser_coordinator)
         self.auth_service.on_authenticated = self._initial_sync
         self.runtime_settings = await self.settings_store.load()
+        self._refresh_watcher(self.runtime_settings)
         resize_workers(self.workers, self._worker_tasks, self._make_worker, self.runtime_settings.download_workers)
         self._probe_task = asyncio.create_task(self._probe_existing_media())
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
@@ -434,6 +443,15 @@ class ArchiveRuntime:
             self.settings,
             telemetry=self.telemetry,
             sync_interval_seconds=self.runtime_settings.sync_interval_seconds,
+        )
+        self._scheduler.add_job(
+            self.notification_watcher.check,
+            "interval",
+            seconds=60,
+            id="notification-watch",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
         )
         self._scheduler.start()
         if await self.auth_service.load_cookies():
@@ -464,7 +482,12 @@ class ArchiveRuntime:
         self.runtime_settings = values
         if self._scheduler is not None and values.sync_interval_seconds != previous.sync_interval_seconds:
             reschedule_sync(self._scheduler, values.sync_interval_seconds)
+        self._refresh_watcher(values)
         resize_workers(self.workers, self._worker_tasks, self._make_worker, values.download_workers)
+
+    def _refresh_watcher(self, values: RuntimeSettings) -> None:
+        self.notification_watcher.notifier = Notifier(values.notifications)
+        self.notification_watcher.interval_seconds = values.sync_interval_seconds
 
     async def trigger_sync(self, *, full_scan: bool) -> int:
         return await self.sync.trigger_sync(full_scan=full_scan)

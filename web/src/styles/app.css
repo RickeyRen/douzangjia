@@ -2109,6 +2109,65 @@ a.stat:hover {
   font-size: 13px;
 }
 
+.fields {
+  display: grid;
+  gap: 14px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field > span {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input {
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  outline: none;
+  transition: box-shadow 0.15s, background 0.15s;
+}
+
+.field input:focus {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.field input::placeholder {
+  color: var(--faint);
+}
+
+.field small {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.events {
+  margin-top: 16px;
+}
+
+.test-results {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .account {
   display: flex;
   align-items: center;
@@ -2352,6 +2411,10 @@ a.stat:hover {
 
   .metric-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .profile {

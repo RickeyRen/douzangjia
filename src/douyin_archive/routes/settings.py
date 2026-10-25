@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from ..notifier import Notification, Notifier
 from ..settings_store import RuntimeSettings, SettingsStore
 
 router = APIRouter(prefix="/api")
@@ -55,3 +56,18 @@ async def write_settings(request: Request):
     if runtime is not None and hasattr(runtime, "apply_settings"):
         await runtime.apply_settings(values)
     return await _payload(request, values)
+
+
+@router.post("/settings/notifications/test")
+async def test_notifications(request: Request):
+    values = await _store(request).load()
+    notifier = Notifier(values.notifications)
+    if not notifier.channels():
+        return JSONResponse(
+            status_code=400,
+            content={"code": "NO_CHANNELS", "message": "还没有配置任何通知渠道"},
+        )
+    report = await notifier.send(
+        Notification("test", "测试通知", "如果你收到了这条消息，说明通知渠道配置正确。", "info")
+    )
+    return {"results": report}

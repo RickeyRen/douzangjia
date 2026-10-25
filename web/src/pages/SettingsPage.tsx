@@ -8,6 +8,7 @@ import { describeHealth } from "../lib/health";
 import { useTheme } from "../theme/theme-context";
 import type { ThemePreference } from "../theme/theme-context";
 import { Avatar, PageHeader, Segmented, Select } from "../ui/primitives";
+import { NotificationsPanel } from "./NotificationsPanel";
 
 const INTERVALS = [120, 300, 600, 900, 1800, 3600];
 const WORKERS = [1, 2, 3, 4, 6, 8];
@@ -149,6 +150,8 @@ export function SettingsPage() {
         </section>
 
         <SyncSettingsPanel />
+
+        <NotificationsPanel />
 
         <section className="panel">
           <div className="panel-head">

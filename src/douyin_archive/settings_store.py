@@ -40,7 +40,7 @@ class SettingsStore:
 
     async def overrides(self) -> set[str]:
         rows = await self.db.fetchall("SELECT key FROM settings")
-        return {str(row["key"]) for row in rows}
+        return {str(row["key"]) for row in rows} & set(RuntimeSettings.model_fields)
 
     async def update(self, changes: dict[str, Any]) -> RuntimeSettings:
         current = await self.load()

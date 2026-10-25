@@ -521,6 +521,8 @@ export const fetchCreators = ({ search, sort = "items", cursor }: { search?: str
 export const fetchSettings = () => request<SettingsPayload>("/api/settings");
 export const updateSettings = (changes: Partial<RuntimeSettings>) =>
   request<SettingsPayload>("/api/settings", { method: "PUT", body: JSON.stringify(changes) });
+export const testNotifications = () =>
+  request<{ results: Record<string, string> }>("/api/settings/notifications/test", { method: "POST" });
 export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
 export const refreshCreator = (creatorId: string) =>
