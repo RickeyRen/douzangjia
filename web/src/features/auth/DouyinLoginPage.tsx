@@ -215,7 +215,7 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
         </div>
 
         {onCancel ? (
-          <button type="button" className="friendly-icon-button remote-browser-back" aria-label="返回资料库" onClick={onCancel}>
+          <button type="button" className="friendly-icon-button remote-browser-back" aria-label={t("backToLibrary")} onClick={onCancel}>
             <X size={18} />
           </button>
         ) : null}
@@ -260,7 +260,7 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
         ) : null}
         {onCancel ? (
           <button type="button" onClick={onCancel} className="friendly-button friendly-button-secondary auth-cancel">
-            返回资料库
+            {t("backToLibrary")}
           </button>
         ) : null}
       </section>

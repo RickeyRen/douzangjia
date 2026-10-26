@@ -178,6 +178,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   tooManyAttempts: "Too many sign-in attempts, try again in {seconds} s",
   serverUnreachable: "Cannot reach DouZangJia; check that the NAS is online and try again",
   loggingIn: "Signing in…",
+  backToLibrary: "Back to library",
   ownerMigrationTitle: "Upgrade local administrator account",
   ownerMigrationBody: "This archive still uses password-only sign-in. Use the current password to set a username without changing data or the Douyin session.",
   newUsername: "New username",

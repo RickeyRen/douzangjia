@@ -178,6 +178,7 @@ export const zhCN = {
   tooManyAttempts: "登录尝试过于频繁，请 {seconds} 秒后再试",
   serverUnreachable: "连不上抖藏家服务，请确认 NAS 在线后重试",
   loggingIn: "登录中…",
+  backToLibrary: "返回资料库",
   ownerMigrationTitle: "升级本地管理员账户",
   ownerMigrationBody: "现有归档仍使用旧版密码登录。请用当前密码设置用户名，数据和抖音会话不会改变。",
   newUsername: "新用户名",
