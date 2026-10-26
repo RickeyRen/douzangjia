@@ -450,3 +450,81 @@ async def test_replay_drag_maps_normalized_points_to_the_login_viewport() -> Non
         ("up",),
     ]
     assert page.waits == [16, 16, 700]
+
+
+class PhasePage:
+    """Douyin page double whose text decides the login phase."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.clicked: list[str] = []
+
+    async def evaluate(self, script: str, *args: object) -> object:
+        if "二维码已失效" in script:
+            return False
+        if "verification" in script:
+            markers = args[0]
+            return {
+                "verification": any(m in self.text for m in markers["verification"]),
+                "dialog": any(m in self.text for m in markers["dialog"]),
+            }
+        return {}
+
+    def locator(self, selector: str) -> PhaseLocator:
+        return PhaseLocator(self, selector)
+
+
+class PhaseLocator:
+    def __init__(self, page: PhasePage, selector: str) -> None:
+        self.page = page
+        self.selector = selector
+        self.first = self
+
+    async def is_visible(self, *, timeout: int) -> bool:
+        return "登录" in self.selector
+
+    async def click(self, *, timeout: int) -> None:
+        self.page.clicked.append(self.selector)
+
+    # wait_for_timeout lives on the page in Playwright; the dialog opener
+    # calls it after clicking, so the double provides it too.
+
+
+async def _poll_phase(text: str) -> tuple[object, PhasePage]:
+    browser = AuthBrowser()
+    page = PhasePage(text)
+    page.wait_for_timeout = lambda _ms: _noop()  # type: ignore[attr-defined]
+    browser._sessions["login-1"] = SimpleNamespace(
+        deadline=time.monotonic() + 60,
+        context=EmptyCookieContext(),
+        page=page,
+    )
+    status = await browser.poll("login-1", capture_screenshot=False)
+    return status, page
+
+
+async def _noop() -> None:
+    return None
+
+
+async def test_poll_reports_a_slider_check_so_people_know_to_act() -> None:
+    status, page = await _poll_phase("请完成下列验证后继续 按住左边按钮拖动完成上方拼图")
+
+    assert status.state == "awaiting_scan"
+    assert status.verification_required is True
+    assert page.clicked == []
+
+
+async def test_poll_reopens_the_login_dialog_after_a_passed_check() -> None:
+    """Catches the QR never appearing after someone completes the slider."""
+    status, page = await _poll_phase("推荐 关注 朋友 我的 登录")
+
+    assert status.verification_required is False
+    assert page.clicked == ["button:has-text('登录')"]
+
+
+async def test_poll_leaves_an_open_qr_dialog_alone() -> None:
+    status, page = await _poll_phase("扫码登录 使用抖音APP扫一扫")
+
+    assert status.verification_required is False
+    assert page.clicked == []

@@ -45,6 +45,9 @@ class BrowserLogin:
     state: LoginState
     screenshot_png: bytes | None
     error_code: str | None = None
+    # Douyin put a slider/puzzle check in front of the QR dialog; the person
+    # has to complete it in the live view before a code can appear.
+    verification_required: bool = False
 
 
 class AuthBrowserProtocol(Protocol):
@@ -81,6 +84,7 @@ class LoginStatus:
     expires_at: datetime
     screenshot_png: bytes | None
     error_code: str | None = None
+    verification_required: bool = False
 
     @classmethod
     def create(
@@ -108,12 +112,14 @@ class LoginStatus:
         *,
         screenshot_png: bytes | None,
         error_code: str | None = None,
+        verification_required: bool = False,
     ) -> LoginStatus:
         return replace(
             self,
             state=state,
             screenshot_png=screenshot_png,
             error_code=error_code,
+            verification_required=verification_required,
         )
 
     def as_public_dict(self) -> dict[str, object]:
@@ -125,6 +131,8 @@ class LoginStatus:
         }
         if self.error_code:
             result["errorCode"] = self.error_code
+        if self.verification_required:
+            result["verificationRequired"] = True
         return result
 
 
@@ -184,6 +192,7 @@ class AuthService:
                 else status.screenshot_png
             ),
             error_code=browser_login.error_code,
+            verification_required=browser_login.verification_required,
         )
         if browser_login.state == "authenticated":
             cookies = self._filter_cookies(await self.browser.cookies(login_id))

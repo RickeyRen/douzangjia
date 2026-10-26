@@ -184,3 +184,18 @@ it("tells people the page is opening while the NAS browser is busy", async () =>
   expect(screen.getByRole("status")).toHaveTextContent("二维码已过期");
   expect(screen.getByRole("button", { name: "登录抖音" })).toBeVisible();
 });
+
+it("tells people to complete Douyin's slider check in the live view", async () => {
+  vi.mocked(api.beginDouyinLogin).mockResolvedValue({
+    id: "login-1",
+    state: "awaiting_scan",
+    expiresAt: "2026-08-18T12:00:00Z",
+    hasScreenshot: true,
+    verificationRequired: true,
+  });
+  render(<DouyinLoginPage />);
+  await screen.findByLabelText("抖音登录二维码");
+  openBrowserSocket();
+
+  expect(screen.getByRole("status")).toHaveTextContent("请直接在上方画面里拖动滑块");
+});

@@ -170,7 +170,9 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
           ? t("loginFailed")
           : !status && starting
             ? t("loginStarting")
-            : t("awaitingScan");
+            : status?.verificationRequired
+              ? t("verificationNeeded")
+              : t("awaitingScan");
   const liveStatus =
     browser.transport === "mjpeg"
       ? t("liveFallback")

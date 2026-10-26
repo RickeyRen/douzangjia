@@ -258,6 +258,7 @@ export type LoginStatus = {
   expiresAt: string;
   hasScreenshot: boolean;
   errorCode?: string;
+  verificationRequired?: boolean;
 };
 
 export type PointerPoint = { x: number; y: number };

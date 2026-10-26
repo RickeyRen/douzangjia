@@ -243,12 +243,56 @@ class AuthBrowser:
         if await self._session_is_authenticated(session):
             return BrowserLogin(login_id, "authenticated", None)
         await self._refresh_expired_qr(session.page)
+        phase = await self._login_phase(session.page)
+        if not phase["verification"] and not phase["dialog"]:
+            # A passed slider check leaves the logged-out home page behind
+            # without the QR dialog; open it again so the code shows up.
+            await self._open_login_dialog(session.page)
         screenshot = (
             await self._capture_login_area(session.page)
             if capture_screenshot
             else None
         )
-        return BrowserLogin(login_id, "awaiting_scan", screenshot)
+        return BrowserLogin(
+            login_id,
+            "awaiting_scan",
+            screenshot,
+            verification_required=bool(phase["verification"]),
+        )
+
+    VERIFICATION_MARKERS = ("请完成下列验证", "拖动滑块", "完成拼图", "滑动验证", "安全验证")
+    DIALOG_MARKERS = ("扫码登录", "抖音扫码", "扫一扫", "二维码", "验证码登录", "密码登录")
+
+    @classmethod
+    async def _login_phase(cls, page: Any) -> dict[str, bool]:
+        """Tell a verification challenge from the QR dialog from a bare home page."""
+        try:
+            result = await page.evaluate(
+                """
+                ({verification, dialog}) => {
+                  const text = document.body?.innerText || '';
+                  const frames = [...document.querySelectorAll('iframe')]
+                    .map((frame) => frame.src || '')
+                    .join(' ');
+                  return {
+                    verification: verification.some((label) => text.includes(label))
+                      || /captcha|verify/i.test(frames),
+                    dialog: dialog.some((label) => text.includes(label))
+                      || Boolean(document.querySelector('img[src*="qrcode" i], canvas[class*="qr" i]')),
+                  };
+                }
+                """,
+                {"verification": list(cls.VERIFICATION_MARKERS), "dialog": list(cls.DIALOG_MARKERS)},
+            )
+        except Exception:  # noqa: BLE001 - a transient page error must not fail polling
+            result = None
+        if not isinstance(result, dict):
+            # Unknown page state: assume the dialog is there rather than click around.
+            return {"verification": False, "dialog": True}
+        return {
+            "verification": bool(result.get("verification")),
+            "dialog": bool(result.get("dialog")),
+        }
 
     async def _session_is_authenticated(self, session: _BrowserSession) -> bool:
         from playwright.async_api import Error as PlaywrightError
