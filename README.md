@@ -51,7 +51,7 @@
 你需要一台能跑 Docker 的机器（NAS、小主机都行）和一个抖音账号。
 
 ```bash
-git clone https://github.com/renjiawei/douzangjia.git
+git clone https://github.com/RickeyRen/douzangjia.git
 cd douzangjia
 cp .env.example .env
 ```
@@ -81,7 +81,7 @@ docker compose up -d --build
 ```yaml
 services:
   archive:
-    image: ghcr.io/renjiawei/douzangjia:main
+    image: ghcr.io/rickeyren/douzangjia:main
     # 其余和仓库里的 compose.yaml 一样
 ```
 

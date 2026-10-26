@@ -273,7 +273,7 @@ export type BootstrapStatus = {
   commit?: string;
 };
 
-export const REPO_URL = "https://github.com/renjiawei/douzangjia";
+export const REPO_URL = "https://github.com/RickeyRen/douzangjia";
 
 export type DownloadJob = {
   id: number;
