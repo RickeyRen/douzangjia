@@ -20,6 +20,7 @@ from .browser_socket import handle_browser_socket
 from .config import Settings
 from .dashboard_events import DashboardEventBus
 from .db import Database
+from .diagnostics import install_task_dump_signal
 from .library_repository import LibraryRepository
 from .login_guard import LoginGuard
 from .repositories import ArchiveRepository, JobRepository
@@ -184,6 +185,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         application.state.runtime = runtime
         if runtime is not None:
             await runtime.start()
+        install_task_dump_signal(asyncio.get_running_loop())
         try:
             yield
         finally:

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("APP_PORT", "PORT", "port"),
     )
     sync_interval_seconds: int = Field(default=300, ge=60)
+    # A discovery run that outlives this is abandoned and the browser relaunched.
+    sync_run_timeout_seconds: int = Field(default=90 * 60, ge=300)
     session_ttl_seconds: int = Field(default=30 * 24 * 60 * 60, ge=300)
     secure_cookies: bool = False
 

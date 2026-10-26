@@ -37,6 +37,11 @@ from .worker import Worker
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SYNC_RUN_TIMEOUT_SECONDS = 90 * 60
+SYNC_TIMEOUT_CODE = "SYNC_TIMEOUT"
+# How long an abandoned run may take to unwind before the lock is given up on it.
+SYNC_CANCEL_GRACE_SECONDS = 60
+
 
 def resize_workers(
     workers: list[Any],
@@ -106,8 +111,10 @@ class RuntimeSyncCoordinator:
         source_factory: Callable[[], Any] | None = None,
         profile_source_factory: Callable[[], Any] | None = None,
         account_health: AccountHealthService | None = None,
+        run_timeout_seconds: float = DEFAULT_SYNC_RUN_TIMEOUT_SECONDS,
     ) -> None:
         self.database = database
+        self.run_timeout_seconds = run_timeout_seconds
         self.archive = archive
         self.jobs = jobs
         self.auth = auth
@@ -309,46 +316,90 @@ class RuntimeSyncCoordinator:
         return scanned
 
     async def _run(self, *, full_scan: bool, run_id: int | None = None) -> SyncResult:
+        """Run one discovery pass under the sync lock, abandoning it if it hangs.
+
+        A Playwright call that never returns (a wedged page close kept one run
+        alive for a whole day) must not hold the lock forever: the run is
+        cancelled, recorded as ``SYNC_TIMEOUT`` and the browser discarded so the
+        next scheduled run starts from a fresh Chromium.
+        """
         async with self._lock:
-            await self.account_health.record_checking()
-            cookies = await self.auth.load_cookies()
-            source = None
-            authenticated = await self.browser_coordinator.is_douyin_authenticated()
-            if not authenticated and cookies:
-                await self.browser_coordinator.add_cookies(cookies)
-                authenticated = await self.browser_coordinator.is_douyin_authenticated()
-            if authenticated:
-                source = self.source_factory()
-                known_ids = await self.archive.list_known_item_ids()
-                provider = DouyinProvider(source, known_ids=known_ids)
+            task = asyncio.create_task(self._run_locked(full_scan=full_scan, run_id=run_id))
+            done, _ = await asyncio.wait({task}, timeout=self.run_timeout_seconds)
+            if task in done:
+                return task.result()
+            logger.error(
+                "Sync run exceeded %ss and is being abandoned; relaunching the browser",
+                self.run_timeout_seconds,
+            )
+            task.cancel()
+            finished, _ = await asyncio.wait({task}, timeout=SYNC_CANCEL_GRACE_SECONDS)
+            if task not in finished:
+                logger.error("Abandoned sync run did not unwind; continuing without it")
             else:
+                with suppress(BaseException):
+                    task.result()
+            return await self._abandon_timed_out_run(run_id)
+
+    async def _abandon_timed_out_run(self, run_id: int | None) -> SyncResult:
+        now = int(time.time())
+        if run_id is None:
+            row = await self.database.fetchone(
+                "SELECT id FROM sync_runs WHERE status='running' ORDER BY id DESC LIMIT 1"
+            )
+            run_id = int(row["id"]) if row is not None else 0
+        await self.database.execute(
+            "UPDATE sync_runs SET phase='finished', status='failed', error_code=?, "
+            "finished_at=? WHERE status IN ('queued', 'running')",
+            (SYNC_TIMEOUT_CODE, now),
+        )
+        await self.account_health.record_failure(SYNC_TIMEOUT_CODE, checked_at=now)
+        discard = getattr(self.browser_coordinator, "discard_stuck", None)
+        if discard is not None:
+            with suppress(Exception):
+                await discard()
+        return SyncResult(run_id, "failed", 0, 0, SYNC_TIMEOUT_CODE)
+
+    async def _run_locked(self, *, full_scan: bool, run_id: int | None) -> SyncResult:
+        await self.account_health.record_checking()
+        cookies = await self.auth.load_cookies()
+        source = None
+        authenticated = await self.browser_coordinator.is_douyin_authenticated()
+        if not authenticated and cookies:
+            await self.browser_coordinator.add_cookies(cookies)
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+        if authenticated:
+            source = self.source_factory()
+            known_ids = await self.archive.list_known_item_ids()
+            provider = DouyinProvider(source, known_ids=known_ids)
+        else:
+            await self.database.execute(
+                "UPDATE auth_sessions SET status='expired' WHERE provider='douyin'"
+            )
+            provider = _ExpiredProvider()
+        try:
+            result = await SyncService(provider, self.archive, self.jobs).run(
+                full_scan=full_scan, run_id=run_id
+            )
+            if result.error_code == SessionExpired.code:
                 await self.database.execute(
                     "UPDATE auth_sessions SET status='expired' WHERE provider='douyin'"
                 )
-                provider = _ExpiredProvider()
-            try:
-                result = await SyncService(provider, self.archive, self.jobs).run(
-                    full_scan=full_scan, run_id=run_id
+            checked_at = int(time.time())
+            if result.error_code is not None:
+                await self.account_health.record_failure(
+                    result.error_code, checked_at=checked_at
                 )
-                if result.error_code == SessionExpired.code:
-                    await self.database.execute(
-                        "UPDATE auth_sessions SET status='expired' WHERE provider='douyin'"
-                    )
-                checked_at = int(time.time())
-                if result.error_code is not None:
-                    await self.account_health.record_failure(
-                        result.error_code, checked_at=checked_at
-                    )
-                else:
-                    await self.account_health.record_success(
-                        await self.account_health.infer_self_profile(),
-                        verified_at=checked_at,
-                        sync_completed_at=checked_at,
-                    )
-                return result
-            finally:
-                if source is not None:
-                    await source.close()
+            else:
+                await self.account_health.record_success(
+                    await self.account_health.infer_self_profile(),
+                    verified_at=checked_at,
+                    sync_completed_at=checked_at,
+                )
+            return result
+        finally:
+            if source is not None:
+                await source.close()
 
     async def wait_for_idle(self) -> None:
         while self._tasks:
@@ -379,7 +430,12 @@ class ArchiveRuntime:
         self.archive = ArchiveRepository(database)
         self.jobs = JobRepository(database)
         self.sync = RuntimeSyncCoordinator(
-            database, self.archive, self.jobs, auth_service, browser_coordinator
+            database,
+            self.archive,
+            self.jobs,
+            auth_service,
+            browser_coordinator,
+            run_timeout_seconds=settings.sync_run_timeout_seconds,
         )
         self.http = httpx.AsyncClient(
             follow_redirects=True,

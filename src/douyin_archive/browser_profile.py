@@ -1,4 +1,5 @@
 import os
+import signal
 import socket
 import stat
 from datetime import UTC, datetime
@@ -49,6 +50,36 @@ class BrowserProfileStore:
             return False
         for name in SINGLETON_FILES:
             (self.profile_path / name).unlink(missing_ok=True)
+        return True
+
+    def singleton_owner_pid(self, *, hostname: str | None = None) -> int | None:
+        """Return the pid of the Chromium on this host that holds the profile."""
+        lock = self.profile_path / "SingletonLock"
+        try:
+            owner = os.readlink(lock)
+        except OSError:
+            return None
+        host, _, pid = owner.rpartition("-")
+        if host != (hostname or socket.gethostname()) or not pid.isdigit():
+            return None
+        return int(pid)
+
+    def kill_singleton_owner(
+        self, *, hostname: str | None = None, signal_number: int = signal.SIGKILL
+    ) -> bool:
+        """Kill a Chromium that ignored a close request but still holds the profile.
+
+        Playwright cannot relaunch the persistent context while the wedged
+        browser keeps SingletonLock, so a hung shutdown would otherwise leave
+        every later sync without a browser.
+        """
+        pid = self.singleton_owner_pid(hostname=hostname)
+        if pid is None or pid == os.getpid() or not _process_alive(pid):
+            return False
+        try:
+            os.kill(pid, signal_number)
+        except OSError:
+            return False
         return True
 
     def quarantine(self, reason: str) -> Path:

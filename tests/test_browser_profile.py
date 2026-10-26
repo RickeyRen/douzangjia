@@ -1,3 +1,4 @@
+import socket
 import stat
 from pathlib import Path
 
@@ -80,3 +81,38 @@ def test_unlocked_profile_is_left_alone(tmp_path: Path) -> None:
     store.prepare()
 
     assert store.clear_stale_singleton(hostname="any") is False
+
+
+def test_kill_singleton_owner_kills_only_a_live_chromium_on_this_host(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import time
+
+    store = BrowserProfileStore(tmp_path)
+    store.prepare()
+    lock = store.profile_path / "SingletonLock"
+
+    assert store.kill_singleton_owner() is False
+
+    lock.symlink_to("other-host-4242")
+    assert store.kill_singleton_owner() is False
+    lock.unlink()
+
+    child = subprocess.Popen(["sleep", "30"])
+    try:
+        lock.symlink_to(f"{socket.gethostname()}-{child.pid}")
+        assert store.singleton_owner_pid() == child.pid
+        assert store.kill_singleton_owner() is True
+        deadline = time.monotonic() + 5
+        while child.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert child.poll() is not None
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait()
+
+    assert store.kill_singleton_owner() is False
+    lock.unlink()
+    lock.symlink_to(f"{socket.gethostname()}-{os.getpid()}")
+    assert store.kill_singleton_owner() is False

@@ -22,6 +22,13 @@ FAVORITES_URL = (
 DOUYIN_SESSION_COOKIES = {"sessionid", "sessionid_ss"}
 PROBE_TIMEOUT_SECONDS = 5.0
 BLANK_BEFORE_CLOSE_TIMEOUT_MS = 5_000
+# Playwright's page.close() and context.close() wait for Chromium to confirm,
+# and a wedged renderer never does. A sync that waited on them held the sync
+# lock for a whole day, so every shutdown step is bounded and a hung browser
+# is discarded and relaunched instead.
+PAGE_CLOSE_TIMEOUT_SECONDS = 10.0
+CONTEXT_CLOSE_TIMEOUT_SECONDS = 10.0
+DRIVER_STOP_TIMEOUT_SECONDS = 10.0
 # Playwright surfaces a dead driver or browser through several error shapes;
 # a crashed Node driver only leaves the closed asyncio transport message.
 DISCONNECT_MARKERS = (
@@ -70,11 +77,21 @@ class CoordinatorPageLease:
             # saw. Navigating away first lets Chromium detach the workers while
             # the page session still handles the event.
             with suppress(Exception):
-                await self.page.goto(
-                    "about:blank", timeout=BLANK_BEFORE_CLOSE_TIMEOUT_MS
+                await asyncio.wait_for(
+                    self.page.goto("about:blank", timeout=BLANK_BEFORE_CLOSE_TIMEOUT_MS),
+                    timeout=BLANK_BEFORE_CLOSE_TIMEOUT_MS / 1000 + 2,
                 )
-            with suppress(Exception):
-                await self.page.close()
+            try:
+                await asyncio.wait_for(self.page.close(), timeout=PAGE_CLOSE_TIMEOUT_SECONDS)
+            except TimeoutError:
+                logger.warning(
+                    "Browser page did not close within %.0fs; discarding the browser "
+                    "so the next sync relaunches it",
+                    PAGE_CLOSE_TIMEOUT_SECONDS,
+                )
+                await self.coordinator.discard_stuck(self.context)
+            except Exception as error:  # noqa: BLE001 - a dead page is already released
+                logger.debug("Browser page close failed error_type=%s", type(error).__name__)
         finally:
             if self.serialized:
                 self.coordinator._release_lease()
@@ -238,12 +255,14 @@ class BrowserCoordinator:
             self._playwright = None
             self._context_closed = False
             self._disconnected = False
-            if context is not None:
-                with suppress(Exception):
-                    await context.close()
-            if playwright is not None:
-                with suppress(Exception):
-                    await playwright.stop()
+            await self._shutdown(context, playwright)
+
+    async def discard_stuck(self, context: Any | None = None) -> None:
+        """Throw away a browser that stopped answering; the next use relaunches it."""
+        target = context if context is not None else self._context
+        if target is None:
+            return
+        await self._discard(target)
 
     def _is_live(self) -> bool:
         return self._context is not None and not self._context_closed
@@ -279,11 +298,30 @@ class BrowserCoordinator:
         self._playwright = None
         self._context_closed = False
         self._disconnected = True
-        with suppress(Exception):
-            await context.close()
+        await self._shutdown(context, playwright)
+
+    async def _shutdown(self, context: Any | None, playwright: Any | None) -> None:
+        """Close context and driver with bounded waits; kill Chromium if they hang."""
+        hung = False
+        if context is not None:
+            try:
+                await asyncio.wait_for(context.close(), timeout=CONTEXT_CLOSE_TIMEOUT_SECONDS)
+            except TimeoutError:
+                hung = True
+            except Exception as error:  # noqa: BLE001 - already dead is fine
+                logger.debug("Browser context close failed error_type=%s", type(error).__name__)
         if playwright is not None:
-            with suppress(Exception):
-                await playwright.stop()
+            try:
+                await asyncio.wait_for(playwright.stop(), timeout=DRIVER_STOP_TIMEOUT_SECONDS)
+            except TimeoutError:
+                hung = True
+            except Exception as error:  # noqa: BLE001 - already dead is fine
+                logger.debug("Playwright stop failed error_type=%s", type(error).__name__)
+        if hung:
+            killed = self.profile_store.kill_singleton_owner()
+            logger.warning(
+                "Browser shutdown hung; Chromium holding the profile killed=%s", killed
+            )
 
     async def _create_playwright(self) -> Any:
         if self._playwright_factory is None:

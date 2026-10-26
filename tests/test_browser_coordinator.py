@@ -29,6 +29,7 @@ class FakePage:
         self.goto_error = goto_error
         self.viewport: dict[str, int] | None = None
         self.closed = False
+        self.close_hangs = False
         self.events: list[str] = []
 
     async def set_viewport_size(self, viewport: dict[str, int]) -> None:
@@ -42,6 +43,8 @@ class FakePage:
 
     async def close(self) -> None:
         self.events.append("close")
+        if self.close_hangs:
+            await asyncio.Event().wait()
         self.closed = True
 
 
@@ -57,6 +60,8 @@ class FakeContext:
         self.pages: list[FakePage] = []
         self.added_cookies: list[dict[str, object]] = []
         self.closed = False
+        self.close_hangs = False
+        self.page_close_hangs = False
         self.error: Exception | None = None
         self.goto_error: Exception | None = None
         self.close_handlers: list[Any] = []
@@ -73,6 +78,7 @@ class FakeContext:
         if self.error is not None:
             raise self.error
         page = FakePage(redirected_url=self.redirected_url, goto_error=self.goto_error)
+        page.close_hangs = self.page_close_hangs
         self.pages.append(page)
         return page
 
@@ -86,6 +92,8 @@ class FakeContext:
         self._cookies = cookies
 
     async def close(self) -> None:
+        if self.close_hangs:
+            await asyncio.Event().wait()
         self.closed = True
 
 
@@ -385,3 +393,68 @@ async def test_release_still_closes_page_when_blank_navigation_fails(
     next_lease = await asyncio.wait_for(coordinator.acquire_page(), timeout=0.1)
     await next_lease.release()
     await coordinator.close()
+
+
+class RecordingProfileStore(BrowserProfileStore):
+    def __init__(self, archive_root: Path) -> None:
+        super().__init__(archive_root)
+        self.kills = 0
+
+    def kill_singleton_owner(self, **_kwargs: Any) -> bool:
+        self.kills += 1
+        return True
+
+
+async def test_hung_page_close_discards_browser_and_relaunches_on_next_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Catches the day-long stall where page.close() never answered and kept the sync lock."""
+    from douyin_archive import browser_coordinator as module
+
+    monkeypatch.setattr(module, "PAGE_CLOSE_TIMEOUT_SECONDS", 0.05)
+    coordinator, playwright, stuck, fresh = make_crashing_coordinator(tmp_path)
+    stuck.page_close_hangs = True
+    lease = await coordinator.acquire_page()
+
+    await asyncio.wait_for(lease.release(), timeout=2)
+
+    assert lease.page.events == ["goto:about:blank", "close"]
+    assert coordinator.runtime_state()["busy"] is False
+    assert stuck.closed is True
+    assert playwright.stopped is True
+    assert await coordinator.probe() == "disconnected"
+
+    next_lease = await asyncio.wait_for(coordinator.acquire_page(), timeout=1)
+    assert next_lease.context is fresh
+    assert len(playwright.chromium.persistent_launches) == 2
+    await next_lease.release()
+    await coordinator.close()
+
+
+async def test_hung_context_close_kills_chromium_holding_the_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from douyin_archive import browser_coordinator as module
+
+    monkeypatch.setattr(module, "CONTEXT_CLOSE_TIMEOUT_SECONDS", 0.05)
+    context = FakeContext()
+    context.close_hangs = True
+    playwright = FakePlaywright(FakeChromium(context))
+    store = RecordingProfileStore(tmp_path)
+    coordinator = BrowserCoordinator(store, playwright_factory=lambda: playwright)
+    await coordinator.start()
+
+    await asyncio.wait_for(coordinator.discard_stuck(), timeout=2)
+
+    assert store.kills == 1
+    assert playwright.stopped is True
+    assert await coordinator.probe() == "disconnected"
+    assert coordinator.runtime_state()["busy"] is False
+
+
+async def test_discard_stuck_without_browser_is_a_no_op(tmp_path: Path) -> None:
+    coordinator, _playwright, _context = make_coordinator(tmp_path)
+
+    await coordinator.discard_stuck()
+
+    assert await coordinator.probe() == "not_started"

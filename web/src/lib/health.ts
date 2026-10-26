@@ -28,6 +28,8 @@ const ERROR_TEXT: Record<string, string> = {
   CREATOR_SYNC_FAILED: "博主作品同步失败",
   DOUYIN_PAGE_CRASHED: "后台页面多次崩溃，已重开仍未完成",
   SYNC_FAILED: "同步意外中断",
+  SYNC_TIMEOUT: "同步耗时过长，已放弃并重启后台浏览器",
+  SYNC_INTERRUPTED: "同步被服务重启打断，下次会接着做",
 };
 
 /** Codes that describe bookkeeping, not problems worth showing to people. */

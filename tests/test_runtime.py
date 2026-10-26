@@ -94,6 +94,9 @@ class FakeBrowserCoordinator:
     async def has_douyin_session_cookie(self) -> bool:
         return self.authentication_results[0]
 
+    async def discard_stuck(self) -> None:
+        self.discards = getattr(self, "discards", 0) + 1
+
 
 async def test_trigger_sync_returns_run_id_and_finishes_in_background(
     tmp_path: Path,
@@ -429,3 +432,72 @@ async def test_browser_launch_failure_does_not_take_the_web_app_down(caplog) -> 
     assert "sync will retry later" in caplog.text
     assert await start_browser_without_blocking_app(ready) is True
     assert ready.started is True
+
+
+class HangingSource(FakeSource):
+    """A source whose first browser call never returns, like a wedged page close."""
+
+    async def fetch_collections(self) -> dict:
+        await asyncio.Event().wait()
+        return {}
+
+
+async def test_sync_run_that_hangs_is_abandoned_and_browser_discarded(tmp_path: Path) -> None:
+    """Catches a hung Playwright call holding the sync lock for a day."""
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    source = HangingSource()
+    browser_coordinator = FakeBrowserCoordinator()
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        browser_coordinator,
+        source_factory=lambda: source,
+        run_timeout_seconds=0.05,
+    )
+
+    run_id = await coordinator.trigger_sync(full_scan=False)
+    await asyncio.wait_for(coordinator.wait_for_idle(), timeout=5)
+
+    row = await database.fetchone(
+        "SELECT status, error_code, finished_at FROM sync_runs WHERE id=?", (run_id,)
+    )
+    assert row is not None
+    assert (row["status"], row["error_code"]) == ("failed", "SYNC_TIMEOUT")
+    assert row["finished_at"] is not None
+    assert source.closed is True
+    assert browser_coordinator.discards == 1
+    account = await database.fetchone("SELECT health_status, last_error_code FROM douyin_account")
+    assert account is not None and account["last_error_code"] == "SYNC_TIMEOUT"
+
+    # The lock is free again: a healthy run completes right after.
+    healthy = FakeSource()
+    coordinator.source_factory = lambda: healthy
+    result = await asyncio.wait_for(coordinator.run_incremental(), timeout=5)
+    assert result.status == "completed"
+    await coordinator.close()
+    await database.close()
+
+
+async def test_scheduled_run_without_run_id_is_marked_timed_out(tmp_path: Path) -> None:
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        FakeBrowserCoordinator(),
+        source_factory=HangingSource,
+        run_timeout_seconds=0.05,
+    )
+
+    result = await asyncio.wait_for(coordinator.run_incremental(), timeout=5)
+
+    assert result.error_code == "SYNC_TIMEOUT"
+    rows = await database.fetchall("SELECT status, error_code FROM sync_runs")
+    assert [tuple(row) for row in rows] == [("failed", "SYNC_TIMEOUT")]
+    await coordinator.close()
+    await database.close()
