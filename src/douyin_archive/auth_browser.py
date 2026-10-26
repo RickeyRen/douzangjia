@@ -142,21 +142,14 @@ async def replay_pointer(
             await page.wait_for_timeout(DRAG_PRESS_DELAY_MS)
             gesture.pressed = True
         if gesture.pressed:
-            await page.mouse.move(
-                viewport_x,
-                viewport_y,
-                steps=DRAG_MOVE_STEPS,
-            )
-            await page.wait_for_timeout(DRAG_MOVE_DELAY_MS)
+            # The hand already supplies the trajectory, one point per frame;
+            # interpolating and pausing here made the slider trail far behind.
+            await page.mouse.move(viewport_x, viewport_y)
     elif action == "up":
         if gesture.origin is None:
             return
         if gesture.pressed:
-            await page.mouse.move(
-                viewport_x,
-                viewport_y,
-                steps=DRAG_MOVE_STEPS,
-            )
+            await page.mouse.move(viewport_x, viewport_y)
             await page.wait_for_timeout(DRAG_RELEASE_DELAY_MS)
             await page.mouse.up()
         else:

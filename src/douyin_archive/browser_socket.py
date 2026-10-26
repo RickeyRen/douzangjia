@@ -111,6 +111,8 @@ async def handle_browser_socket(
         while True:
             await websocket.send_bytes(await mailbox.get())
 
+    inputs: asyncio.Queue[PointerMessage | KeyMessage] = asyncio.Queue()
+
     async def receive_input() -> None:
         while True:
             try:
@@ -119,16 +121,38 @@ async def handle_browser_socket(
             except ValidationError:
                 await websocket.close(code=4400)
                 return
-            if isinstance(message, PointerMessage):
-                await auth_service.pointer(  # type: ignore[attr-defined]
-                    login_id, message.action, message.x, message.y
-                )
-            else:
-                await auth_service.key(login_id, message.key)  # type: ignore[attr-defined]
+            inputs.put_nowait(message)
+
+    async def replay(message: PointerMessage | KeyMessage) -> None:
+        if isinstance(message, PointerMessage):
+            await auth_service.pointer(  # type: ignore[attr-defined]
+                login_id, message.action, message.x, message.y
+            )
+        else:
+            await auth_service.key(login_id, message.key)  # type: ignore[attr-defined]
+
+    async def replay_input() -> None:
+        while True:
+            message = await inputs.get()
+            # Replaying every queued move at CDP speed left the cursor
+            # trailing the hand by seconds; only the newest move in a burst
+            # matters, while presses, releases and keys keep their order.
+            while _is_move(message):
+                try:
+                    following = inputs.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                if _is_move(following):
+                    message = following
+                    continue
+                await replay(message)
+                message = following
+            await replay(message)
 
     tasks = {
         asyncio.create_task(send_frames()),
         asyncio.create_task(receive_input()),
+        asyncio.create_task(replay_input()),
     }
     try:
         _done, pending = await asyncio.wait(
@@ -144,6 +168,10 @@ async def handle_browser_socket(
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         stream.unsubscribe(mailbox)
+
+
+def _is_move(message: object) -> bool:
+    return isinstance(message, PointerMessage) and message.action == "move"
 
 
 def _status_message(state: str, transport: str) -> dict[str, object]:

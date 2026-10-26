@@ -1,3 +1,5 @@
+import asyncio
+import time
 from pathlib import Path
 
 import pytest
@@ -37,6 +39,7 @@ class SocketAuthService:
         self.stream = FakeStream()
         self.cdp_available = cdp_available
         self.pointer_events: list[tuple[str, str, float, float]] = []
+        self.pointer_delay = 0.0
         self.keys: list[tuple[str, str]] = []
 
     async def get_status(
@@ -54,6 +57,7 @@ class SocketAuthService:
 
     async def pointer(self, login_id: str, action: str, x: float, y: float) -> None:
         self.pointer_events.append((login_id, action, x, y))
+        await asyncio.sleep(self.pointer_delay)
 
     async def key(self, login_id: str, key: str) -> None:
         self.keys.append((login_id, key))
@@ -166,3 +170,36 @@ def test_browser_socket_reports_mjpeg_fallback(
             status = socket.receive_json()
 
     assert status["transport"] == "mjpeg"
+
+
+def test_browser_socket_collapses_a_burst_of_moves_to_the_newest(
+    tmp_path: Path, master_key: str
+) -> None:
+    """Catches the drag lagging seconds behind while every queued move replays."""
+    client, service = make_client(tmp_path, master_key)
+    service.pointer_delay = 0.08
+    with client:
+        authenticate(client)
+        with client.websocket_connect(
+            "/ws/douyin/login/login-1",
+            headers={"origin": "http://testserver"},
+        ) as socket:
+            socket.receive_json()
+            socket.send_json({"type": "pointer", "action": "down", "x": 0.1, "y": 0.5})
+            for step in range(1, 9):
+                socket.send_json(
+                    {"type": "pointer", "action": "move", "x": 0.1 + step * 0.05, "y": 0.5}
+                )
+            socket.send_json({"type": "pointer", "action": "up", "x": 0.5, "y": 0.5})
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not any(
+                event[1] == "up" for event in service.pointer_events
+            ):
+                time.sleep(0.02)
+
+    actions = [event[1] for event in service.pointer_events]
+    assert actions[0] == "down"
+    assert actions[-1] == "up"
+    moves = [event for event in service.pointer_events if event[1] == "move"]
+    assert 1 <= len(moves) < 8
+    assert moves[-1][2] == pytest.approx(0.5)

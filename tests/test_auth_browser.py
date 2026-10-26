@@ -363,27 +363,30 @@ async def test_replay_pointer_starts_a_native_drag_after_real_movement() -> None
     assert page.mouse.events == [
         ("move", 128.0, 320.0, 1),
         ("down",),
-        ("move", 640.0, 320.0, 12),
-        ("move", 1152.0, 320.0, 12),
+        ("move", 640.0, 320.0, 1),
+        ("move", 1152.0, 320.0, 1),
         ("up",),
     ]
     assert page.element_clicks == []
-    assert page.waits == [48, 16, 64, 120]
+    assert page.waits == [48, 64, 120]
 
 
-async def test_replay_pointer_paces_long_drag_before_releasing() -> None:
+async def test_replay_pointer_live_moves_follow_the_hand_without_pacing() -> None:
+    """Catches the slider trailing seconds behind the cursor during a drag."""
     page = RecordingPage()
     gesture = PointerGesture()
 
     await replay_pointer(page, gesture, "down", 0.1, 0.4)
-    await replay_pointer(page, gesture, "move", 0.5, 0.4)
-    await replay_pointer(page, gesture, "up", 0.9, 0.4)
+    for step in range(1, 31):
+        await replay_pointer(page, gesture, "move", 0.1 + step * 0.02, 0.4)
+    await replay_pointer(page, gesture, "up", 0.7, 0.4)
 
     drag_moves = [event for event in page.mouse.events if event[0] == "move"]
-    assert drag_moves[1][3] > 1
-    assert drag_moves[2][3] > 1
-    assert len(page.waits) > 1
-    assert page.waits[-1] == 120
+    assert len(drag_moves) == 32  # press origin + 30 live moves + release point
+    assert all(event[3] == 1 for event in drag_moves)
+    # One pause when the press lands, one before release, one after: no
+    # per-move pauses that would pile up while the hand keeps moving.
+    assert page.waits == [48, 64, 120]
 
 
 async def test_replay_pointer_keeps_small_cursor_jitter_as_a_click() -> None:
