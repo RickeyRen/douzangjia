@@ -19,12 +19,14 @@ export function AppDataProvider({
   account,
   about,
   onRequestDouyinLogin,
+  onLogoutDouyin,
   onLogout,
   children,
 }: {
   account: DouyinHealth | null;
   about: { version: string; commit: string };
   onRequestDouyinLogin: () => void;
+  onLogoutDouyin: () => Promise<void>;
   onLogout: () => void;
   children: ReactNode;
 }) {
@@ -100,9 +102,10 @@ export function AppDataProvider({
       toast,
       toggleStar,
       requestDouyinLogin: onRequestDouyinLogin,
+      logoutDouyin: onLogoutDouyin,
       logout: onLogout,
     }),
-    [about, account, albums, health, onLogout, onRequestDouyinLogin, refreshAlbums, refreshHealth, refreshSources, sources, toast, toggleStar],
+    [about, account, albums, health, onLogout, onLogoutDouyin, onRequestDouyinLogin, refreshAlbums, refreshHealth, refreshSources, sources, toast, toggleStar],
   );
 
   return (

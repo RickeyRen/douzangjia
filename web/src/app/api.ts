@@ -600,6 +600,8 @@ export const bulkStar = (itemIds: string[], starred: boolean) =>
 export const testNotifications = () =>
   request<{ results: Record<string, string> }>("/api/settings/notifications/test", { method: "POST" });
 export const logout = () => request<Record<string, unknown>>("/api/session", { method: "DELETE" });
+export const logoutDouyin = () =>
+  request<{ douyinAuthenticated: boolean }>("/api/douyin/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
 export const refreshCreator = (creatorId: string) =>
   request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/refresh`, { method: "POST" });

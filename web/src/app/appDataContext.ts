@@ -14,6 +14,7 @@ export type AppData = {
   toast: (message: string) => void;
   toggleStar: (item: FeedItem) => Promise<boolean | null>;
   requestDouyinLogin: () => void;
+  logoutDouyin: () => Promise<void>;
   logout: () => void;
 };
 

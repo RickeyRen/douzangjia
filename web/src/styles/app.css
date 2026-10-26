@@ -2896,6 +2896,24 @@ a.stat:hover {
   gap: 14px;
 }
 
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .account {
+    flex-wrap: wrap;
+  }
+
+  .account-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 .account .avatar {
   width: 56px;
   height: 56px;

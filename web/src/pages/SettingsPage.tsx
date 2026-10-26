@@ -109,7 +109,20 @@ const ACCOUNT_STATUS: Record<string, { text: string; tone: string }> = {
 };
 
 export function SettingsPage() {
-  const { account, health, requestDouyinLogin, logout, about } = useAppData();
+  const { account, health, requestDouyinLogin, logoutDouyin, logout, about, toast } = useAppData();
+  const [leavingDouyin, setLeavingDouyin] = useState(false);
+
+  async function leaveDouyin() {
+    if (!window.confirm(t("退出抖音登录？之后需要重新扫码，同步才会继续。"))) return;
+    setLeavingDouyin(true);
+    try {
+      await logoutDouyin();
+    } catch {
+      toast(t("退出失败，请稍后重试"));
+    } finally {
+      setLeavingDouyin(false);
+    }
+  }
   const { preference, setPreference } = useTheme();
   const status = ACCOUNT_STATUS[account?.status ?? "unknown"] ?? ACCOUNT_STATUS.unknown;
   const nickname = account?.account?.nickname;
@@ -133,10 +146,16 @@ export function SettingsPage() {
                 上次验证 {formatRelative(account?.lastVerifiedAt)}
               </small>
             </div>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={requestDouyinLogin}>
-              <QrCode size={16} weight="bold" />
-              {t("重新扫码")}
-            </button>
+            <div className="account-actions">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={requestDouyinLogin}>
+                <QrCode size={16} weight="bold" />
+                {t("重新扫码")}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void leaveDouyin()} disabled={leavingDouyin}>
+                <SignOut size={16} weight="bold" />
+                {t("退出抖音登录")}
+              </button>
+            </div>
           </div>
           <p className="setting-note">{t("登录信息只保存在这台 NAS 上，浏览器档案和加密的 Cookie 不会离开你的网络。")}{view.alert ? t(" 当前状态：{title}。", { title: view.title }) : ""}</p>
         </section>

@@ -15,6 +15,7 @@ export function makeAppData(overrides: Partial<AppData> = {}): AppData {
     toast: vi.fn(),
     toggleStar: vi.fn(async (item) => !item.starred),
     requestDouyinLogin: vi.fn(),
+    logoutDouyin: vi.fn(async () => undefined),
     logout: vi.fn(),
     ...overrides,
   };

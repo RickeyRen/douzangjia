@@ -73,3 +73,25 @@ it("shows the running version and a database backup link", async () => {
   expect(screen.getByText("版本 0.2.0 · 构建 deadbee · MIT 开源")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "下载" })).toHaveAttribute("href", "/api/backup/database");
 });
+
+it("signs out of Douyin only after confirming", async () => {
+  const { SettingsPage } = await import("./SettingsPage");
+  const appData = makeAppData();
+  const user = userEvent.setup();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+  render(
+    <ThemeProvider>
+      <WithAppData value={appData}>
+        <SettingsPage />
+      </WithAppData>
+    </ThemeProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "退出抖音登录" }));
+  expect(appData.logoutDouyin).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "退出抖音登录" }));
+  await waitFor(() => expect(appData.logoutDouyin).toHaveBeenCalledOnce());
+  expect(confirm).toHaveBeenCalledTimes(2);
+  confirm.mockRestore();
+});

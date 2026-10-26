@@ -11,7 +11,7 @@ import { LibraryPage } from "../pages/LibraryPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { Shell } from "../shell/Shell";
 import { ErrorState, Spinner } from "../ui/primitives";
-import { fetchStatus, logout as logoutRequest, type BootstrapStatus } from "./api";
+import { fetchStatus, logout as logoutRequest, logoutDouyin as logoutDouyinRequest, type BootstrapStatus } from "./api";
 import { AppDataProvider } from "./AppData";
 import { useRoute } from "./router";
 
@@ -40,6 +40,11 @@ export function App() {
     } finally {
       await refresh();
     }
+  }, [refresh]);
+
+  const logoutDouyin = useCallback(async () => {
+    await logoutDouyinRequest();
+    await refresh();
   }, [refresh]);
 
   if (error) {
@@ -73,7 +78,7 @@ export function App() {
     );
   }
   return (
-    <AppDataProvider account={status.douyinHealth ?? null} about={{ version: status.version ?? "dev", commit: status.commit ?? "unknown" }} onRequestDouyinLogin={() => setRelogin(true)} onLogout={() => void logout()}>
+    <AppDataProvider account={status.douyinHealth ?? null} about={{ version: status.version ?? "dev", commit: status.commit ?? "unknown" }} onRequestDouyinLogin={() => setRelogin(true)} onLogoutDouyin={logoutDouyin} onLogout={() => void logout()}>
       <Shell>
         <RoutedPage />
       </Shell>

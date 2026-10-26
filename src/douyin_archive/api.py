@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import secrets
 import time
@@ -35,6 +36,8 @@ class CachedStaticFiles(StaticFiles):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
+
+logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
@@ -390,6 +393,27 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         response.delete_cookie(SESSION_COOKIE)
         response.delete_cookie(CSRF_COOKIE)
         return {"authenticated": False}
+
+    @app.delete("/api/douyin/session")
+    async def logout_douyin(request: Request) -> dict[str, object]:
+        """End the Douyin session so the next visit asks for a fresh QR scan."""
+        database = request.app.state.database
+        now = int(time.time())
+        await database.execute(
+            "UPDATE auth_sessions SET status='expired', updated_at=? WHERE provider='douyin'",
+            (now,),
+        )
+        await AccountHealthService(database).record_failure(
+            "DOUYIN_SESSION_EXPIRED", checked_at=now
+        )
+        try:
+            await request.app.state.browser_coordinator.clear_cookies()
+        except Exception as error:  # noqa: BLE001 - the stored session is already gone
+            logger.warning(
+                "Could not clear browser cookies on Douyin logout error_type=%s",
+                type(error).__name__,
+            )
+        return {"douyinAuthenticated": False}
 
     @app.post("/api/protected-test")
     async def protected_test() -> dict[str, bool]:

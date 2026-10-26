@@ -242,3 +242,37 @@ def test_keyboard_route_allows_digits_and_rejects_unapproved_keys(
     assert accepted.status_code == 202
     assert rejected.status_code == 422
     assert service.keys == [("login-1", "7")]
+
+
+class FakeCoordinator:
+    def __init__(self) -> None:
+        self.cleared = 0
+
+    async def clear_cookies(self) -> None:
+        self.cleared += 1
+
+
+def test_douyin_logout_forgets_session_and_clears_browser_cookies(
+    tmp_path: Path, master_key: str
+) -> None:
+    client, csrf = authenticated_client(tmp_path, master_key)
+    app = client.app
+    coordinator = FakeCoordinator()
+    app.state.browser_coordinator = coordinator
+    database = sqlite3.connect(tmp_path / "data" / "archive.sqlite3")
+    database.execute(
+        "INSERT INTO auth_sessions (provider, encrypted_cookies, status, updated_at) "
+        "VALUES ('douyin', X'00', 'authenticated', 1)"
+    )
+    database.commit()
+    assert client.get("/api/status").json()["douyinAuthenticated"] is True
+
+    response = client.request("DELETE", "/api/douyin/session", headers={"X-CSRF-Token": csrf})
+
+    assert response.status_code == 200
+    assert response.json() == {"douyinAuthenticated": False}
+    assert coordinator.cleared == 1
+    status = client.get("/api/status").json()
+    assert status["douyinAuthenticated"] is False
+    assert status["douyinHealth"]["status"] == "expired"
+    client.__exit__(None, None, None)

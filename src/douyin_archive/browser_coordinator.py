@@ -221,6 +221,10 @@ class BrowserCoordinator:
     async def add_cookies(self, cookies: list[dict[str, object]]) -> None:
         await self._with_context(lambda context: context.add_cookies(cookies))
 
+    async def clear_cookies(self) -> None:
+        """Forget every cookie in the persistent profile, ending the Douyin session."""
+        await self._with_context(lambda context: context.clear_cookies())
+
     async def is_douyin_authenticated(self) -> bool:
         try:
             return await self._check_douyin_authenticated()

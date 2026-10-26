@@ -91,6 +91,9 @@ class FakeContext:
         self.added_cookies.extend(cookies)
         self._cookies = cookies
 
+    async def clear_cookies(self) -> None:
+        self._cookies = []
+
     async def close(self) -> None:
         if self.close_hangs:
             await asyncio.Event().wait()
@@ -458,3 +461,15 @@ async def test_discard_stuck_without_browser_is_a_no_op(tmp_path: Path) -> None:
     await coordinator.discard_stuck()
 
     assert await coordinator.probe() == "not_started"
+
+
+async def test_clear_cookies_ends_the_douyin_session(tmp_path: Path) -> None:
+    coordinator, _playwright, _context = make_coordinator(
+        tmp_path, cookies=[{"name": "sessionid", "domain": ".douyin.com", "value": "x"}]
+    )
+    assert await coordinator.has_douyin_session_cookie() is True
+
+    await coordinator.clear_cookies()
+
+    assert await coordinator.has_douyin_session_cookie() is False
+    await coordinator.close()
