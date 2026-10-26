@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 
@@ -13,6 +14,16 @@ from douyin_archive.notifier import (
 )
 
 NOW = 2_000_000_000
+GB = 1024**3
+
+
+def roomy_disk(_: Path):
+    """CI runners are nearly full; tests about sync must not see a disk alert."""
+    return SimpleNamespace(total=1000 * GB, used=100 * GB, free=900 * GB)
+
+
+def cramped_disk(_: Path):
+    return SimpleNamespace(total=1000 * GB, used=996 * GB, free=4 * GB)
 
 
 class Recorder:
@@ -91,7 +102,7 @@ def test_watcher_alerts_once_reminds_later_and_announces_recovery(tmp_path: Path
         database = await Database(tmp_path / "archive.sqlite3").open()
         await seed_runs(database, session="authenticated", runs=[("completed", NOW - 40 * 86_400)])
         notifier = SpyNotifier()
-        watcher = NotificationWatcher(database, tmp_path, notifier=notifier, interval_seconds=300)
+        watcher = NotificationWatcher(database, tmp_path, notifier=notifier, interval_seconds=300, disk_usage=roomy_disk)
         timeline: list[tuple[int, list[str]]] = []
         try:
             for offset in (0, 60, 120, REMIND_AFTER_SECONDS + 1):
@@ -129,7 +140,7 @@ def test_watcher_respects_event_switches_and_login_state(tmp_path: Path) -> None
         database = await Database(tmp_path / "archive.sqlite3").open()
         await seed_runs(database, session="expired", runs=[("completed", NOW - 600)])
         notifier = SpyNotifier(events={"login_required": False})
-        watcher = NotificationWatcher(database, tmp_path, notifier=notifier, interval_seconds=300)
+        watcher = NotificationWatcher(database, tmp_path, notifier=notifier, interval_seconds=300, disk_usage=roomy_disk)
         try:
             await watcher.check(now=NOW)
             state = json.loads((await database.fetchone("SELECT value_json FROM settings WHERE key='notifier_state'"))["value_json"])
@@ -146,8 +157,25 @@ def test_watcher_is_inert_without_channels(tmp_path: Path) -> None:
         database = await Database(tmp_path / "archive.sqlite3").open()
         await seed_runs(database, session="expired", runs=[])
         try:
-            return await NotificationWatcher(database, tmp_path, notifier=Notifier({}), interval_seconds=300).check(now=NOW)
+            return await NotificationWatcher(database, tmp_path, notifier=Notifier({}), interval_seconds=300, disk_usage=roomy_disk).check(now=NOW)
         finally:
             await database.close()
 
     assert asyncio.run(scenario()) == []
+
+
+def test_watcher_warns_once_when_the_archive_disk_runs_low(tmp_path: Path) -> None:
+    async def scenario() -> list[str]:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        await seed_runs(database, session="authenticated", runs=[("completed", NOW - 60)])
+        notifier = SpyNotifier()
+        watcher = NotificationWatcher(database, tmp_path, notifier=notifier, interval_seconds=300, disk_usage=cramped_disk)
+        try:
+            await watcher.check(now=NOW)
+            await watcher.check(now=NOW + 120)
+        finally:
+            await database.close()
+        return [note.event for note in notifier.sent]
+
+    events = asyncio.run(scenario())
+    assert events == ["disk_low"]

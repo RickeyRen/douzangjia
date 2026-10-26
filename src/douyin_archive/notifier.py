@@ -5,6 +5,7 @@ import json
 import logging
 import shutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -131,12 +132,14 @@ class NotificationWatcher:
         notifier: Notifier,
         interval_seconds: int,
         coordinator: Any = None,
+        disk_usage: Callable[[Path], Any] = shutil.disk_usage,
     ) -> None:
         self.db = database
         self.archive_root = archive_root
         self.notifier = notifier
         self.interval_seconds = interval_seconds
         self.coordinator = coordinator
+        self.disk_usage = disk_usage
 
     async def check(self, *, now: int | None = None) -> list[Notification]:
         now = int(time.time()) if now is None else now
@@ -180,7 +183,7 @@ class NotificationWatcher:
 
     def _disk_low(self) -> str | None:
         try:
-            usage = shutil.disk_usage(self.archive_root)
+            usage = self.disk_usage(self.archive_root)
         except OSError:
             return None
         percent = usage.free / usage.total * 100 if usage.total else 100
