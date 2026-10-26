@@ -8,7 +8,8 @@ import { LocalLoginPage } from "./LocalLoginPage";
 import { OwnerMigrationPage } from "./OwnerMigrationPage";
 import { SetupPage } from "../setup/SetupPage";
 
-vi.mock("../../app/api", () => ({
+vi.mock("../../app/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof api>()),
   setupAdmin: vi.fn(),
   loginAdmin: vi.fn(),
   migrateOwner: vi.fn(),
@@ -49,6 +50,45 @@ it("logs in using both username and password", async () => {
 
   expect(api.loginAdmin).toHaveBeenCalledWith("RENJIAWEI", "a secure local passphrase");
   expect(completed).toHaveBeenCalledOnce();
+});
+
+it("focuses the username field so sign-in starts with typing", () => {
+  renderPage(<LocalLoginPage onComplete={vi.fn()} />);
+
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "用户名" }));
+});
+
+it("explains a sign-in lockout with the time left to wait", async () => {
+  vi.mocked(api.loginAdmin).mockRejectedValue(
+    new api.ApiError(429, "TOO_MANY_ATTEMPTS", "locked", { retryAfterSeconds: 30 }),
+  );
+  const user = userEvent.setup();
+  renderPage(<LocalLoginPage onComplete={vi.fn()} />);
+
+  await user.type(screen.getByRole("textbox", { name: "用户名" }), "RENJIAWEI");
+  await user.type(screen.getByLabelText("密码"), "wrong password");
+  await user.click(screen.getByRole("button", { name: "登录" }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent("请 30 秒后再试");
+});
+
+it("distinguishes a wrong password from an unreachable server", async () => {
+  vi.mocked(api.loginAdmin).mockRejectedValueOnce(
+    new api.ApiError(401, "INVALID_CREDENTIALS", "用户名或密码不正确"),
+  );
+  const user = userEvent.setup();
+  renderPage(<LocalLoginPage onComplete={vi.fn()} />);
+
+  await user.type(screen.getByRole("textbox", { name: "用户名" }), "RENJIAWEI");
+  await user.type(screen.getByLabelText("密码"), "wrong password");
+  await user.click(screen.getByRole("button", { name: "登录" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("用户名或密码不正确");
+
+  vi.mocked(api.loginAdmin).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+  await user.type(screen.getByLabelText("密码"), "x");
+  expect(screen.queryByRole("alert")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "登录" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("连不上抖藏家服务");
 });
 
 it("migrates a legacy password only after verifying the existing password", async () => {

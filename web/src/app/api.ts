@@ -456,6 +456,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** Extra fields from the error body, such as retryAfterSeconds on 429. */
+    public details: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -481,8 +483,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const payload = (await response.json().catch(() => ({}))) as {
       code?: string;
       message?: string;
+      [key: string]: unknown;
     };
-    throw new ApiError(response.status, payload.code ?? "REQUEST_FAILED", payload.message ?? "请求失败");
+    const { code, message, ...details } = payload;
+    throw new ApiError(response.status, code ?? "REQUEST_FAILED", message ?? "请求失败", details);
   }
   return (await response.json()) as T;
 }
