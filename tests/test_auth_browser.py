@@ -531,3 +531,34 @@ async def test_poll_leaves_an_open_qr_dialog_alone() -> None:
 
     assert status.verification_required is False
     assert page.clicked == []
+
+
+class NavigatingPage:
+    """The page Douyin navigates away from right after a confirmed scan."""
+
+    def __init__(self) -> None:
+        self.clicked: list[str] = []
+
+    async def evaluate(self, *_args: object) -> object:
+        raise RuntimeError(
+            "Page.evaluate: Execution context was destroyed, most likely because of a navigation"
+        )
+
+    def locator(self, selector: str) -> PhaseLocator:
+        return PhaseLocator(self, selector)  # type: ignore[arg-type]
+
+
+async def test_poll_survives_the_navigation_after_a_confirmed_scan() -> None:
+    """Catches a 500 on the status poll at the instant the phone confirms."""
+    browser = AuthBrowser()
+    page = NavigatingPage()
+    page.wait_for_timeout = lambda _ms: _noop()  # type: ignore[attr-defined]
+    browser._sessions["login-1"] = SimpleNamespace(
+        deadline=time.monotonic() + 60,
+        context=EmptyCookieContext(),
+        page=page,
+    )
+
+    status = await browser.poll("login-1", capture_screenshot=False)
+
+    assert status.state == "awaiting_scan"

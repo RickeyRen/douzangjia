@@ -340,15 +340,20 @@ class AuthBrowser:
         except ModuleNotFoundError:  # Unit tests use a lightweight page double.
             PlaywrightError = RuntimeError
 
-        expired = await page.evaluate(
-            """
-            () => {
-              const text = document.body?.innerText || '';
-              return ['二维码已失效', '二维码已过期', '二维码过期']
-                .some((label) => text.includes(label));
-            }
-            """
-        )
+        try:
+            expired = await page.evaluate(
+                """
+                () => {
+                  const text = document.body?.innerText || '';
+                  return ['二维码已失效', '二维码已过期', '二维码过期']
+                    .some((label) => text.includes(label));
+                }
+                """
+            )
+        except PlaywrightError:
+            # The page navigates away the moment a scan is confirmed; the next
+            # poll sees the logged-in session, so this one simply skips.
+            return False
         if not expired:
             return False
 
