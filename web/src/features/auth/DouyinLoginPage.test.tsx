@@ -181,7 +181,7 @@ it("tells people the page is opening while the NAS browser is busy", async () =>
   await act(async () => {
     release({ id: "login-1", state: "expired", expiresAt: "2026-08-18T12:00:00Z", hasScreenshot: false });
   });
-  expect(screen.getByRole("status")).toHaveTextContent("二维码已过期");
+  expect(screen.getByRole("status")).toHaveTextContent("已超时");
   expect(screen.getByRole("button", { name: "登录抖音" })).toBeVisible();
 });
 

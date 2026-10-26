@@ -162,7 +162,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   verificationNeeded: "Douyin wants a verification first: drag the slider in the live view above",
   loginStarting: "Opening the Douyin sign-in page; this can take a moment while the NAS browser is busy…",
   loginSuccess: "Douyin is connected. Preparing the first sync.",
-  loginExpired: "This QR code expired. Generate a new one.",
+  loginExpired: "Sign-in timed out after 30 minutes. Start again below.",
   loginFailed: "The sign-in page is temporarily unavailable. Try again later.",
   setupTitle: "Create local administrator",
   setupBody: "The username and password stay on your NAS and protect the archive website.",

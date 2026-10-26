@@ -162,7 +162,7 @@ export const zhCN = {
   verificationNeeded: "抖音要求先完成验证：请直接在上方画面里拖动滑块",
   loginStarting: "正在打开抖音登录页，后台浏览器忙时可能要等一会儿…",
   loginSuccess: "抖音已连接，正在准备首次同步。",
-  loginExpired: "二维码已过期，请重新生成。",
+  loginExpired: "等待登录超过 30 分钟已超时，点击下方按钮重新开始。",
   loginFailed: "登录页暂时不可用，请稍后重试。",
   setupTitle: "创建本地管理员",
   setupBody: "用户名和密码只保存在你的 NAS，用于保护归档网页。",
