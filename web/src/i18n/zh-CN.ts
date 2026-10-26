@@ -159,6 +159,7 @@ export const zhCN = {
   liveReconnecting: "正在连接实时画面",
   liveFallback: "兼容画面模式",
   awaitingScan: "等待手机扫码确认",
+  loginStarting: "正在打开抖音登录页，后台浏览器忙时可能要等一会儿…",
   loginSuccess: "抖音已连接，正在准备首次同步。",
   loginExpired: "二维码已过期，请重新生成。",
   loginFailed: "登录页暂时不可用，请稍后重试。",

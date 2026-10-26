@@ -29,6 +29,7 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
   const [dragging, setDragging] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activePointer = useRef<number | null>(null);
+  const autoStarted = useRef(false);
   const fallbackQueue = useRef<Promise<void>>(Promise.resolve());
   const loginId = status?.id;
   const loginState = status?.state;
@@ -58,6 +59,14 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
       window.clearTimeout(timer);
     };
   }, [loginId, loginState, onAuthenticated]);
+
+  // Arriving here already means a scan is needed, so open the login page
+  // at once instead of asking for one more click.
+  useEffect(() => {
+    if (autoStarted.current) return;
+    autoStarted.current = true;
+    void begin();
+  }, []);
 
   async function begin() {
     setStarting(true);
@@ -159,7 +168,9 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
         ? t("loginExpired")
         : status?.state === "failed" || error
           ? t("loginFailed")
-          : t("awaitingScan");
+          : !status && starting
+            ? t("loginStarting")
+            : t("awaitingScan");
   const liveStatus =
     browser.transport === "mjpeg"
       ? t("liveFallback")
@@ -169,14 +180,11 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
 
   if (status?.hasScreenshot) {
     return (
-      <main
-        className="remote-browser-shell fixed inset-0 overflow-hidden bg-black text-[#f7f8fa]"
-        data-testid="douyin-live-view"
-      >
-        <div className="absolute inset-0 grid place-items-center overflow-hidden">
+      <main className="remote-browser-shell" data-testid="douyin-live-view">
+        <div className="remote-browser-stage">
           {browser.transport === "mjpeg" ? (
             <img
-              className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+              className={`remote-browser-frame${dragging ? " is-dragging" : ""}`}
               src={douyinStreamUrl(status.id)}
               alt={t("qrAlt")}
               draggable={false}
@@ -195,7 +203,7 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
               height={800}
               role="img"
               aria-label={t("qrAlt")}
-              className={`block max-h-full max-w-full touch-none select-none object-contain ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+              className={`remote-browser-frame${dragging ? " is-dragging" : ""}`}
               tabIndex={0}
               onPointerDown={startDrag}
               onPointerMove={continueDrag}
@@ -240,14 +248,14 @@ export function DouyinLoginPage({ onAuthenticated, onCancel }: { onAuthenticated
         <h1>{t("douyinLoginTitle")}</h1>
         <p>{t("douyinLoginBody")}</p>
 
-        {status ? (
+        {status || starting ? (
           <div className="douyin-auth-status" role="status">
             <span />
             {statusText}
           </div>
         ) : null}
 
-        {!status || ["expired", "failed", "cancelled"].includes(status.state) ? (
+        {!starting && (!status || ["expired", "failed", "cancelled"].includes(status.state)) ? (
           <button
             type="button"
             onClick={() => void begin()}

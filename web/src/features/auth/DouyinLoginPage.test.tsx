@@ -83,11 +83,10 @@ it("shows the full persistent NAS browser without exposing cookie text", async (
     expiresAt: "2026-08-18T12:00:00Z",
     hasScreenshot: true,
   });
-  const user = userEvent.setup();
   render(<DouyinLoginPage />);
   expect(screen.getByRole("main")).toHaveClass("auth-shell");
   expect(screen.getByRole("button", { name: "切换到亮色主题" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "登录抖音" }));
+  expect(api.beginDouyinLogin).toHaveBeenCalledOnce();
 
   const canvas = await screen.findByLabelText("抖音登录二维码");
   openBrowserSocket();
@@ -95,12 +94,10 @@ it("shows the full persistent NAS browser without exposing cookie text", async (
   expect(canvas.tagName).toBe("CANVAS");
   expect(canvas).toHaveAttribute("width", "1280");
   expect(canvas).toHaveAttribute("height", "800");
-  expect(screen.getByTestId("douyin-live-view")).toHaveClass("fixed", "inset-0");
-  expect(canvas).toHaveClass(
-    "max-h-full",
-    "max-w-full",
-    "object-contain",
-  );
+  expect(screen.getByTestId("douyin-live-view")).toHaveClass("remote-browser-shell");
+  expect(canvas).toHaveClass("remote-browser-frame");
+  expect(canvas.parentElement).toHaveClass("remote-browser-stage");
+  expect(canvas.parentElement).not.toHaveClass("grid");
   expect(screen.queryByText(/sessionid/i)).not.toBeInTheDocument();
 });
 
@@ -113,9 +110,7 @@ it("forwards pointer down, move, and up while the gesture is happening", async (
   };
   vi.mocked(api.beginDouyinLogin).mockResolvedValue(awaiting);
   vi.mocked(api.submitDouyinPointer).mockResolvedValue({ accepted: true });
-  const user = userEvent.setup();
   render(<DouyinLoginPage />);
-  await user.click(screen.getByRole("button", { name: "登录抖音" }));
   const canvas = await screen.findByLabelText("抖音登录二维码");
   const socket = openBrowserSocket();
   vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
@@ -154,7 +149,6 @@ it("forwards OTP digits and editing keys while the live image is focused", async
   vi.mocked(api.submitDouyinKey).mockResolvedValue({ accepted: true });
   const user = userEvent.setup();
   render(<DouyinLoginPage />);
-  await user.click(screen.getByRole("button", { name: "登录抖音" }));
   const canvas = await screen.findByLabelText("抖音登录二维码");
   const socket = openBrowserSocket();
 
@@ -170,4 +164,23 @@ it("forwards OTP digits and editing keys while the live image is focused", async
     ]);
   });
   expect(api.submitDouyinKey).not.toHaveBeenCalled();
+});
+
+it("tells people the page is opening while the NAS browser is busy", async () => {
+  let release: (value: api.LoginStatus) => void = () => undefined;
+  vi.mocked(api.beginDouyinLogin).mockReturnValue(
+    new Promise<api.LoginStatus>((resolve) => {
+      release = resolve;
+    }),
+  );
+  render(<DouyinLoginPage />);
+
+  expect(screen.getByRole("status")).toHaveTextContent("正在打开抖音登录页");
+  expect(screen.queryByRole("button", { name: "登录抖音" })).not.toBeInTheDocument();
+
+  await act(async () => {
+    release({ id: "login-1", state: "expired", expiresAt: "2026-08-18T12:00:00Z", hasScreenshot: false });
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("二维码已过期");
+  expect(screen.getByRole("button", { name: "登录抖音" })).toBeVisible();
 });

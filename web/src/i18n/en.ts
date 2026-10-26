@@ -159,6 +159,7 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   liveReconnecting: "Connecting live view",
   liveFallback: "Compatibility view",
   awaitingScan: "Waiting for phone confirmation",
+  loginStarting: "Opening the Douyin sign-in page; this can take a moment while the NAS browser is busy…",
   loginSuccess: "Douyin is connected. Preparing the first sync.",
   loginExpired: "This QR code expired. Generate a new one.",
   loginFailed: "The sign-in page is temporarily unavailable. Try again later.",
