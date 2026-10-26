@@ -540,7 +540,9 @@ class NavigatingPage:
         self.clicked: list[str] = []
 
     async def evaluate(self, *_args: object) -> object:
-        raise RuntimeError(
+        from playwright.async_api import Error as PlaywrightError
+
+        raise PlaywrightError(
             "Page.evaluate: Execution context was destroyed, most likely because of a navigation"
         )
 
