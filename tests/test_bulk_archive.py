@@ -90,8 +90,9 @@ def test_missing_summary_and_archive_everything(tmp_path: Path, master_key: str)
     finally:
         client.__exit__(None, None, None)
 
-    assert summary == {"missing": 3, "estimatedBytes": 3 * 4096}
-    assert queued.status_code == 202 and queued.json()["skipped"] == 1
+    # 904 belongs to no source, so it is outside the library and never queued.
+    assert summary == {"missing": 2, "estimatedBytes": 2 * 4096}
+    assert queued.status_code == 202 and queued.json()["skipped"] == 0
     assert queued.json()["batch"]["kind"] == "missing"
     # The active "missing" batch is reused instead of duplicated.
     assert again.json()["batch"]["id"] == queued.json()["batch"]["id"]

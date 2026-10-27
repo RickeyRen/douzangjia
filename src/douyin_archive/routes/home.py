@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from ..avatars import avatar_route
+from ..library_scope import library_item_sql
 from ..sync_health import sync_health_snapshot
 from .feed import _serialize_item
 
@@ -32,17 +33,21 @@ async def sync_health(request: Request, *, now: int | None = None) -> dict[str, 
 @router.get("/home")
 async def home(request: Request) -> dict[str, Any]:
     database = request.app.state.database
+    in_library = library_item_sql("i")
     totals = await database.fetchone(
         "SELECT COUNT(*) AS items, "
         "COALESCE(SUM(CASE WHEN item_type='video' THEN 1 ELSE 0 END), 0) AS videos, "
         "COALESCE(SUM(CASE WHEN item_type='gallery' THEN 1 ELSE 0 END), 0) AS galleries "
-        "FROM items"
+        f"FROM items i WHERE {in_library}"
     )
     local = await database.fetchone(
         "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
         "FROM media_files WHERE status='ready'"
     )
-    creators = await database.fetchone("SELECT COUNT(*) AS total FROM creators")
+    creators = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM creators c WHERE EXISTS "
+        f"(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {in_library})"
+    )
     stars = await database.fetchone("SELECT COUNT(*) AS total FROM item_stars")
     gone = await database.fetchone(
         "SELECT COUNT(*) AS total FROM remote_checks WHERE status IN ('deleted', 'private')"
@@ -52,7 +57,8 @@ async def home(request: Request) -> dict[str, Any]:
     )
 
     recent_rows = await database.fetchall(
-        "SELECT * FROM items ORDER BY first_seen_at DESC, remote_id DESC LIMIT ?",
+        f"SELECT i.* FROM items i WHERE {in_library} "
+        "ORDER BY i.first_seen_at DESC, i.remote_id DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
     gone_rows = await database.fetchall(
@@ -102,7 +108,7 @@ async def home(request: Request) -> dict[str, Any]:
     creator_rows = await database.fetchall(
         "SELECT c.remote_id, c.nickname, c.unique_id, c.avatar_url, COUNT(i.remote_id) AS items "
         "FROM creators c JOIN items i ON i.creator_id=c.remote_id "
-        "GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
+        f"WHERE {in_library} GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
     return {

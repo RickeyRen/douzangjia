@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from ..avatars import AvatarCache, avatar_route
 from ..library_repository import LibraryRepository
+from ..library_scope import library_item_sql
 from ..provider.base import ProviderError
 
 router = APIRouter(prefix="/api/creators")
@@ -64,6 +65,7 @@ def _select_sql(where: str) -> str:
         "cs.archive_new_items, cs.last_scan_at, cs.next_scan_at, "
         "cs.last_error_code AS subscription_error_code "
         "FROM creators c LEFT JOIN items i ON i.creator_id=c.remote_id "
+        f"AND {library_item_sql('i')} "
         "LEFT JOIN creator_subscriptions cs ON cs.creator_id=c.remote_id "
         f"{where} GROUP BY c.remote_id"
     )
@@ -86,7 +88,8 @@ async def list_creators(
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     # The "items" order ranks creators by how much of them the archive holds.
     sort_key = "c.last_seen_at" if sort == "recent" else "known_item_count"
-    having = ""
+    # Creators met only in the recommend feed or watch history stay out of the list.
+    having = " HAVING (known_item_count > 0 OR cs.creator_id IS NOT NULL)"
     if cursor:
         try:
             before_key, remote_id = _decode_cursor(cursor)
@@ -95,7 +98,7 @@ async def list_creators(
                 status_code=400,
                 content={"code": "INVALID_CURSOR", "message": "分页游标无效"},
             )
-        having = f" HAVING ({sort_key} < ? OR ({sort_key}=? AND c.remote_id < ?))"
+        having += f" AND ({sort_key} < ? OR ({sort_key}=? AND c.remote_id < ?))"
         parameters.extend((before_key, before_key, remote_id))
     rows = await request.app.state.database.fetchall(
         _select_sql(where)

@@ -196,6 +196,9 @@ class ArchiveBatchRepository:
             status = "completed"
         elif failed == len(rows):
             status = "failed"
+        elif completed + failed == len(rows):
+            # Nothing left to download; the failures stay visible for a retry.
+            status = "completed"
         else:
             status = "running"
         now = int(time.time())

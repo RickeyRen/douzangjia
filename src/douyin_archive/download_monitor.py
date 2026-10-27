@@ -23,31 +23,44 @@ class DownloadMonitor:
         self.clock = clock
 
     async def snapshot(self, *, limit: int) -> dict[str, object]:
-        jobs = await self.database.fetchall(
+        # Finished jobs pile up by the thousand; only unfinished ones feed the
+        # summary, so read just a page of the recent completions besides them.
+        columns = (
             "SELECT id, kind, remote_id, payload_json, status, attempts, "
             "next_attempt_at, last_error_code, updated_at FROM download_jobs "
-            "WHERE kind='download' ORDER BY "
+        )
+        jobs = await self.database.fetchall(
+            columns + "WHERE kind='download' AND status!='completed' ORDER BY "
             "CASE status WHEN 'running' THEN 0 WHEN 'pending' THEN 1 "
             "WHEN 'retry' THEN 2 WHEN 'failed' THEN 3 ELSE 4 END, "
             "updated_at DESC, id DESC"
         )
+        jobs += await self.database.fetchall(
+            columns + "WHERE kind='download' AND status='completed' "
+            "ORDER BY updated_at DESC, id DESC LIMIT ?",
+            (max(0, limit - len(jobs)),),
+        )
+        completed_total = await self.database.fetchone(
+            "SELECT COUNT(*) AS total FROM download_jobs "
+            "WHERE kind='download' AND status='completed'"
+        )
+        job_ids = [str(row["remote_id"]) for row in jobs]
+        placeholders = ",".join("?" for _ in job_ids) or "NULL"
         items = await self.database.fetchall(
             "SELECT i.remote_id, i.author_name, i.description FROM items i "
-            "WHERE EXISTS (SELECT 1 FROM download_jobs j "
-            "WHERE j.kind='download' AND j.remote_id=i.remote_id)"
+            f"WHERE i.remote_id IN ({placeholders})",
+            tuple(job_ids),
         )
         media = await self.database.fetchall(
-            "SELECT m.* FROM media_files m WHERE EXISTS "
-            "(SELECT 1 FROM download_jobs j "
-            "WHERE j.kind='download' AND j.remote_id=m.item_id) "
-            "ORDER BY m.item_id, m.asset_index"
+            f"SELECT m.* FROM media_files m WHERE m.item_id IN ({placeholders}) "
+            "ORDER BY m.item_id, m.asset_index",
+            tuple(job_ids),
         )
         collection_rows = await self.database.fetchall(
             "SELECT ci.item_id, c.name FROM collection_items ci "
             "JOIN collections c ON c.remote_id=ci.collection_id "
-            "WHERE EXISTS (SELECT 1 FROM download_jobs j "
-            "WHERE j.kind='download' AND j.remote_id=ci.item_id) "
-            "ORDER BY ci.item_id, c.name"
+            f"WHERE ci.item_id IN ({placeholders}) ORDER BY ci.item_id, c.name",
+            tuple(job_ids),
         )
 
         item_by_id = {str(row["remote_id"]): row for row in items}
@@ -69,8 +82,10 @@ class DownloadMonitor:
             )
             for row in jobs
         ]
+        summary = self._summary(serialized)
+        summary["completed"] = int(completed_total["total"]) if completed_total else 0
         return {
-            "summary": self._summary(serialized),
+            "summary": summary,
             "items": serialized[:limit],
         }
 

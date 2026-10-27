@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from .account_health import AccountHealthService
 from .db import Database
 from .download_monitor import DownloadMonitor
+from .library_scope import library_item_sql
 from .telemetry import system_snapshot
 
 WINDOW_SECONDS = {"15m": 15 * 60, "24h": 24 * 60 * 60, "7d": 7 * 24 * 60 * 60}
@@ -154,10 +155,12 @@ class DashboardService:
     ) -> dict[str, object]:
         disk = shutil.disk_usage(self.archive_root)
         library = await self.db.fetchone(
-            "SELECT (SELECT COUNT(*) FROM items) AS items, "
+            f"SELECT (SELECT COUNT(*) FROM items i WHERE {library_item_sql('i')}) AS items, "
             "(SELECT COUNT(DISTINCT item_id) FROM media_files WHERE status='ready') "
             "AS archived_items, (SELECT COUNT(*) FROM media_files WHERE status='ready') "
-            "AS media_files, (SELECT COUNT(*) FROM creators) AS creators, "
+            "AS media_files, (SELECT COUNT(*) FROM creators c WHERE EXISTS "
+            "(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id "
+            f"AND {library_item_sql('i')})) AS creators, "
             "(SELECT COUNT(*) FROM library_sources) AS sources, "
             "(SELECT COUNT(*) FROM library_sources WHERE sync_status='complete') "
             "AS complete_sources, "

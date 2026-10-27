@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from ..archive_progress import ArchiveProgressService, batch_label
 from ..archive_repository import ArchiveBatch, ArchiveBatchRepository
 from ..archive_service import (
     ArchivePayloadUnavailable,
@@ -136,6 +137,17 @@ async def archive_missing(request: Request):
     return {"batch": _serialize_batch(batch), "skipped": skipped}
 
 
+@router.get("/archive/progress")
+async def archive_progress(request: Request):
+    return await ArchiveProgressService(request.app.state.database).snapshot()
+
+
+@router.post("/archive/retry-failed")
+async def retry_failed(request: Request):
+    retried = await ArchiveProgressService(request.app.state.database).retry_failed()
+    return {"retried": retried}
+
+
 @router.post("/items/bulk-star")
 async def bulk_star(body: BulkStarRequest, request: Request):
     database = request.app.state.database
@@ -162,7 +174,13 @@ async def bulk_star(body: BulkStarRequest, request: Request):
 async def list_batches(request: Request, limit: int = Query(default=50, ge=1, le=200)):
     repository = ArchiveBatchRepository(request.app.state.database)
     batches = await repository.list_batches(limit=limit)
-    return {"items": [_serialize_batch(batch) for batch in batches]}
+    database = request.app.state.database
+    return {
+        "items": [
+            {**_serialize_batch(batch), "label": await batch_label(database, batch)}
+            for batch in batches
+        ]
+    }
 
 
 @router.get("/archive/batches/{batch_id}")

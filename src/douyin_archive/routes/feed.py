@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from ..avatars import avatar_route
+from ..library_scope import library_item_sql
 from ..remote_availability import RemoteAvailabilityService
 from ..search import RELEVANCE_SQL, fts_query, search_clause
 
@@ -304,6 +305,9 @@ async def feed(
     if source_id:
         joins.append("JOIN source_items si ON si.item_id=i.remote_id AND si.source_id=?")
         parameters.append(source_id)
+    else:
+        # Without an explicit source, list only what the user keeps, not passing feeds.
+        conditions.append(library_item_sql("i"))
     if starred:
         joins.append("JOIN item_stars st ON st.item_id=i.remote_id")
     if album_id:

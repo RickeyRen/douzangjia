@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from library_seed import keep_all_in_library
 
 from douyin_archive.api import create_app
 from douyin_archive.config import Settings
@@ -45,6 +46,7 @@ async def seed(root: Path) -> None:
             "last_seen_at) VALUES ('account:likes', ?, ?, 1, 1)",
             (remote_id, order),
         )
+    await keep_all_in_library(database)
     await database.close()
 
 

@@ -54,6 +54,11 @@ async def seed(root: Path) -> None:
                 "last_seen_at) VALUES (?, ?, ?, 1, 1)",
                 (source, item, item),
             )
+    # 703 was only ever seen in watch history, so it is not part of the library.
+    await database.execute(
+        "INSERT INTO source_items (source_id, item_id, remote_order, first_seen_at, "
+        "last_seen_at) VALUES ('account:watch_history', '703', '703', 1, 1)"
+    )
     await database.close()
 
 
@@ -65,9 +70,9 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
         body = client.get("/api/home").json()
 
     assert body["stats"] == {
-        "items": 3,
+        "items": 2,
         "videos": 2,
-        "galleries": 1,
+        "galleries": 0,
         "downloadedItems": 1,
         "archivedBytes": 2048,
         "creators": 1,
@@ -75,7 +80,7 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
         "gone": 0,
         "remoteChecked": 0,
     }
-    assert [item["awemeId"] for item in body["recent"]] == ["703", "702", "701"]
+    assert [item["awemeId"] for item in body["recent"]] == ["702", "701"]
     assert [item["awemeId"] for item in body["starred"]] == ["701"]
     # Watch history is not a shelf; the collection prefers downloaded posters first.
     assert [shelf["name"] for shelf in body["shelves"]] == ["想去的地方"]
@@ -86,7 +91,7 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
         "nickname": "小鹿",
         "uniqueId": "deer",
         "avatarUrl": None,
-        "itemCount": 3,
+        "itemCount": 2,
     }
     assert body["health"]["state"] == "login_required"
 
@@ -215,7 +220,8 @@ def test_poster_endpoint_serves_rendered_jpeg(tmp_path: Path, master_key: str) -
     )
     with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
         client.post("/api/setup", json={"username": "owner", "password": "a secure local passphrase"})
-        media_id = client.get("/api/feed").json()["items"][1]["media"][0]["id"]
+        feed = client.get("/api/feed").json()["items"]
+        media_id = next(item for item in feed if item["awemeId"] == "702")["media"][0]["id"]
         response = client.get(f"/api/media/{media_id}/poster")
         missing = client.get("/api/media/999/poster")
 

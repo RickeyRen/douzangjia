@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .db import Database
 from .download_policy import DownloadPolicyService
+from .library_scope import library_item_sql
 from .repositories import JobRepository
 
 
@@ -81,7 +82,8 @@ class ArchiveService:
     async def missing_summary(self) -> dict[str, int | None]:
         row = await self.db.fetchone(
             "SELECT COUNT(*) AS missing FROM items i WHERE NOT EXISTS "
-            "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready')"
+            "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready') "
+            f"AND {library_item_sql('i')}"
         )
         sizes = await self.db.fetchone(
             "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
@@ -92,10 +94,11 @@ class ArchiveService:
         return {"missing": missing, "estimatedBytes": int(average * missing) if average else None}
 
     async def archive_missing(self) -> tuple[ArchiveBatch, int]:
-        """Queue every item that has no ready media yet, newest first."""
+        """Queue every library item that has no ready media yet, newest first."""
         rows = await self.db.fetchall(
             "SELECT remote_id FROM items i WHERE NOT EXISTS "
             "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready') "
+            f"AND {library_item_sql('i')} "
             "ORDER BY first_seen_at DESC, remote_id DESC"
         )
         return await self._archive_ids(

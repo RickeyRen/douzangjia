@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from library_seed import keep_all_in_library
 
 from douyin_archive.api import create_app
 from douyin_archive.config import Settings
@@ -20,6 +21,7 @@ async def seed(root: Path) -> None:
         "INSERT INTO media_files (item_id, asset_index, media_type, relative_path, byte_size, mime_type, "
         "status, created_at, updated_at) VALUES ('702', 0, 'video', 'objects/702/000.mp4', 1, 'video/mp4', 'ready', 1, 1)"
     )
+    await keep_all_in_library(database)
     await database.close()
 
 
