@@ -15,11 +15,14 @@ logger = logging.getLogger(__name__)
 
 # Older builds recorded expired signatures as a generic HTTP error.
 REFRESHABLE_CODES = (MEDIA_URL_EXPIRED, "MEDIA_HTTP_ERROR")
-BATCH_SIZE = 20
-MAX_BATCHES_PER_RUN = 10
+# Douyin answers the detail API sparsely under load, so ask little and often.
+BATCH_SIZE = 10
+MAX_BATCHES_PER_RUN = 3
 RUN_EVERY_SECONDS = 30
-# Douyin no longer returning an item after this many refreshes means it is gone.
-GIVE_UP_AFTER_ATTEMPTS = 6
+# An item missing from a detail answer is usually throttling, not deletion;
+# back off instead of deciding it is gone (remote checks decide that).
+UNAVAILABLE_BACKOFF_SECONDS = 600
+MAX_UNAVAILABLE_BACKOFF_SECONDS = 6 * 3600
 
 RecordFetcher = Callable[[list[str]], Awaitable[Sequence[dict[str, Any]]]]
 
@@ -69,18 +72,17 @@ class MediaUrlRefresher:
                         (json.dumps(asdict(item), separators=(",", ":")), now, now, row["id"]),
                     )
                     refreshed += 1
-                elif int(row["attempts"]) >= GIVE_UP_AFTER_ATTEMPTS:
-                    await self.db.execute(
-                        "UPDATE download_jobs SET status='failed', last_error_code='MEDIA_GONE', "
-                        "updated_at=? WHERE id=? AND status='retry'",
-                        (now, row["id"]),
-                    )
                 else:
-                    # Not returned this time; keep it out of the next pick for a while.
-                    await self.db.execute(
-                        "UPDATE download_jobs SET last_error_code=?, updated_at=? WHERE id=?",
-                        ("MEDIA_URL_UNAVAILABLE", now, row["id"]),
+                    delay = min(
+                        MAX_UNAVAILABLE_BACKOFF_SECONDS,
+                        UNAVAILABLE_BACKOFF_SECONDS * 2 ** min(int(row["attempts"]), 6),
                     )
+                    await self.db.execute(
+                        "UPDATE download_jobs SET last_error_code=?, next_attempt_at=?, "
+                        "updated_at=? WHERE id=?",
+                        ("MEDIA_URL_UNAVAILABLE", now + delay, now, row["id"]),
+                    )
+            logger.info("media URL refresh returned %s of %s items", len(fresh), len(ids))
             if len(rows) < BATCH_SIZE:
                 break
         if refreshed:

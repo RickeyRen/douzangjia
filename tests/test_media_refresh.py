@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 
 from douyin_archive.db import Database
-from douyin_archive.media_refresh import GIVE_UP_AFTER_ATTEMPTS, MediaUrlRefresher
+from douyin_archive.media_refresh import MediaUrlRefresher
 from douyin_archive.repositories import JobRepository
 from douyin_archive.worker import Worker
 
@@ -41,7 +41,7 @@ def test_expired_links_are_resigned_and_requeued(tmp_path: Path) -> None:
         await queue(database, "734", attempts=1, code="MEDIA_URL_EXPIRED")
         await queue(database, "735", attempts=1, code="MEDIA_HTTP_ERROR")
         await queue(database, "999", attempts=1, code="MEDIA_URL_EXPIRED")
-        await queue(database, "998", attempts=GIVE_UP_AFTER_ATTEMPTS, code="MEDIA_URL_EXPIRED")
+        await queue(database, "998", attempts=9, code="MEDIA_URL_EXPIRED")
         await queue(database, "997", attempts=1, code="DOWNLOAD_FAILED")
         calls: list[list[str]] = []
 
@@ -66,9 +66,12 @@ def test_expired_links_are_resigned_and_requeued(tmp_path: Path) -> None:
         "https://media.test/video.mp4"
     )
     assert by_id["735"]["status"] == "pending"
-    # Not returned yet: waits for the regular backoff instead of being re-asked every run.
-    assert (by_id["999"]["status"], by_id["999"]["last_error_code"]) == ("retry", "MEDIA_URL_UNAVAILABLE")
-    assert (by_id["998"]["status"], by_id["998"]["last_error_code"]) == ("failed", "MEDIA_GONE")
+    # Missing from the answer is not proof of deletion: it backs off and stays queued.
+    for remote_id in ("999", "998"):
+        assert (by_id[remote_id]["status"], by_id[remote_id]["last_error_code"]) == (
+            "retry",
+            "MEDIA_URL_UNAVAILABLE",
+        )
     assert by_id["997"]["last_error_code"] == "DOWNLOAD_FAILED"
 
 
