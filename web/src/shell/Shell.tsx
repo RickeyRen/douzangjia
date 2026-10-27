@@ -24,7 +24,9 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { createAlbum, triggerSync } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { navigate, routeHref, sameSection, useRoute, type Route } from "../app/router";
+import { formatInteger } from "../lib/format";
 import { describeHealth } from "../lib/health";
+import { useArchiveProgress } from "../lib/useArchiveProgress";
 import { useTheme } from "../theme/theme-context";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsHelp } from "./ShortcutsHelp";
@@ -100,6 +102,8 @@ function Sidebar({ route }: { route: Route }) {
   }
   const groups = groupSources(sources);
   const view = describeHealth(health);
+  const downloading = useArchiveProgress()?.active;
+  const downloadPercent = downloading && downloading.totalItems ? Math.floor((downloading.completedItems / downloading.totalItems) * 100) : 0;
   return (
     <aside className="sidebar">
       <a className="brand" href="#/">
@@ -171,11 +175,16 @@ function Sidebar({ route }: { route: Route }) {
         </div>
       </nav>
       <div className="sidebar-footer">
-        <a className={`status-pill is-${view.tone}`} href={routeHref({ name: "activity" })} aria-current={route.name === "activity" ? "page" : undefined}>
+        <a className={`status-pill is-${downloading && view.tone === "ok" ? "busy" : view.tone}`} href={routeHref({ name: "activity" })} aria-current={route.name === "activity" ? "page" : undefined}>
           <span className="dot" />
           <span>
-            <strong>{view.label}</strong>
-            <small>{t("同步与下载")}</small>
+            <strong>{downloading ? (downloading.status === "paused" ? t("下载已暂停 {p}%", { p: downloadPercent }) : t("正在存到 NAS {p}%", { p: downloadPercent })) : view.label}</strong>
+            <small>{downloading ? t("{done} / {total} 个作品", { done: formatInteger(downloading.completedItems), total: formatInteger(downloading.totalItems) }) : t("同步与下载")}</small>
+            {downloading ? (
+              <span className="status-pill-track">
+                <span style={{ width: `${downloadPercent}%` }} />
+              </span>
+            ) : null}
           </span>
         </a>
         <NavLink to={{ name: "settings" }} current={route} icon={<GearSix size={18} />} label={t("设置")} />

@@ -129,6 +129,58 @@ export type ArchiveBatch = {
   downloadedBytes?: number;
   totalBytes?: number | null;
   errorCode?: string | null;
+  label?: string;
+};
+
+export type ArchiveProgressBatch = {
+  id: number;
+  kind: ArchiveBatch["kind"];
+  label: string;
+  status: string;
+  totalItems: number;
+  completedCount: number;
+  failedCount: number;
+  createdAt: number;
+};
+
+export type ArchiveProgressItem = {
+  remoteId: string;
+  description: string;
+  author: string;
+  coverUrl: string | null;
+  downloadedBytes: number;
+  totalBytes: number | null;
+};
+
+export type ArchiveFailure = {
+  remoteId: string;
+  description: string;
+  author: string;
+  coverUrl: string | null;
+  errorCode: string | null;
+  attempts: number;
+  failedAt: number;
+};
+
+export type ArchiveProgress = {
+  active: {
+    status: "running" | "paused";
+    batches: ArchiveProgressBatch[];
+    totalItems: number;
+    completedItems: number;
+    failedItems: number;
+    runningItems: number;
+    waitingItems: number;
+    downloadedBytes: number;
+    estimatedTotalBytes: number | null;
+    speedBps: number;
+    itemsPerMinute: number;
+    etaSeconds: number | null;
+    startedAt: number;
+    current: ArchiveProgressItem[];
+  } | null;
+  failures: ArchiveFailure[];
+  failedTotal: number;
 };
 
 export type DashboardActivity = {
@@ -516,7 +568,7 @@ export const fetchSourceEntities = ({ sourceId, cursor }: { sourceId: string; cu
   return request<{ items: SourceEntity[]; nextCursor: string | null }>(`/api/library/entities?${query}`);
 };
 export const fetchJobs = () => request<DownloadSnapshot>("/api/jobs?limit=50");
-export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=20");
+export const fetchSyncRuns = () => request<{ items: SyncRun[] }>("/api/sync/runs?limit=100");
 export const fetchDashboard = () => request<DashboardSnapshot>("/api/dashboard");
 export const fetchDashboardSeries = (window: "15m" | "24h" | "7d" = "24h") =>
   request<{ window: string; items: MetricPoint[] }>(`/api/dashboard/series?window=${window}`);
@@ -594,6 +646,8 @@ export const setItemNote = (remoteId: string, note: string) =>
   request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
 export const archiveSelection = (itemIds: string[]) =>
   request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/selection", { method: "POST", body: JSON.stringify({ itemIds }) });
+export const fetchArchiveProgress = () => request<ArchiveProgress>("/api/archive/progress");
+export const retryFailedDownloads = () => request<{ retried: number }>("/api/archive/retry-failed", { method: "POST" });
 export const fetchMissingSummary = () => request<{ missing: number; estimatedBytes: number | null }>("/api/archive/missing");
 export const archiveMissing = () => request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/missing", { method: "POST" });
 export const bulkStar = (itemIds: string[], starred: boolean) =>

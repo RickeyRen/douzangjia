@@ -3,23 +3,17 @@ import {
   CheckCircle,
   CloudArrowDown,
   HardDrives,
-  Pause,
-  Play,
   Pulse,
-  Stop,
   Warning,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import {
-  controlArchiveBatch,
-  fetchArchiveBatches,
   fetchJobs,
   fetchSyncRuns,
   triggerSync,
   updateSourceDownloadPolicy,
-  type ArchiveBatch,
   type DownloadSnapshot,
   type SourceProgress,
   type SyncRun,
@@ -28,9 +22,12 @@ import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
 import { formatBytes, formatDateTime, formatEta, formatInteger, formatRelative, formatSpeed } from "../lib/format";
 import { describeHealth, errorSuffix } from "../lib/health";
+import { splitSyncRuns } from "../lib/syncRuns";
+import { useArchiveProgress } from "../lib/useArchiveProgress";
 import { useDashboardStream } from "../lib/useDashboardStream";
 import { sourceLabel } from "../shell/sourceMeta";
 import { PageHeader, Progress, Spinner, Switch } from "../ui/primitives";
+import { DownloadProgress } from "./DownloadProgress";
 import { t } from "../i18n/t";
 
 const JOB_STATUS: Record<string, { text: string; tone: string }> = {
@@ -48,8 +45,6 @@ const RUN_STATUS: Record<string, { text: string; tone: string }> = {
   queued: { text: t("排队中"), tone: "" },
   partial: { text: t("部分完成"), tone: "badge-warning" },
 };
-
-const BATCH_KIND: Record<string, string> = { item: "单个作品", source: "来源", creator: "博主", selection: "手动选择", missing: "全部未存作品" };
 
 function usePolling<T>(load: () => Promise<T>, intervalMs: number): T | null {
   const [value, setValue] = useState<T | null>(null);
@@ -76,21 +71,10 @@ export function ActivityPage() {
   const stream = useDashboardStream();
   const jobs = usePolling<DownloadSnapshot>(fetchJobs, 2000);
   const runs = usePolling<{ items: SyncRun[] }>(fetchSyncRuns, 8000);
-  const [batches, setBatches] = useState<ArchiveBatch[]>([]);
+  const progress = useArchiveProgress();
   const [syncing, setSyncing] = useState<"quick" | "full" | null>(null);
   const view = describeHealth(health);
   const snapshot = stream.snapshot;
-
-  useEffect(() => {
-    let active = true;
-    const load = () => fetchArchiveBatches().then((page) => active && setBatches(page.items)).catch(() => undefined);
-    void load();
-    const timer = window.setInterval(load, 4000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   async function sync(full: boolean) {
     setSyncing(full ? "full" : "quick");
@@ -105,25 +89,18 @@ export function ActivityPage() {
     }
   }
 
-  async function control(batch: ArchiveBatch, action: "pause" | "resume" | "cancel") {
-    try {
-      const updated = await controlArchiveBatch(batch.id, action);
-      setBatches((current) => current.map((entry) => (entry.id === batch.id ? { ...entry, ...updated } : entry)));
-    } catch {
-      toast(t("操作失败"));
-    }
-  }
-
   const HealthGlyph = view.tone === "ok" ? CheckCircle : view.tone === "busy" ? Pulse : view.tone === "warning" ? Warning : WarningCircle;
   const summary = jobs?.summary;
-  const activeJobs = (jobs?.items ?? []).filter((job) => job.status !== "completed").slice(0, 12);
-  const activeBatches = batches.filter((batch) => !["completed", "cancelled"].includes(batch.status)).slice(0, 6);
+  // Queued items are already counted in the progress card; list only what is moving.
+  const activeJobs = (jobs?.items ?? []).filter((job) => job.status === "running" || job.status === "retry").slice(0, 8);
+  const syncRuns = runs ? splitSyncRuns(runs.items) : null;
 
   return (
     <>
       <PageHeader title={t("同步与下载")} subtitle="抖藏家会每隔几分钟检查一次新收藏，并按来源设置把作品存到 NAS。" />
       <div className="columns">
         <div className="stack">
+          {progress ? <DownloadProgress progress={progress} variant="full" /> : null}
           <section className="panel">
             <div className="health">
               <span className={`health-icon is-${view.tone}`}>
@@ -137,15 +114,15 @@ export function ActivityPage() {
             <div className="metric-row">
               <div className="metric">
                 <span>{t("上次成功同步")}</span>
-                <strong>{formatRelative(health?.lastSuccessAt)}</strong>
+                <strong>{health ? formatRelative(health.lastSuccessAt) : <span className="skeleton-text" />}</strong>
               </div>
               <div className="metric">
                 <span>{t("检查间隔")}</span>
-                <strong>{health ? t("{n} 分钟", { n: Math.round(health.intervalSeconds / 60) }) : "—"}</strong>
+                <strong>{health ? t("{n} 分钟", { n: Math.round(health.intervalSeconds / 60) }) : <span className="skeleton-text" />}</strong>
               </div>
               <div className="metric">
                 <span>{t("后台浏览器")}</span>
-                <strong>{health ? BROWSER_TEXT[health.browser] ?? health.browser : "—"}</strong>
+                <strong>{health ? BROWSER_TEXT[health.browser] ?? health.browser : <span className="skeleton-text" />}</strong>
               </div>
             </div>
             <div className="action-row">
@@ -168,7 +145,7 @@ export function ActivityPage() {
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h2>{t("下载队列")}</h2>
+                <h2>{t("正在处理的文件")}</h2>
                 <p>
                   {summary
                     ? t("{running} 个进行中 · {pending} 个排队 · {retry} 个待重试", { running: summary.running, pending: summary.pending, retry: summary.retry }) + (summary.failed ? t(" · {n} 个失败", { n: summary.failed }) : "")
@@ -181,8 +158,12 @@ export function ActivityPage() {
                 </span>
               ) : null}
             </div>
-            {activeJobs.length === 0 ? (
-              <p className="empty-note">{t("队列是空的，所有作品都处理完了。")}</p>
+            {!jobs ? (
+              <div className="empty-note">
+                <Spinner />
+              </div>
+            ) : activeJobs.length === 0 ? (
+              <p className="empty-note">{summary?.pending ? t("{n} 个作品在排队，马上开始下载。", { n: formatInteger(summary.pending) }) : t("没有正在下载的作品。")}</p>
             ) : (
               <div className="rows">
                 {activeJobs.map((job) => {
@@ -214,52 +195,6 @@ export function ActivityPage() {
             )}
           </section>
 
-          {activeBatches.length ? (
-            <section className="panel">
-              <div className="panel-head">
-                <div>
-                  <h2>{t("收录任务")}</h2>
-                  <p>{t("手动发起的“全部存到 NAS”和博主收录")}</p>
-                </div>
-              </div>
-              <div className="rows">
-                {activeBatches.map((batch) => {
-                  const done = batch.completedCount ?? 0;
-                  const total = batch.discoveredCount ?? 0;
-                  return (
-                    <div key={batch.id} className="row">
-                      <div className="row-main">
-                        <strong>
-                          {BATCH_KIND[batch.kind] ?? batch.kind} · {batch.targetId}
-                        </strong>
-                        <small>
-                          {formatInteger(done)} / {formatInteger(total)} 已完成
-                          {batch.failedCount ? t(" · {n} 个失败", { n: batch.failedCount }) : ""}
-                          {errorSuffix(batch.errorCode)}
-                        </small>
-                        <Progress value={total ? (done / total) * 100 : 0} tone="info" />
-                      </div>
-                      <div className="row-controls">
-                        {batch.status === "paused" ? (
-                          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("继续")} onClick={() => void control(batch, "resume")}>
-                            <Play size={15} weight="fill" />
-                          </button>
-                        ) : (
-                          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("暂停")} onClick={() => void control(batch, "pause")}>
-                            <Pause size={15} weight="fill" />
-                          </button>
-                        )}
-                        <button type="button" className="icon-btn icon-btn-sm" aria-label={t("取消")} onClick={() => void control(batch, "cancel")}>
-                          <Stop size={15} weight="fill" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
           <section className="panel">
             <div className="panel-head">
               <div>
@@ -267,22 +202,32 @@ export function ActivityPage() {
                 <p>{t("每次检查新收藏的记录")}</p>
               </div>
             </div>
-            {!runs ? (
+            {!syncRuns ? (
               <div className="empty-note">
                 <Spinner />
               </div>
-            ) : runs.items.length === 0 ? (
+            ) : syncRuns.notable.length === 0 && syncRuns.quiet === 0 ? (
               <p className="empty-note">{t("还没有同步记录。")}</p>
             ) : (
               <div className="rows">
-                {runs.items.slice(0, 8).map((run) => {
+                {syncRuns.quiet ? (
+                  <div className="row row-quiet">
+                    <div className="row-main">
+                      <strong>{t("最近自动检查了 {n} 次，都正常", { n: formatInteger(syncRuns.quiet) })}</strong>
+                      <small>{t("从 {time} 起没有发现需要下载的新收藏", { time: formatDateTime(syncRuns.quietSince) })}</small>
+                    </div>
+                    <span className="badge badge-success">{t("正常")}</span>
+                  </div>
+                ) : null}
+                {syncRuns.notable.map((run) => {
                   const status = RUN_STATUS[run.status] ?? { text: run.status, tone: "" };
                   return (
                     <div key={run.id} className="row">
                       <div className="row-main">
-                        <strong>{run.mode === "full" ? t("全量核对") : t("增量同步")}</strong>
+                        <strong>{run.mode === "full" ? t("全量核对") : run.enqueued > 0 ? t("发现 {n} 个新收藏", { n: formatInteger(run.enqueued) }) : t("增量同步")}</strong>
                         <small>
-                          {formatDateTime(run.startedAt)} · 发现 {formatInteger(run.discovered)} · 新增下载 {formatInteger(run.enqueued)}
+                          {formatDateTime(run.startedAt)}
+                          {run.enqueued > 0 ? t(" · 已加入下载") : ""}
                           {errorSuffix(run.errorCode)}
                         </small>
                       </div>

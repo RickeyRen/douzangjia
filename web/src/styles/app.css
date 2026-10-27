@@ -610,6 +610,28 @@ video {
   font-size: 12px;
 }
 
+.status-pill > span:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-pill-track {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.status-pill-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--info);
+  transition: width 0.4s ease;
+}
+
 .status-pill.is-ok .dot {
   color: var(--success);
   box-shadow: 0 0 0 4px var(--success-soft);
@@ -1438,6 +1460,16 @@ video {
   50% {
     opacity: 0.55;
   }
+}
+
+.skeleton-text {
+  display: inline-block;
+  width: 4.5em;
+  height: 0.9em;
+  border-radius: 6px;
+  background: var(--surface-2);
+  vertical-align: middle;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .grid-footer {
@@ -2592,6 +2624,7 @@ a.stat:hover {
 
 .stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -2721,6 +2754,7 @@ a.stat:hover {
 
 .rows {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .row {
@@ -3254,5 +3288,257 @@ a.stat:hover {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Saving-to-NAS progress, shared by the home banner and the activity page. */
+.download-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info) 35%, var(--line));
+}
+
+.download-card.is-home {
+  margin-top: 16px;
+}
+
+.download-card.is-paused {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 35%, var(--line));
+}
+
+.download-card.is-failed {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+
+.download-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.download-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.is-paused .download-icon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.download-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.download-title strong {
+  display: block;
+  font-size: 15px;
+}
+
+.download-title small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.download-meter {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.download-percent {
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.download-meter span {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.download-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.download-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.download-facts dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.download-facts dd small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.download-current {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.download-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.download-item img,
+.download-item-cover {
+  flex: none;
+  width: 36px;
+  height: 48px;
+  border-radius: 6px;
+  background: var(--line);
+  object-fit: cover;
+}
+
+.download-item > div {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.download-item strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-item small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.download-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.download-failures {
+  display: grid;
+  gap: 8px;
+}
+
+.download-card:not(.is-failed) .download-failures {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.download-failures-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.download-failures-head strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.download-failures-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.download-failures ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.download-failures li {
+  display: grid;
+  min-width: 0;
+}
+
+.download-failures li span {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-failures li small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.download-failures > .btn {
+  justify-self: start;
+}
+
+.cta-warning {
+  background: var(--warning-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.cta-icon {
+  flex: none;
+  color: var(--warning);
+}
+
+@media (max-width: 720px) {
+  .download-head {
+    flex-wrap: wrap;
   }
 }
