@@ -23,6 +23,8 @@ from .downloader import MediaDownloader
 from .library_models import CreatorRecord
 from .library_repository import LibraryRepository
 from .media_probe import MediaProbe, MediaProbeBackfill
+from .media_refresh import RUN_EVERY_SECONDS as MEDIA_REFRESH_EVERY_SECONDS
+from .media_refresh import MediaUrlRefresher
 from .notifier import NotificationWatcher, Notifier
 from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
@@ -186,34 +188,43 @@ class RuntimeSyncCoordinator:
 
     async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
         async with self._profile_lock:
-            cookies = await self.auth.load_cookies()
-            if self._lock.locked() and hasattr(
-                self.browser_coordinator, "has_douyin_session_cookie"
-            ):
-                authenticated = (
-                    await self.browser_coordinator.has_douyin_session_cookie()
-                )
-            else:
-                authenticated = await self.browser_coordinator.is_douyin_authenticated()
-            if not authenticated and cookies:
-                await self.browser_coordinator.add_cookies(cookies)
-                if self._lock.locked() and hasattr(
-                    self.browser_coordinator, "has_douyin_session_cookie"
-                ):
-                    authenticated = (
-                        await self.browser_coordinator.has_douyin_session_cookie()
-                    )
-                else:
-                    authenticated = (
-                        await self.browser_coordinator.is_douyin_authenticated()
-                    )
-            if not authenticated:
-                raise SessionExpired("Douyin login is required")
+            await self._require_side_session()
             source = self.profile_source_factory()
             try:
                 return await source.fetch_creator_profile(creator_id)
             finally:
                 await source.close()
+
+    async def fetch_item_records(self, item_ids: list[str]) -> list[dict[str, Any]]:
+        """Fresh detail records on a side page, so a long sync never blocks downloads."""
+        async with self._profile_lock:
+            await self._require_side_session()
+            source = self.profile_source_factory()
+            try:
+                return await source.fetch_item_records(item_ids)
+            finally:
+                await source.close()
+
+    async def _require_side_session(self) -> None:
+        # While a sync holds the main page, probing it would wait for the whole
+        # run; the session cookie is the cheap evidence available meanwhile.
+        cookie_only = self._lock.locked() and hasattr(
+            self.browser_coordinator, "has_douyin_session_cookie"
+        )
+
+        async def authenticated() -> bool:
+            if cookie_only:
+                return await self.browser_coordinator.has_douyin_session_cookie()
+            return await self.browser_coordinator.is_douyin_authenticated()
+
+        if await authenticated():
+            return
+        cookies = await self.auth.load_cookies()
+        if cookies:
+            await self.browser_coordinator.add_cookies(cookies)
+            if await authenticated():
+                return
+        raise SessionExpired("Douyin login is required")
 
     async def run_creator_identity_backfill(self) -> bool:
         """Refresh at most one missing public identity per scheduled tick."""
@@ -474,6 +485,7 @@ class ArchiveRuntime:
         self.remote_sampler = RemoteCheckSampler(
             database, self.sync.check_item_availability, per_day=self.runtime_settings.remote_check_per_day
         )
+        self.media_url_refresher = MediaUrlRefresher(database, self.sync.fetch_item_records)
         self.notification_watcher = NotificationWatcher(
             database,
             settings.archive_root,
@@ -518,6 +530,15 @@ class ArchiveRuntime:
             "interval",
             seconds=RUN_EVERY_SECONDS,
             id="remote-check-sampler",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            self.media_url_refresher.run_batch,
+            "interval",
+            seconds=MEDIA_REFRESH_EVERY_SECONDS,
+            id="media-url-refresh",
             max_instances=1,
             coalesce=True,
             replace_existing=True,

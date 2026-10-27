@@ -357,6 +357,15 @@ class PlaywrightDouyinSource:
         self._collection_names.clear()
         self._direct_collections = False
 
+    async def fetch_item_records(self, item_ids: list[str]) -> list[dict[str, Any]]:
+        """Fetch current detail records, whose play URLs are freshly signed."""
+        await self.open()
+        if "douyin.com" not in str(self._page.url):
+            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+        payload = await self._fetch_aweme_details(item_ids)
+        records = payload.get("aweme_list", [])
+        return [record for record in records if isinstance(record, dict)]
+
     async def fetch_creator_profile(self, creator_id: str) -> CreatorRecord:
         """Read the creator identity rendered by Douyin's logged-in profile page."""
         await self.open()

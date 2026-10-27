@@ -12,6 +12,7 @@ from .provider.base import RateLimited
 from .repositories import JobRepository
 
 JobHandler = Callable[[DownloadJob], Awaitable[None]]
+MEDIA_URL_EXPIRED = "MEDIA_URL_EXPIRED"
 
 
 class Worker:
@@ -40,6 +41,10 @@ class Worker:
         except httpx.HTTPStatusError as error:
             if error.response.status_code == 404:
                 await self.jobs.fail_terminal(job.id, "MEDIA_GONE")
+            elif error.response.status_code in {403, 410}:
+                # Signed play URLs expire; the media URL refresher re-signs and
+                # requeues these, the long backoff only covers it being offline.
+                await self.jobs.fail(job.id, MEDIA_URL_EXPIRED, retry_after_seconds=900)
             elif error.response.status_code == 429:
                 await self.jobs.fail(job.id, "RATE_LIMITED", retry_after_seconds=900)
             else:
