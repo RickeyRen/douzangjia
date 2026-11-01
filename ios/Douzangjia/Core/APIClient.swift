@@ -65,6 +65,29 @@ final class APIClient {
         return try await get("/api/feed", query: query)
     }
 
+    func creatorFeed(_ creatorId: String, cursor: String?) async throws -> Page<FeedItem> {
+        var query = [URLQueryItem(name: "limit", value: "30"), URLQueryItem(name: "creatorId", value: creatorId),
+                     URLQueryItem(name: "sort", value: "published")]
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return try await get("/api/feed", query: query)
+    }
+
+    func vanishedCreators(cursor: String?) async throws -> VanishedPage {
+        var query = [URLQueryItem(name: "limit", value: "60")]
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return try await get("/api/creators/vanished", query: query)
+    }
+
+    func creator(_ creatorId: String) async throws -> Creator { try await get("/api/creators/\(creatorId)") }
+
+    func recheckCreator(_ creatorId: String) async throws -> Creator {
+        try await send("POST", "/api/creators/\(creatorId)/archive-check")
+    }
+
+    func archiveCreator(_ creatorId: String) async throws {
+        let _: EmptyBody = try await send("POST", "/api/archive/creators/\(creatorId)")
+    }
+
     func setStar(_ itemId: String, starred: Bool) async throws {
         let _: EmptyBody = try await send(starred ? "PUT" : "DELETE", "/api/items/\(itemId)/star")
     }

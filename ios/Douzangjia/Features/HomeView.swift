@@ -1,5 +1,7 @@
 import SwiftUI
 
+struct VanishedListRoute: Hashable {}
+
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var home: HomeSnapshot?
@@ -26,6 +28,9 @@ struct HomeView: View {
                     }
                     stats
                     downloadSection
+                    if let vanished = home?.vanishedCreators, !vanished.isEmpty {
+                        vanishedShelf(vanished, total: home?.stats.vanishedCreators ?? vanished.count)
+                    }
                     if let home, !home.recent.isEmpty {
                         shelf("最近收藏", items: home.recent)
                     }
@@ -47,6 +52,8 @@ struct HomeView: View {
             .task { await load() }
             .onAppear { poller.start(client: model.client, onError: model.handle) }
             .onDisappear { poller.stop() }
+            .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
+            .navigationDestination(for: VanishedListRoute.self) { _ in VanishedCreatorsView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .fullScreenCover(item: $player) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
@@ -112,6 +119,40 @@ struct HomeView: View {
         }
         .padding(16)
         .background(Color.brand.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func vanishedShelf(_ creators: [VanishedCreatorTile], total: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(value: VanishedListRoute()) {
+                HStack {
+                    Text("消失的博主").font(.title3.bold())
+                    Text("\(Format.integer(total))").font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("全部").font(.subheadline).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 14) {
+                    ForEach(creators) { creator in
+                        NavigationLink(value: CreatorRoute(id: creator.id)) {
+                            VStack(spacing: 6) {
+                                CreatorAvatar(path: creator.avatarUrl, size: 64).grayscale(0.85)
+                                Text(creator.nickname).font(.caption.weight(.semibold)).lineLimit(1)
+                                if let status = CreatorArchiveStatus(rawValue: creator.status) {
+                                    StatusBadge(status: status)
+                                }
+                            }
+                            .frame(width: 84)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
     }
 
     private func shelf(_ title: String, items: [FeedItem]) -> some View {

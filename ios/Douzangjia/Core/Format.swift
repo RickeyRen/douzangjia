@@ -35,6 +35,18 @@ enum Format {
         return formatter.localizedString(for: Date(timeIntervalSince1970: Double(unixSeconds)), relativeTo: Date())
     }
 
+    static func date(_ unixSeconds: Int) -> String {
+        Date(timeIntervalSince1970: Double(unixSeconds))
+            .formatted(.dateTime.year().month().day().locale(Locale(identifier: "zh_CN")))
+    }
+
+    /// Douyin-style counts: 1.7万, 9.9万, 1.2亿.
+    static func compact(_ value: Int) -> String {
+        if value >= 100_000_000 { return String(format: "%.1f亿", Double(value) / 100_000_000) }
+        if value >= 10_000 { return String(format: "%.1f万", Double(value) / 10_000) }
+        return integer(value)
+    }
+
     static func dateTime(_ unixSeconds: Int) -> String {
         Date(timeIntervalSince1970: Double(unixSeconds))
             .formatted(.dateTime.month().day().hour().minute().locale(Locale(identifier: "zh_CN")))

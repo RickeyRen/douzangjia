@@ -73,6 +73,7 @@ struct HomeStats: Decodable {
     let creators: Int
     let starred: Int
     let gone: Int
+    let vanishedCreators: Int?
 }
 
 struct SyncHealth: Decodable {
@@ -88,6 +89,90 @@ struct HomeSnapshot: Decodable {
     let health: SyncHealth
     let recent: [FeedItem]
     let starred: [FeedItem]
+    let vanishedCreators: [VanishedCreatorTile]?
+}
+
+struct VanishedCreatorTile: Decodable, Identifiable, Hashable {
+    let id: String
+    let nickname: String
+    let uniqueId: String?
+    let avatarUrl: String?
+    let status: String
+    let since: Int?
+    let itemCount: Int
+}
+
+/// How Douyin has treated a creator; "active" means nothing happened.
+enum CreatorArchiveStatus: String, Decodable {
+    case active, reset, deactivated, banned, vanished
+
+    var label: String {
+        switch self {
+        case .active: "正常"
+        case .reset: "资料被重置"
+        case .deactivated: "已注销"
+        case .banned: "已封禁"
+        case .vanished: "作品已清空"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .active: ""
+        case .reset: "抖音把昵称换成了一串数字、头像换成了默认头像，通常是违规后被处理，作品可能很快消失。"
+        case .deactivated: "账号已经注销，抖音上只剩“该用户已注销”。"
+        case .banned: "抖音上已经打不开这个账号。"
+        case .vanished: "账号还在，但公开作品已经全部消失。"
+        }
+    }
+}
+
+struct CreatorSnapshot: Decodable, Identifiable, Hashable {
+    let id: Int
+    let nickname: String
+    let uniqueId: String?
+    let signature: String?
+    let avatarUrl: String?
+    let coverUrl: String?
+    let followerCount: Int?
+    let followingCount: Int?
+    let totalFavorited: Int?
+    let postCount: Int?
+    let ipLocation: String?
+    let degraded: Bool
+    let firstSeenAt: Int
+    let lastSeenAt: Int
+}
+
+struct CreatorArchive: Decodable, Hashable {
+    let status: CreatorArchiveStatus
+    let since: Int?
+    let currentNickname: String
+    let preserved: CreatorSnapshot?
+    let history: [CreatorSnapshot]?
+}
+
+struct Creator: Decodable, Identifiable, Hashable {
+    let id: String
+    let nickname: String
+    let uniqueId: String?
+    let avatarUrl: String?
+    let followerCount: Int?
+    let postCount: Int?
+    let knownItemCount: Int
+    let archivedItemCount: Int
+    let lastSeenAt: Int
+    let signature: String?
+    let followingCount: Int?
+    let totalFavorited: Int?
+    let ipLocation: String?
+    let archive: CreatorArchive?
+}
+
+struct VanishedPage: Decodable {
+    let items: [Creator]
+    let nextCursor: String?
+    let counts: [String: Int]
 }
 
 struct MissingSummary: Decodable {
