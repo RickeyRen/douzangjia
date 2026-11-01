@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from douyin_archive.api import create_app
 from douyin_archive.config import Settings
 from douyin_archive.db import Database
-from douyin_archive.posters import PosterCache
+from douyin_archive.posters import PosterCache, PosterWarmer
 from douyin_archive.routes.home import sync_health
 
 NOW = 2_000_000_000
@@ -204,6 +204,39 @@ def test_poster_cache_renders_once_and_remembers_failures(tmp_path: Path) -> Non
     # One seek attempt plus one from the first frame, and nothing on the retry.
     assert len((broken_tools / "calls.log").read_text().splitlines()) == 2
     assert not list((tmp_path / "other" / "cache" / "posters").glob("*"))
+
+
+def test_poster_warmer_renders_missing_first_assets_once(tmp_path: Path) -> None:
+    async def scenario() -> tuple[int, int]:
+        database = Database(tmp_path / "data" / "archive.sqlite3")
+        await database.open()
+        await database.execute(
+            "INSERT INTO items (remote_id, author_name, description, item_type, first_seen_at, last_seen_at) "
+            "VALUES ('9', 'a', 'd', 'gallery', 1, 1)"
+        )
+        for media_id, index in ((1, 0), (2, 1)):
+            path = tmp_path / "objects" / "9" / f"00{index}.webp"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"img")
+            await database.execute(
+                "INSERT INTO media_files (id, item_id, asset_index, media_type, relative_path, status, "
+                "created_at, updated_at) VALUES (?, '9', ?, 'image', ?, 'ready', 1, 1)",
+                (media_id, index, f"objects/9/00{index}.webp"),
+            )
+        tools = tmp_path / "tools"
+        tools.mkdir()
+        warmer = PosterWarmer(database, PosterCache(tmp_path, executable=str(fake_ffmpeg(tools))), tmp_path)
+        first = await warmer.run_batch()
+        second = await warmer.run_batch()
+        await database.close()
+        return first, second
+
+    first, second = asyncio.run(scenario())
+
+    # Only the grid's first asset is warmed, and a warm poster is never redone.
+    assert (first, second) == (1, 0)
+    assert (tmp_path / "cache" / "posters" / "1.jpg").is_file()
+    assert not (tmp_path / "cache" / "posters" / "2.jpg").exists()
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs a real ffmpeg")

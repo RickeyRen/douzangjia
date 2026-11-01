@@ -187,6 +187,9 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
         )
         application.state.runtime = runtime
         if runtime is not None:
+            # On-demand posters and the background warmer share one cache and its slots.
+            if hasattr(runtime, "poster_cache"):
+                application.state.poster_cache = runtime.poster_cache
             await runtime.start()
         install_task_dump_signal(asyncio.get_running_loop())
         try:

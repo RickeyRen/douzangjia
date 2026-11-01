@@ -26,6 +26,7 @@ from .media_probe import MediaProbe, MediaProbeBackfill
 from .media_refresh import RUN_EVERY_SECONDS as MEDIA_REFRESH_EVERY_SECONDS
 from .media_refresh import MediaUrlRefresher
 from .notifier import NotificationWatcher, Notifier
+from .posters import WARM_EVERY_SECONDS, PosterCache, PosterWarmer
 from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .remote_sampler import RUN_EVERY_SECONDS, RemoteCheckSampler
@@ -493,6 +494,8 @@ class ArchiveRuntime:
             interval_seconds=settings.sync_interval_seconds,
             coordinator=browser_coordinator,
         )
+        self.poster_cache = PosterCache(settings.archive_root, concurrency=6)
+        self.poster_warmer = PosterWarmer(database, self.poster_cache, settings.archive_root)
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
 
@@ -539,6 +542,15 @@ class ArchiveRuntime:
             "interval",
             seconds=MEDIA_REFRESH_EVERY_SECONDS,
             id="media-url-refresh",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            self.poster_warmer.run_batch,
+            "interval",
+            seconds=WARM_EVERY_SECONDS,
+            id="poster-warmup",
             max_instances=1,
             coalesce=True,
             replace_existing=True,

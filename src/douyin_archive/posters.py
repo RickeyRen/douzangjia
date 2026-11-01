@@ -6,6 +6,10 @@ import shutil
 from pathlib import Path
 
 POSTER_WIDTH = 540
+WARM_EVERY_SECONDS = 60
+WARM_BATCH_SIZE = 120
+# Leave the rest of the cache's ffmpeg slots free for posters a viewer is waiting on.
+WARM_PARALLEL = 3
 
 
 class PosterCache:
@@ -91,6 +95,44 @@ class PosterCache:
             await process.wait()
             return False
         return process.returncode == 0
+
+
+class PosterWarmer:
+    """Render missing grid posters ahead of time so a first visit never waits on ffmpeg."""
+
+    def __init__(self, database, cache: PosterCache, archive_root: Path) -> None:
+        self.database = database
+        self.cache = cache
+        self.archive_root = archive_root.resolve()
+        self._after_id: int | None = None
+
+    async def run_batch(self) -> int:
+        if self.cache.executable is None:
+            return 0
+        # Walk newest first in pages, so recent downloads warm before old ones.
+        rows = await self.database.fetchall(
+            "SELECT id, relative_path, media_type FROM media_files "
+            "WHERE status='ready' AND asset_index=0 AND (? IS NULL OR id<?) "
+            "ORDER BY id DESC LIMIT ?",
+            (self._after_id, self._after_id, WARM_BATCH_SIZE * 8),
+        )
+        self._after_id = int(rows[-1]["id"]) if len(rows) == WARM_BATCH_SIZE * 8 else None
+        pending = [
+            row for row in rows
+            if int(row["id"]) not in self.cache._failed and not _usable(self.cache.path_for(int(row["id"])))
+        ][:WARM_BATCH_SIZE]
+        rendered = 0
+        for start in range(0, len(pending), WARM_PARALLEL):
+            results = await asyncio.gather(
+                *(
+                    self.cache.poster(
+                        int(row["id"]), self.archive_root / str(row["relative_path"]), str(row["media_type"])
+                    )
+                    for row in pending[start : start + WARM_PARALLEL]
+                )
+            )
+            rendered += sum(result is not None for result in results)
+        return rendered
 
 
 def _usable(path: Path) -> bool:

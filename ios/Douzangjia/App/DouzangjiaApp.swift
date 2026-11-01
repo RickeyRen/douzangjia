@@ -8,6 +8,8 @@ struct DouzangjiaApp: App {
     init() {
         // Archived videos should be heard even with the ring/silent switch on.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        // Thumbnails are small and immutable; a roomy disk cache makes the grid instant on return.
+        URLCache.shared = URLCache(memoryCapacity: 32 * 1024 * 1024, diskCapacity: 1024 * 1024 * 1024)
     }
 
     var body: some Scene {
