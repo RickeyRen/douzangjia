@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from ..avatars import avatar_route
+from ..creator_archive import preserved_identity, serialize_snapshot
 from ..library_scope import library_item_sql
 from ..remote_availability import RemoteAvailabilityService
 from ..search import RELEVANCE_SQL, fts_query, search_clause
@@ -69,9 +70,13 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     creator = None
     if row["creator_id"]:
         creator = await database.fetchone(
-            "SELECT remote_id, nickname, unique_id, avatar_url FROM creators WHERE remote_id=?",
+            "SELECT remote_id, nickname, unique_id, avatar_url, archive_status FROM creators WHERE remote_id=?",
             (row["creator_id"],),
         )
+    kept = None
+    if creator is not None and creator["archive_status"] != "active":
+        preserved = await preserved_identity(database, str(creator["remote_id"]))
+        kept = serialize_snapshot(preserved) if preserved is not None else None
     star = await database.fetchone(
         "SELECT starred_at FROM item_stars WHERE item_id=?", (row["remote_id"],)
     )
@@ -113,7 +118,7 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     return {
         "awemeId": row["remote_id"],
         "creatorId": row["creator_id"],
-        "author": row["author_name"],
+        "author": kept["nickname"] if kept else row["author_name"],
         "description": row["description"],
         "type": row["item_type"],
         "publishedAt": row["published_at"],
@@ -131,9 +136,10 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         "creator": (
             {
                 "id": creator["remote_id"],
-                "nickname": creator["nickname"],
-                "uniqueId": creator["unique_id"],
+                "nickname": kept["nickname"] if kept else creator["nickname"],
+                "uniqueId": (kept["uniqueId"] if kept else None) or creator["unique_id"],
                 "avatarUrl": avatar_route(str(creator["remote_id"]), creator["avatar_url"]),
+                "archiveStatus": creator["archive_status"],
             }
             if creator is not None
             else None
@@ -305,6 +311,11 @@ async def feed(
     if source_id:
         joins.append("JOIN source_items si ON si.item_id=i.remote_id AND si.source_id=?")
         parameters.append(source_id)
+    elif creator_id and await request.app.state.database.fetchone(
+        "SELECT 1 FROM creators WHERE remote_id=? AND archive_status<>'active'", (creator_id,)
+    ):
+        # A creator Douyin removed is shown with everything we ever knew of them.
+        pass
     else:
         # Without an explicit source, list only what the user keeps, not passing feeds.
         conditions.append(library_item_sql("i"))

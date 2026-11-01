@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from ..avatars import avatar_route
+from ..creator_archive import preserved_identity
 from ..library_scope import library_item_sql
 from ..sync_health import sync_health_snapshot
 from .feed import _serialize_item
@@ -55,6 +56,30 @@ async def home(request: Request) -> dict[str, Any]:
     checked = await database.fetchone(
         "SELECT COUNT(*) AS total FROM remote_checks WHERE checked_at IS NOT NULL"
     )
+    vanished = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM creators WHERE archive_status<>'active'"
+    )
+    vanished_rows = await database.fetchall(
+        "SELECT c.remote_id, c.archive_status, c.archive_status_since, "
+        "(SELECT COUNT(*) FROM items i WHERE i.creator_id=c.remote_id) AS items "
+        "FROM creators c WHERE c.archive_status<>'active' "
+        "ORDER BY COALESCE(c.archive_status_since, 0) DESC, c.remote_id DESC LIMIT ?",
+        (HOME_SHELF_SIZE,),
+    )
+    vanished_creators = []
+    for row in vanished_rows:
+        kept = await preserved_identity(database, str(row["remote_id"]))
+        vanished_creators.append(
+            {
+                "id": row["remote_id"],
+                "nickname": kept["nickname"] if kept is not None else "",
+                "uniqueId": kept["unique_id"] if kept is not None else None,
+                "avatarUrl": f"/api/creators/{row['remote_id']}/avatar",
+                "status": row["archive_status"],
+                "since": row["archive_status_since"],
+                "itemCount": row["items"],
+            }
+        )
 
     recent_rows = await database.fetchall(
         f"SELECT i.* FROM items i WHERE {in_library} "
@@ -122,7 +147,9 @@ async def home(request: Request) -> dict[str, Any]:
             "starred": stars["total"],
             "gone": gone["total"],
             "remoteChecked": checked["total"],
+            "vanishedCreators": vanished["total"],
         },
+        "vanishedCreators": vanished_creators,
         "health": await sync_health(request),
         "recent": [await _serialize_item(database, row) for row in recent_rows],
         "starred": [await _serialize_item(database, row) for row in starred_rows],

@@ -124,6 +124,7 @@ def test_item_detail_exposes_douyin_creator_file_and_remote_information(
         "nickname": "旅行作者",
         "uniqueId": "travel-user",
         "avatarUrl": "/api/creators/creator-1/avatar",
+        "archiveStatus": "active",
     }
     assert payload["douyin"]["statistics"]["playCount"] == 1000
     assert payload["douyin"]["durationMs"] == 15_200

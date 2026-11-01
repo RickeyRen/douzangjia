@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 
+from .creator_archive import record_snapshot
 from .db import Database
 from .library_models import (
     CreatorRecord,
@@ -99,18 +100,24 @@ class LibraryRepository:
             ),
         )
 
-    async def upsert_creator(self, creator: CreatorRecord) -> None:
+    async def upsert_creator(self, creator: CreatorRecord, *, source: str = "sync") -> None:
         now = int(time.time())
         await self.db.execute(
             "INSERT INTO creators "
             "(remote_id, nickname, unique_id, avatar_url, follower_count, post_count, "
-            "first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "signature, following_count, total_favorited, ip_location, cover_url, "
+            "first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(remote_id) DO UPDATE SET "
             "nickname=excluded.nickname, "
             "unique_id=COALESCE(excluded.unique_id, creators.unique_id), "
             "avatar_url=COALESCE(excluded.avatar_url, creators.avatar_url), "
             "follower_count=COALESCE(excluded.follower_count, creators.follower_count), "
             "post_count=COALESCE(excluded.post_count, creators.post_count), "
+            "signature=COALESCE(excluded.signature, creators.signature), "
+            "following_count=COALESCE(excluded.following_count, creators.following_count), "
+            "total_favorited=COALESCE(excluded.total_favorited, creators.total_favorited), "
+            "ip_location=COALESCE(excluded.ip_location, creators.ip_location), "
+            "cover_url=COALESCE(excluded.cover_url, creators.cover_url), "
             "last_seen_at=excluded.last_seen_at",
             (
                 creator.remote_id,
@@ -119,10 +126,17 @@ class LibraryRepository:
                 creator.avatar_url,
                 creator.follower_count,
                 creator.post_count,
+                creator.signature,
+                creator.following_count,
+                creator.total_favorited,
+                creator.ip_location,
+                creator.cover_url,
                 now,
                 now,
             ),
         )
+        # The row above is today's truth; the snapshot keeps every earlier identity.
+        await record_snapshot(self.db, creator, source=source, seen_at=now)
 
     async def next_creator_missing_identity(
         self, *, retry_after_seconds: int

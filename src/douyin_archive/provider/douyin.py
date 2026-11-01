@@ -16,6 +16,7 @@ from ..remote_availability import evidence_for_probe_response
 from .base import (
     ProviderChanged,
     ProviderError,
+    ProviderUnavailable,
     RawPageSource,
     RemoteCollection,
     RemotePage,
@@ -366,8 +367,58 @@ class PlaywrightDouyinSource:
         records = payload.get("aweme_list", [])
         return [record for record in records if isinstance(record, dict)]
 
+    async def fetch_creator_profile_payload(self, creator_id: str) -> dict[str, Any]:
+        """Douyin's own profile record, which also states bans and closed accounts."""
+        await self.open()
+        if "douyin.com" not in str(self._page.url):
+            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+        result = await self._page.evaluate(
+            """
+            async ({creatorId}) => { // __douzangjiaCreatorProfileApi
+              const url = new URL('/aweme/v1/web/user/profile/other/', window.location.origin);
+              url.searchParams.set('sec_user_id', creatorId);
+              url.searchParams.set('device_platform', 'webapp');
+              url.searchParams.set('aid', '6383');
+              const controller = new AbortController();
+              const timeout = window.setTimeout(() => controller.abort(), 10_000);
+              try {
+                const response = await fetch(url.toString(), {
+                  credentials: 'include', cache: 'no-store', signal: controller.signal,
+                  headers: {Accept: 'application/json, text/plain, */*'},
+                });
+                let data = null;
+                try { data = JSON.parse(await response.text()); } catch {}
+                if (!data) return {httpStatus: response.status, statusCode: null, user: null};
+                return {
+                  httpStatus: response.status,
+                  statusCode: data.status_code ?? null,
+                  statusMessage: data.status_msg ?? null,
+                  user: data.user && Object.keys(data.user).length ? data.user : null,
+                };
+              } catch {
+                return {httpStatus: 0, statusCode: null, user: null};
+              } finally {
+                window.clearTimeout(timeout);
+              }
+            }
+            """,
+            {"creatorId": creator_id},
+        )
+        if not isinstance(result, dict) or int(result.get("httpStatus") or 0) != 200:
+            raise ProviderUnavailable("Douyin profile request did not complete")
+        return result
+
     async def fetch_creator_profile(self, creator_id: str) -> CreatorRecord:
-        """Read the creator identity rendered by Douyin's logged-in profile page."""
+        """Read the creator identity, from the profile record or the rendered page."""
+        from ..creator_archive import creator_from_profile
+
+        with suppress(ProviderError):
+            payload = await self.fetch_creator_profile_payload(creator_id)
+            user = payload.get("user")
+            if payload.get("statusCode") in (0, None) and isinstance(user, dict):
+                record = creator_from_profile(creator_id, user)
+                if record is not None:
+                    return record
         await self.open()
         await self._page.goto(
             f"https://www.douyin.com/user/{creator_id}",

@@ -17,6 +17,19 @@ from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .auth_service import AuthService
 from .browser_coordinator import BrowserCoordinator
 from .config import Settings
+from .creator_archive import (
+    CHECK_EVERY_SECONDS as CREATOR_CHECK_EVERY_SECONDS,
+)
+from .creator_archive import (
+    MEDIA_EVERY_SECONDS as CREATOR_MEDIA_EVERY_SECONDS,
+)
+from .creator_archive import (
+    CreatorMediaPreserver,
+    CreatorStatusChecker,
+    ProfileProbe,
+    backfill_snapshots,
+    probe_from_payload,
+)
 from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
@@ -193,6 +206,15 @@ class RuntimeSyncCoordinator:
             source = self.profile_source_factory()
             try:
                 return await source.fetch_creator_profile(creator_id)
+            finally:
+                await source.close()
+
+    async def probe_creator_profile(self, creator_id: str) -> ProfileProbe:
+        async with self._profile_lock:
+            await self._require_side_session()
+            source = self.profile_source_factory()
+            try:
+                return probe_from_payload(await source.fetch_creator_profile_payload(creator_id))
             finally:
                 await source.close()
 
@@ -496,6 +518,11 @@ class ArchiveRuntime:
         )
         self.poster_cache = PosterCache(settings.archive_root, concurrency=6)
         self.poster_warmer = PosterWarmer(database, self.poster_cache, settings.archive_root)
+        self.creator_checker = CreatorStatusChecker(
+            database, self.sync.probe_creator_profile, rescue=self.sync.trigger_creator_archive
+        )
+        self.creator_media = CreatorMediaPreserver(database, settings.archive_root)
+        self._creator_backfill_task: asyncio.Task[int] | None = None
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
 
@@ -511,6 +538,9 @@ class ArchiveRuntime:
         self._refresh_watcher(self.runtime_settings)
         resize_workers(self.workers, self._worker_tasks, self._make_worker, self.runtime_settings.download_workers)
         self._probe_task = asyncio.create_task(self._probe_existing_media())
+        self._creator_backfill_task = asyncio.create_task(
+            backfill_snapshots(self.database, self.settings.archive_root)
+        )
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         configure_scheduler(
             self._scheduler,
@@ -546,6 +576,19 @@ class ArchiveRuntime:
             coalesce=True,
             replace_existing=True,
         )
+        for job, seconds, job_id in (
+            (self.creator_checker.run_tick, CREATOR_CHECK_EVERY_SECONDS, "creator-status-check"),
+            (self.creator_media.run_batch, CREATOR_MEDIA_EVERY_SECONDS, "creator-media-preserve"),
+        ):
+            self._scheduler.add_job(
+                job,
+                "interval",
+                seconds=seconds,
+                id=job_id,
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
         self._scheduler.add_job(
             self.poster_warmer.run_batch,
             "interval",
@@ -570,6 +613,11 @@ class ArchiveRuntime:
             with suppress(asyncio.CancelledError):
                 await task
         self._worker_tasks.clear()
+        if self._creator_backfill_task is not None:
+            self._creator_backfill_task.cancel()
+            with suppress(asyncio.CancelledError, Exception):
+                await self._creator_backfill_task
+            self._creator_backfill_task = None
         if self._probe_task is not None:
             self._probe_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -603,6 +651,9 @@ class ArchiveRuntime:
 
     async def refresh_creator_profile(self, creator_id: str) -> CreatorRecord:
         return await self.sync.refresh_creator_profile(creator_id)
+
+    async def check_creator_status(self, creator_id: str) -> str | None:
+        return await self.creator_checker.check(creator_id)
 
     def dashboard_runtime(self) -> dict[str, object]:
         return {

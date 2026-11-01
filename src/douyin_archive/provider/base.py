@@ -15,6 +15,10 @@ class SessionExpired(ProviderError):
     code = "DOUYIN_SESSION_EXPIRED"
 
 
+class ProviderUnavailable(ProviderError):
+    code = "NETWORK_TIMEOUT"
+
+
 class RateLimited(ProviderError):
     code = "RATE_LIMITED"
 

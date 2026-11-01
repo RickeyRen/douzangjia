@@ -79,7 +79,9 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
         "starred": 1,
         "gone": 0,
         "remoteChecked": 0,
+        "vanishedCreators": 0,
     }
+    assert body["vanishedCreators"] == []
     assert [item["awemeId"] for item in body["recent"]] == ["702", "701"]
     assert [item["awemeId"] for item in body["starred"]] == ["701"]
     # Watch history is not a shelf; the collection prefers downloaded posters first.

@@ -49,6 +49,11 @@ class CreatorRecord:
     avatar_url: str | None = None
     follower_count: int | None = None
     post_count: int | None = None
+    signature: str | None = None
+    following_count: int | None = None
+    total_favorited: int | None = None
+    ip_location: str | None = None
+    cover_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
