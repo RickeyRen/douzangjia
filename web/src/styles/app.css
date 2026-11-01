@@ -1774,6 +1774,225 @@ a.stat:hover {
   gap: 8px;
 }
 
+.profile-signature {
+  margin: 8px 0 0;
+  color: var(--text);
+  white-space: pre-line;
+}
+
+/* ---------- Vanished creators ---------- */
+.vanished-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.vanished-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.vanished-card:hover {
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+
+.vanished-cover {
+  height: 72px;
+  background: linear-gradient(135deg, var(--surface-2), var(--line)) center / cover no-repeat;
+  filter: grayscale(0.6);
+}
+
+.vanished-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0 14px;
+}
+
+.vanished-body .avatar {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  margin-top: -30px;
+  font-size: 20px;
+  box-shadow: 0 0 0 3px var(--surface);
+  filter: grayscale(0.85);
+}
+
+.vanished-card:hover .vanished-body .avatar {
+  box-shadow: 0 0 0 3px var(--surface-2);
+}
+
+.vanished-text {
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.vanished-text strong,
+.vanished-text small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vanished-text small,
+.vanished-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vanished-now {
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+
+.vanished-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 12px 14px 14px;
+}
+
+.vanished-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.vanished-reset {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.vanished-deactivated,
+.vanished-vanished {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.vanished-banned {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.archive-profile {
+  margin: 8px 0 24px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.archive-cover {
+  position: relative;
+  height: 150px;
+  background: linear-gradient(135deg, var(--surface-2), var(--line)) center / cover no-repeat;
+}
+
+.archive-ribbon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.archive-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 0 22px;
+}
+
+.archive-head .avatar {
+  flex: none;
+  width: 104px;
+  height: 104px;
+  margin-top: -40px;
+  font-size: 34px;
+  box-shadow: 0 0 0 4px var(--surface);
+}
+
+.archive-head .profile-body {
+  padding-top: 12px;
+}
+
+.archive-note {
+  display: grid;
+  gap: 6px;
+  margin: 16px 22px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.archive-note p {
+  margin: 0;
+}
+
+.archive-note .profile-actions {
+  margin-top: 6px;
+}
+
+.archive-history {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0 22px 18px;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.archive-history li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  flex: none;
+  max-width: 220px;
+  padding: 8px 12px 8px 8px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.archive-history li .avatar {
+  grid-row: span 2;
+}
+
+.archive-history li small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.archive-history-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.archive-history li.is-degraded .archive-history-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 /* ---------- Entity grid (music etc.) ---------- */
 .entity-grid {
   display: grid;
@@ -3221,6 +3440,33 @@ a.stat:hover {
 
   .profile-actions {
     width: 100%;
+  }
+
+  .archive-cover {
+    height: 110px;
+  }
+
+  .archive-head {
+    gap: 12px;
+    padding: 0 16px;
+  }
+
+  .archive-head .avatar {
+    width: 76px;
+    height: 76px;
+    margin-top: -30px;
+  }
+
+  .archive-head .profile-body h1 {
+    font-size: 21px;
+  }
+
+  .archive-note {
+    margin: 14px 16px 0;
+  }
+
+  .archive-history {
+    padding: 0 16px 16px;
   }
 
   .player {

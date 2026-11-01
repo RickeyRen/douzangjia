@@ -10,6 +10,7 @@ it.each<Route>([
   { name: "search", query: "旅行 vlog", filters: { type: "video" } },
   { name: "creators", query: "小鹿" },
   { name: "creator", creatorId: "MS4wLjAB/x", filters: {} },
+  { name: "vanished" },
   { name: "album", albumId: 7, filters: { sort: "album" } },
   { name: "tag", tag: "做饭 周末", filters: {} },
   { name: "gone", filters: { type: "video" } },

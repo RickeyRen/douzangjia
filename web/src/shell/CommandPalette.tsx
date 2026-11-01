@@ -1,4 +1,4 @@
-import { CloudSlash, GearSix, House, Images, MagnifyingGlass, Pulse, SquaresFour, Star, User, Users } from "@phosphor-icons/react";
+import { CloudSlash, GearSix, Ghost, House, Images, MagnifyingGlass, Pulse, SquaresFour, Star, User, Users } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { fetchCreators, type Creator } from "../app/api";
@@ -15,6 +15,7 @@ const PAGES: Entry[] = [
   { id: "library", label: t("全部作品"), icon: <SquaresFour size={16} />, route: { name: "library", filters: {} } },
   { id: "starred", label: t("精选"), icon: <Star size={16} />, route: { name: "starred", filters: {} } },
   { id: "creators", label: t("博主"), icon: <Users size={16} />, route: { name: "creators", query: "" } },
+  { id: "vanished", label: t("消失的博主"), icon: <Ghost size={16} />, route: { name: "vanished" } },
   { id: "gone", label: t("已在抖音消失"), icon: <CloudSlash size={16} />, route: { name: "gone", filters: {} } },
   { id: "activity", label: t("同步与下载"), icon: <Pulse size={16} />, route: { name: "activity" } },
   { id: "settings", label: t("设置"), icon: <GearSix size={16} />, route: { name: "settings" } },

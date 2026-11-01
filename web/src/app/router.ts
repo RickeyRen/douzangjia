@@ -16,6 +16,7 @@ export type Route =
   | { name: "starred"; filters: LibraryFilters }
   | { name: "search"; query: string; filters: LibraryFilters }
   | { name: "creators"; query: string }
+  | { name: "vanished" }
   | { name: "creator"; creatorId: string; filters: LibraryFilters }
   | { name: "album"; albumId: number; filters: LibraryFilters }
   | { name: "tag"; tag: string; filters: LibraryFilters }
@@ -66,6 +67,8 @@ export function parseRoute(hash: string): Route {
       return { name: "creators", query: params.get("q") ?? "" };
     case "creator":
       return segments[1] ? { name: "creator", creatorId: segments[1], filters } : { name: "creators", query: "" };
+    case "vanished":
+      return { name: "vanished" };
     case "album": {
       const albumId = Number(segments[1]);
       return Number.isInteger(albumId) && albumId > 0 ? { name: "album", albumId, filters } : { name: "library", filters };
@@ -105,6 +108,9 @@ export function routeHref(route: Route): string {
     case "creators":
       path = "/creators";
       if (route.query) params.set("q", route.query);
+      break;
+    case "vanished":
+      path = "/vanished";
       break;
     case "creator":
       path = `/creator/${encodeURIComponent(route.creatorId)}`;

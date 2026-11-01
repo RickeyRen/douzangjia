@@ -116,6 +116,41 @@ export type Creator = {
   archivedItemCount: number;
   lastSeenAt: number;
   subscription: CreatorSubscription | null;
+  signature?: string | null;
+  followingCount?: number | null;
+  totalFavorited?: number | null;
+  ipLocation?: string | null;
+  archive?: CreatorArchive;
+};
+
+export type CreatorArchiveStatus = "active" | "reset" | "deactivated" | "banned" | "vanished";
+
+export type CreatorSnapshot = {
+  id: number;
+  nickname: string;
+  uniqueId: string | null;
+  signature: string | null;
+  avatarUrl: string | null;
+  coverUrl: string | null;
+  followerCount: number | null;
+  followingCount: number | null;
+  totalFavorited: number | null;
+  postCount: number | null;
+  ipLocation: string | null;
+  degraded: boolean;
+  source: string;
+  firstSeenAt: number;
+  lastSeenAt: number;
+};
+
+export type CreatorArchive = {
+  status: CreatorArchiveStatus;
+  since: number | null;
+  checkedAt: number | null;
+  currentNickname: string;
+  currentAvatarUrl: string | null;
+  preserved: CreatorSnapshot | null;
+  history?: CreatorSnapshot[];
 };
 
 export type ArchiveBatch = {
@@ -658,6 +693,13 @@ export const logout = () => request<Record<string, unknown>>("/api/session", { m
 export const logoutDouyin = () =>
   request<{ douyinAuthenticated: boolean }>("/api/douyin/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
+export const fetchVanishedCreators = (cursor?: string) => {
+  const params = new URLSearchParams({ limit: "60" });
+  if (cursor) params.set("cursor", cursor);
+  return request<Page<Creator> & { counts: Partial<Record<CreatorArchiveStatus, number>> }>(`/api/creators/vanished?${params}`);
+};
+export const recheckCreator = (creatorId: string) =>
+  request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/archive-check`, { method: "POST" });
 export const refreshCreator = (creatorId: string) =>
   request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/refresh`, { method: "POST" });
 export const archiveItem = (remoteId: string) =>

@@ -4,6 +4,7 @@ import {
   CaretUp,
   CloudSlash,
   GearSix,
+  Ghost,
   House,
   Images,
   MagnifyingGlass,
@@ -118,6 +119,7 @@ function Sidebar({ route }: { route: Route }) {
           <NavLink to={{ name: "library", filters: {} }} current={route} icon={<SquaresFour size={18} />} label={t("全部作品")} />
           <NavLink to={{ name: "starred", filters: {} }} current={route} icon={<Star size={18} />} label={t("精选")} />
           <NavLink to={{ name: "creators", query: "" }} current={route} icon={<Users size={18} />} label={t("博主")} />
+          <NavLink to={{ name: "vanished" }} current={route} icon={<Ghost size={18} />} label={t("消失的博主")} />
           <NavLink to={{ name: "gone", filters: {} }} current={route} icon={<CloudSlash size={18} />} label={t("已在抖音消失")} />
         </div>
         <div className="nav-group">
@@ -294,7 +296,7 @@ function TabBar({ route }: { route: Route }) {
     { to: { name: "home" }, label: t("首页"), icon: <House size={22} />, match: (r) => r.name === "home" },
     { to: { name: "library", filters: {} }, label: t("资料库"), icon: <SquaresFour size={22} />, match: (r) => r.name === "library" || r.name === "search" },
     { to: { name: "starred", filters: {} }, label: t("精选"), icon: <Star size={22} />, match: (r) => r.name === "starred" },
-    { to: { name: "creators", query: "" }, label: t("博主"), icon: <Users size={22} />, match: (r) => r.name === "creators" || r.name === "creator" },
+    { to: { name: "creators", query: "" }, label: t("博主"), icon: <Users size={22} />, match: (r) => r.name === "creators" || r.name === "creator" || r.name === "vanished" },
     { to: { name: "activity" }, label: t("状态"), icon: <Pulse size={22} />, match: (r) => r.name === "activity" || r.name === "settings" },
   ];
   return (

@@ -1,17 +1,19 @@
-import { CloudArrowDown, MagnifyingGlass, Users } from "@phosphor-icons/react";
+import { CloudArrowDown, Ghost, MagnifyingGlass, Users } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   archiveCreator,
   fetchCreator,
   fetchCreators,
+  recheckCreator,
   refreshCreator,
   updateCreatorSubscription,
   type Creator,
 } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { navigate, routeHref, type LibraryFilters, type Route } from "../app/router";
-import { formatCount, formatInteger, formatRelative } from "../lib/format";
+import { ARCHIVE_STATUS_HINT, ARCHIVE_STATUS_LABEL, formerNames, isArchived } from "../lib/creatorArchive";
+import { formatCount, formatDate, formatInteger, formatRelative } from "../lib/format";
 import { FeedBrowser } from "../media/FeedBrowser";
 import { Avatar, EmptyState, ErrorState, PageHeader, Segmented, Spinner, Switch } from "../ui/primitives";
 import { t } from "../i18n/t";
@@ -132,7 +134,8 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
       .then(async (value) => {
         if (!active) return;
         setCreator(value);
-        if (!value.uniqueId) {
+        // A removed creator's profile only says what Douyin did to it; keep the archive as is.
+        if (!value.uniqueId && !isArchived(value)) {
           // Sparse profiles can be filled in from Douyin; failures just keep what we have.
           const refreshed = await refreshCreator(route.creatorId).catch(() => null);
           if (active && refreshed) setCreator(refreshed);
@@ -170,6 +173,21 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
 
   if (error) return <ErrorState message="找不到这位博主。" onRetry={() => navigate({ name: "creators", query: "" })} />;
 
+  if (creator && isArchived(creator)) {
+    return (
+      <>
+        <ArchiveProfile creator={creator} onChange={setCreator} />
+        <FeedBrowser
+          base={base}
+          filters={route.filters}
+          sorts={["published", "archived", "random"]}
+          onFiltersChange={(filters: LibraryFilters) => navigate({ ...route, filters }, { replace: true })}
+          showMeta={false}
+        />
+      </>
+    );
+  }
+
   const subscribed = Boolean(creator?.subscription?.enabled);
   return (
     <>
@@ -178,6 +196,10 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
         <div className="profile-body">
           <h1>{creator?.nickname ?? t("加载中…")}</h1>
           <div className="profile-id">{creator?.uniqueId ? t("抖音号 {id}", { id: creator.uniqueId }) : creator ? t("抖音号暂未获取") : " "}</div>
+          {creator?.signature ? <p className="profile-signature">{creator.signature}</p> : null}
+          {creator && formerNames(creator).length ? (
+            <div className="profile-id">{t("曾用名 {names}", { names: formerNames(creator).join("、") })}</div>
+          ) : null}
           {creator ? (
             <div className="profile-stats">
               <span>
@@ -223,5 +245,123 @@ export function CreatorPage({ route }: { route: Extract<Route, { name: "creator"
         showMeta={false}
       />
     </>
+  );
+}
+
+function ArchiveProfile({ creator, onChange }: { creator: Creator; onChange: (creator: Creator) => void }) {
+  const { toast } = useAppData();
+  const [checking, setChecking] = useState(false);
+  const [rescuing, setRescuing] = useState(false);
+  const archive = creator.archive!;
+  const status = archive.status === "active" ? "vanished" : archive.status;
+  const kept = archive.preserved;
+  const history = (archive.history ?? []).slice().reverse();
+
+  async function recheck() {
+    setChecking(true);
+    try {
+      const next = await recheckCreator(creator.id);
+      onChange(next);
+      toast(next.archive?.status === "active" ? t("这位博主在抖音上又能看到了") : t("已重新检查，状态没有变化"));
+    } catch {
+      toast(t("检查失败，请确认抖音登录状态"));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function rescue() {
+    setRescuing(true);
+    try {
+      await archiveCreator(creator.id);
+      toast(t("已开始抢救这位博主的全部作品"));
+    } catch {
+      toast(t("抢救失败，作品可能已经无法访问"));
+    } finally {
+      setRescuing(false);
+    }
+  }
+
+  const stats: Array<[string, number | null | undefined]> = [
+    [t("关注"), kept?.followingCount ?? creator.followingCount],
+    [t("粉丝"), kept?.followerCount ?? creator.followerCount],
+    [t("获赞"), kept?.totalFavorited ?? creator.totalFavorited],
+    [t("作品"), kept?.postCount ?? creator.postCount],
+  ];
+  return (
+    <section className="archive-profile">
+      <div className="archive-cover" style={kept?.coverUrl ? { backgroundImage: `url(${kept.coverUrl})` } : undefined}>
+        <span className={`archive-ribbon vanished-${status}`}>
+          <Ghost size={14} weight="fill" />
+          {ARCHIVE_STATUS_LABEL[status]}
+          {archive.since ? ` · ${formatDate(archive.since)}` : ""}
+        </span>
+      </div>
+      <div className="archive-head">
+        <Avatar src={creator.avatarUrl} name={creator.nickname} />
+        <div className="profile-body">
+          <h1>{creator.nickname}</h1>
+          <div className="profile-id">
+            {creator.uniqueId ? t("抖音号 {id}", { id: creator.uniqueId }) : t("抖音号未知")}
+            {kept?.ipLocation ?? creator.ipLocation ? ` · ${t("IP 属地 {place}", { place: kept?.ipLocation ?? creator.ipLocation ?? "" })}` : ""}
+          </div>
+          {kept?.signature ?? creator.signature ? <p className="profile-signature">{kept?.signature ?? creator.signature}</p> : null}
+          <div className="profile-stats">
+            {stats
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <span key={label}>
+                  <strong>{formatCount(value)}</strong>
+                  {label}
+                </span>
+              ))}
+          </div>
+        </div>
+      </div>
+      <div className="archive-note">
+        <p>{ARCHIVE_STATUS_HINT[status]}</p>
+        <p>
+          {t("这里显示的是 Ta 原来的资料，最后一次见到是 {date}。现在抖音上显示为「{name}」。", {
+            date: formatDate(kept?.lastSeenAt ?? creator.lastSeenAt),
+            name: archive.currentNickname,
+          })}
+        </p>
+        <p>
+          {t("你收藏过 {known} 个作品，已存到 NAS {saved} 个。", {
+            known: formatInteger(creator.knownItemCount),
+            saved: formatInteger(creator.archivedItemCount),
+          })}
+        </p>
+        <div className="profile-actions">
+          {status === "reset" ? (
+            <button type="button" className="btn btn-primary btn-sm" disabled={rescuing} onClick={() => void rescue()}>
+              {rescuing ? <Spinner size={14} /> : <CloudArrowDown size={16} weight="bold" />}
+              {t("抢救全部作品")}
+            </button>
+          ) : null}
+          <button type="button" className="btn btn-secondary btn-sm" disabled={checking} onClick={() => void recheck()}>
+            {checking ? <Spinner size={14} /> : null}
+            {t("重新检查")}
+          </button>
+          <a className="btn btn-ghost btn-sm" href={`https://www.douyin.com/user/${creator.id}`} target="_blank" rel="noreferrer">
+            {t("抖音主页")}
+          </a>
+        </div>
+      </div>
+      {history.length > 1 ? (
+        <ol className="archive-history" aria-label={t("资料变化")}>
+          {history.map((snapshot) => (
+            <li key={snapshot.id} className={snapshot.degraded ? "is-degraded" : undefined}>
+              <Avatar src={snapshot.avatarUrl} name={snapshot.nickname} size={28} />
+              <span className="archive-history-name">{snapshot.nickname}</span>
+              <small>
+                {formatDate(snapshot.firstSeenAt)}
+                {snapshot.lastSeenAt !== snapshot.firstSeenAt ? ` – ${formatDate(snapshot.lastSeenAt)}` : ""}
+              </small>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
   );
 }
