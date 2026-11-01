@@ -511,7 +511,9 @@ class CreatorStatusChecker:
             return None
         status, strength, evidence = verdict
         previous = str(current["archive_status"])
-        first_look = current["archive_checked_at"] is None and previous == ACTIVE
+        # Evidence is only written once a verdict is settled, so a creator still
+        # awaiting confirmation of its very first classification has none.
+        first_look = current["archive_evidence"] is None and previous == ACTIVE
         if status == previous:
             await self.database.execute(
                 "UPDATE creators SET archive_checked_at=?, archive_evidence=?, "

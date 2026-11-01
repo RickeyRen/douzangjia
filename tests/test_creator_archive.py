@@ -228,6 +228,29 @@ def test_checker_confirms_soft_verdicts_and_rescues_new_resets(tmp_path: Path) -
     assert kept["nickname"] == "乐酷"
 
 
+def test_checker_leaves_creators_reset_before_the_first_look_to_the_user(tmp_path: Path) -> None:
+    reset = user(nickname="49855631198", unique_id="49855631198", avatar_thumb={"url_list": [DEFAULT]})
+    rescued: list[str] = []
+
+    async def probe(creator_id: str) -> ProfileProbe:
+        return ProfileProbe(0, None, reset)
+
+    async def rescue(creator_id: str) -> None:
+        rescued.append(creator_id)
+
+    async def scenario():
+        database = await open_db(tmp_path)
+        await LibraryRepository(database).upsert_creator(CreatorRecord("c7", "乐酷", "leku", AVATAR))
+        checker = CreatorStatusChecker(database, probe, rescue=rescue)
+        statuses = [await checker.check("c7") for _ in range(3)]
+        await database.close()
+        return statuses
+
+    # An old reset is archived but not mass-downloaded; that stays the user's call.
+    assert run(scenario())[-1] == RESET
+    assert rescued == []
+
+
 def test_checker_treats_unreachable_douyin_as_no_evidence(tmp_path: Path) -> None:
     async def probe(creator_id: str) -> ProfileProbe:
         raise ProviderUnavailable("offline")
