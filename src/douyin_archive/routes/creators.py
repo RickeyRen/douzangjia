@@ -55,7 +55,8 @@ def _serialize_creator(row, preserved=None) -> dict[str, object]:
     use_kept = archived and kept is not None
     return {
         "id": row["remote_id"],
-        "nickname": kept["nickname"] if use_kept else row["nickname"],
+        # Without a chosen name on record, Douyin's "该用户已注销" is not who they were.
+        "nickname": kept["nickname"] if use_kept else ("原名未知" if archived else row["nickname"]),
         "uniqueId": (kept["uniqueId"] or row["unique_id"]) if use_kept else row["unique_id"],
         "avatarUrl": (kept["avatarUrl"] or current_avatar) if use_kept else current_avatar,
         "followerCount": row["follower_count"],
@@ -153,32 +154,44 @@ async def vanished_creators(
     request: Request,
     limit: int = Query(default=60, ge=1, le=200),
     cursor: str | None = None,
+    search: str | None = None,
+    sort: str = Query(default="recent", pattern="^(recent|saved)$"),
 ):
-    """Creators Douyin has banned, reset, closed or emptied, newest first."""
+    """Creators Douyin has banned, reset, closed or emptied."""
     database = request.app.state.database
     placeholders = ",".join("?" for _ in ARCHIVE_STATUSES)
     parameters: list[object] = list(ARCHIVE_STATUSES)
     condition = ""
+    if search:
+        # Any name they ever had counts: the current one is often just Douyin's placeholder.
+        condition = (
+            " AND EXISTS (SELECT 1 FROM creator_snapshots s WHERE s.creator_id=c.remote_id "
+            "AND (s.nickname LIKE ? OR s.unique_id LIKE ?))"
+        )
+        term = f"%{search}%"
+        parameters.extend((term, term))
+    sort_key = "COALESCE(c.archive_status_since, 0)" if sort == "recent" else "archived_item_count"
+    having = ""
+    having_parameters: list[object] = []
     if cursor:
         try:
             before, remote_id = _decode_cursor(cursor)
         except ValueError:
             return JSONResponse(status_code=400, content={"code": "INVALID_CURSOR", "message": "分页游标无效"})
-        condition = (
-            " AND (COALESCE(c.archive_status_since, 0) < ? OR "
-            "(COALESCE(c.archive_status_since, 0) = ? AND c.remote_id < ?))"
-        )
-        parameters.extend((before, before, remote_id))
+        having = f" HAVING ({sort_key} < ? OR ({sort_key} = ? AND c.remote_id < ?))"
+        having_parameters = [before, before, remote_id]
     rows = await database.fetchall(
         _select_sql(f"WHERE c.archive_status IN ({placeholders}){condition}")
-        + " ORDER BY COALESCE(c.archive_status_since, 0) DESC, c.remote_id DESC LIMIT ?",
-        (*parameters, limit + 1),
+        + having
+        + f" ORDER BY {sort_key} DESC, c.remote_id DESC LIMIT ?",
+        (*parameters, *having_parameters, limit + 1),
     )
     visible = rows[:limit]
     next_cursor = None
     if len(rows) > limit and visible:
         last = visible[-1]
-        next_cursor = _encode_cursor(int(last["archive_status_since"] or 0), str(last["remote_id"]))
+        key = last["archive_status_since"] if sort == "recent" else last["archived_item_count"]
+        next_cursor = _encode_cursor(int(key or 0), str(last["remote_id"]))
     counts = await database.fetchall(
         f"SELECT archive_status, COUNT(*) AS n FROM creators WHERE archive_status IN ({placeholders}) "
         "GROUP BY archive_status",

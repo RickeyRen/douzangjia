@@ -23,7 +23,9 @@ EVENT_TITLES = {
     "stale": "同步已经停止",
     "disk_low": "NAS 空间不足",
     "recovered": "同步已恢复",
+    "creator_vanished": "有博主消失了",
 }
+VANISHED_LABELS = {"reset": "资料被重置", "deactivated": "已注销", "banned": "已封禁", "vanished": "作品已清空"}
 ALERT_STATES = {"login_required", "failing", "stale"}
 REMIND_AFTER_SECONDS = 6 * 3600
 DISK_LOW_FREE_BYTES = 10 * 1024**3
@@ -176,10 +178,38 @@ class NotificationWatcher:
         else:
             state["disk_low"] = False
 
+        vanished = await self._vanished_note(state, now)
+        if vanished is not None and self.notifier.wants("creator_vanished"):
+            sent.append(vanished)
+
         for note in sent:
             await self.notifier.send(note)
         await self._save_state(state)
         return sent
+
+    async def _vanished_note(self, state: dict[str, Any], now: int) -> Notification | None:
+        """Announce creators removed since the last look; older ones are not news."""
+        since = state.get("creators_seen_until")
+        state["creators_seen_until"] = now
+        if since is None:
+            return None
+        rows = await self.db.fetchall(
+            "SELECT c.remote_id, c.nickname, c.archive_status, COALESCE((SELECT s.nickname FROM creator_snapshots s "
+            "WHERE s.creator_id=c.remote_id AND s.degraded=0 ORDER BY s.last_seen_at DESC LIMIT 1), c.nickname) AS kept "
+            "FROM creators c WHERE c.archive_status<>'active' AND c.archive_status_since>? "
+            "AND c.archive_status_since<=? ORDER BY c.archive_status_since DESC",
+            (int(since), now),
+        )
+        if not rows:
+            return None
+        names = "、".join(f"{row['kept']}（{VANISHED_LABELS.get(str(row['archive_status']), '已消失')}）" for row in rows[:3])
+        more = f" 等 {len(rows)} 位博主" if len(rows) > 3 else ""
+        return Notification(
+            "creator_vanished",
+            EVENT_TITLES["creator_vanished"],
+            f"{names}{more}。原来的资料和作品记录都留在“消失的博主”里。",
+            "info",
+        )
 
     def _disk_low(self) -> str | None:
         try:

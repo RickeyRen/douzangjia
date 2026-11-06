@@ -13,6 +13,8 @@ struct VanishedCreatorsView: View {
     @State private var cursor: String?
     @State private var error: String?
     @State private var loadingMore = false
+    @State private var search = ""
+    @State private var sort = "recent"
 
     var body: some View {
         List {
@@ -52,13 +54,31 @@ struct VanishedCreatorsView: View {
             }
         }
         .navigationTitle("消失的博主")
+        .searchable(text: $search, prompt: "曾用名或抖音号")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("排序", selection: $sort) {
+                        Text("最近发现").tag("recent")
+                        Text("存下最多").tag("saved")
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+                .accessibilityLabel("排序")
+            }
+        }
         .refreshable { await load() }
-        .task { if creators == nil { await load() } }
+        // Waits briefly so each keystroke does not query the NAS.
+        .task(id: "\(search)|\(sort)") {
+            if !search.isEmpty { try? await Task.sleep(for: .milliseconds(300)) }
+            if !Task.isCancelled { await load() }
+        }
     }
 
     private func load() async {
         do {
-            let page = try await model.client.vanishedCreators(cursor: nil)
+            let page = try await model.client.vanishedCreators(cursor: nil, search: search, sort: sort)
             creators = page.items
             counts = page.counts
             cursor = page.nextCursor
@@ -73,7 +93,7 @@ struct VanishedCreatorsView: View {
         guard let cursor, !loadingMore else { return }
         loadingMore = true
         defer { loadingMore = false }
-        if let page = try? await model.client.vanishedCreators(cursor: cursor) {
+        if let page = try? await model.client.vanishedCreators(cursor: cursor, search: search, sort: sort) {
             creators = (creators ?? []) + page.items
             self.cursor = page.nextCursor
         }

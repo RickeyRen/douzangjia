@@ -693,9 +693,10 @@ export const logout = () => request<Record<string, unknown>>("/api/session", { m
 export const logoutDouyin = () =>
   request<{ douyinAuthenticated: boolean }>("/api/douyin/session", { method: "DELETE" });
 export const fetchCreator = (creatorId: string) => request<Creator>(`/api/creators/${creatorId}`);
-export const fetchVanishedCreators = (cursor?: string) => {
-  const params = new URLSearchParams({ limit: "60" });
+export const fetchVanishedCreators = ({ cursor, search, sort = "recent" }: { cursor?: string; search?: string; sort?: "recent" | "saved" } = {}) => {
+  const params = new URLSearchParams({ limit: "60", sort });
   if (cursor) params.set("cursor", cursor);
+  if (search) params.set("search", search);
   return request<Page<Creator> & { counts: Partial<Record<CreatorArchiveStatus, number>> }>(`/api/creators/vanished?${params}`);
 };
 export const recheckCreator = (creatorId: string) =>

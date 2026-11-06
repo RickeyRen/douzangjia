@@ -1,4 +1,4 @@
-import { Ghost } from "@phosphor-icons/react";
+import { Ghost, MagnifyingGlass } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchVanishedCreators, type Creator, type CreatorArchiveStatus } from "../app/api";
@@ -18,12 +18,20 @@ export function VanishedPage() {
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [sort, setSort] = useState<"recent" | "saved">("recent");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(search.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     let active = true;
     setCreators(null);
     setError(false);
-    fetchVanishedCreators()
+    fetchVanishedCreators({ search: debounced || undefined, sort })
       .then((page) => {
         if (!active) return;
         setCreators(page.items);
@@ -34,13 +42,13 @@ export function VanishedPage() {
     return () => {
       active = false;
     };
-  }, [attempt]);
+  }, [attempt, debounced, sort]);
 
   async function loadMore() {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const page = await fetchVanishedCreators(cursor);
+      const page = await fetchVanishedCreators({ cursor, search: debounced || undefined, sort });
       setCreators((current) => [...(current ?? []), ...page.items]);
       setCursor(page.nextCursor);
     } finally {
@@ -66,11 +74,22 @@ export function VanishedPage() {
         title={t("消失的博主")}
         subtitle={t("被封号、资料被重置或注销的博主，这里保留着他们原来的样子和你存下的作品")}
       />
-      {options.length > 2 ? (
-        <div className="toolbar">
-          <Segmented label={t("按状态筛选")} value={filter} options={options} onChange={setFilter} />
-        </div>
-      ) : null}
+      <div className="toolbar">
+        <form className="search search-inline" onSubmit={(event) => event.preventDefault()}>
+          <MagnifyingGlass size={16} weight="bold" />
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("按曾用名或抖音号查找")} aria-label={t("查找消失的博主")} />
+        </form>
+        <Segmented
+          label={t("排序")}
+          value={sort}
+          options={[
+            { value: "recent", label: t("最近发现") },
+            { value: "saved", label: t("存下最多") },
+          ]}
+          onChange={setSort}
+        />
+        {options.length > 2 ? <Segmented label={t("按状态筛选")} value={filter} options={options} onChange={setFilter} /> : null}
+      </div>
       {error ? (
         <ErrorState onRetry={() => setAttempt((value) => value + 1)} />
       ) : creators === null ? (
@@ -80,8 +99,8 @@ export function VanishedPage() {
       ) : creators.length === 0 ? (
         <EmptyState
           icon={<Ghost size={40} weight="duotone" />}
-          title={t("还没有发现消失的博主")}
-          body={t("后台会慢慢检查你收藏过的博主，一旦有人被封号或资料被重置，就会出现在这里。")}
+          title={debounced ? t("没有找到") : t("还没有发现消失的博主")}
+          body={debounced ? t("换个名字或抖音号试试。") : t("后台会慢慢检查你收藏过的博主，一旦有人被封号或资料被重置，就会出现在这里。")}
         />
       ) : (
         <>

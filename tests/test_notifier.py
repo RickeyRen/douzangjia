@@ -179,3 +179,46 @@ def test_watcher_warns_once_when_the_archive_disk_runs_low(tmp_path: Path) -> No
 
     events = asyncio.run(scenario())
     assert events == ["disk_low"]
+
+
+def test_watcher_announces_newly_removed_creators_once_under_their_chosen_name(tmp_path: Path) -> None:
+    from douyin_archive.library_models import CreatorRecord
+    from douyin_archive.library_repository import LibraryRepository
+
+    recorder = Recorder()
+
+    async def scenario():
+        database = Database(tmp_path / "data" / "archive.sqlite3")
+        await database.open()
+        library = LibraryRepository(database)
+        await library.upsert_creator(CreatorRecord("old", "旧事", "old"))
+        await library.upsert_creator(CreatorRecord("c1", "乐酷", "49855631198"))
+        await library.upsert_creator(CreatorRecord("c1", "49855631198", "49855631198"))
+        await database.execute(
+            "UPDATE creators SET archive_status='banned', archive_status_since=? WHERE remote_id='old'", (NOW - 100,)
+        )
+        client = httpx.AsyncClient(transport=recorder.transport())
+        watcher = NotificationWatcher(
+            database,
+            tmp_path,
+            notifier=Notifier({"webhook": {"url": "https://hook.test/x"}}, client=client),
+            interval_seconds=3600,
+            disk_usage=roomy_disk,
+        )
+        first = await watcher.check(now=NOW)
+        await database.execute(
+            "UPDATE creators SET archive_status='reset', archive_status_since=? WHERE remote_id='c1'", (NOW + 30,)
+        )
+        second = await watcher.check(now=NOW + 60)
+        third = await watcher.check(now=NOW + 120)
+        await client.aclose()
+        await database.close()
+        return first, second, third
+
+    first, second, third = asyncio.run(scenario())
+
+    vanished = lambda notes: [note for note in notes if note.event == "creator_vanished"]
+    assert vanished(first) == []  # the backlog is not news
+    assert len(vanished(second)) == 1
+    assert "乐酷（资料被重置）" in vanished(second)[0].body
+    assert vanished(third) == []

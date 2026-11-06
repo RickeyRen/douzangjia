@@ -19,6 +19,7 @@ const EVENTS: Array<{ key: string; label: string }> = [
   { key: "stale", label: t("同步停止超过半小时") },
   { key: "disk_low", label: t("NAS 剩余空间不足") },
   { key: "recovered", label: t("问题恢复后通知一次") },
+  { key: "creator_vanished", label: t("有博主被封号或资料被重置") },
 ];
 
 const EMPTY: Config = { bark: { url: "" }, telegram: { bot_token: "", chat_id: "" }, webhook: { url: "" }, events: {} };

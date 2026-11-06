@@ -72,8 +72,9 @@ final class APIClient {
         return try await get("/api/feed", query: query)
     }
 
-    func vanishedCreators(cursor: String?) async throws -> VanishedPage {
-        var query = [URLQueryItem(name: "limit", value: "60")]
+    func vanishedCreators(cursor: String?, search: String = "", sort: String = "recent") async throws -> VanishedPage {
+        var query = [URLQueryItem(name: "limit", value: "60"), URLQueryItem(name: "sort", value: sort)]
+        if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
         return try await get("/api/creators/vanished", query: query)
     }

@@ -72,7 +72,7 @@ async def home(request: Request) -> dict[str, Any]:
         vanished_creators.append(
             {
                 "id": row["remote_id"],
-                "nickname": kept["nickname"] if kept is not None else "",
+                "nickname": kept["nickname"] if kept is not None else "原名未知",
                 "uniqueId": kept["unique_id"] if kept is not None else None,
                 "avatarUrl": f"/api/creators/{row['remote_id']}/avatar",
                 "status": row["archive_status"],

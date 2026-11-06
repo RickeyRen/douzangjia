@@ -308,3 +308,36 @@ def test_vanished_endpoints_show_the_creator_as_they_were(tmp_path: Path, master
     assert {item["author"] for item in feed["items"]} == {"乐酷"}
     assert home["stats"]["vanishedCreators"] == 1
     assert home["vanishedCreators"][0]["nickname"] == "乐酷"
+
+
+def test_vanished_list_searches_former_names_and_sorts_by_saved_works(tmp_path: Path, master_key: str) -> None:
+    async def seed() -> None:
+        await seed_vanished(tmp_path)
+        database = await open_db(tmp_path)
+        # Never had a chosen name on record.
+        await LibraryRepository(database).upsert_creator(CreatorRecord("gone-2", "该用户已注销", "closed"))
+        await database.execute("UPDATE creators SET archive_status_since=200 WHERE remote_id='gone-2'")
+        await database.execute(
+            "INSERT INTO media_files (item_id, asset_index, media_type, relative_path, status, created_at, updated_at) "
+            "VALUES ('g1', 0, 'video', 'objects/g1/0.mp4', 'ready', 1, 1)"
+        )
+        await database.close()
+
+    run(seed())
+    with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
+        recent = client.get("/api/creators/vanished").json()
+        saved = client.get("/api/creators/vanished", params={"sort": "saved"}).json()
+        found = client.get("/api/creators/vanished", params={"search": "乐酷"}).json()
+        first = client.get("/api/creators/vanished", params={"sort": "saved", "limit": 1}).json()
+        rest = client.get(
+            "/api/creators/vanished", params={"sort": "saved", "limit": 1, "cursor": first["nextCursor"]}
+        ).json()
+
+    assert [entry["id"] for entry in recent["items"]] == ["gone-2", "gone-1"]
+    assert recent["items"][0]["nickname"] == "原名未知"
+    assert recent["items"][0]["archive"]["currentNickname"] == "该用户已注销"
+    assert [entry["id"] for entry in saved["items"]] == ["gone-1", "gone-2"]
+    assert [entry["id"] for entry in found["items"]] == ["gone-1"]
+    assert [entry["id"] for entry in first["items"] + rest["items"]] == ["gone-1", "gone-2"]
+
