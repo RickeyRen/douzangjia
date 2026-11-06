@@ -5,7 +5,7 @@ import logging
 import os
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from typing import Any, Protocol
 
@@ -30,6 +30,8 @@ from .creator_archive import (
     backfill_snapshots,
     probe_from_payload,
 )
+from .creator_catalog import SCAN_EVERY_SECONDS as CREATOR_CATALOG_EVERY_SECONDS
+from .creator_catalog import CreatorCatalogScanner
 from .creator_sync import CreatorSyncService
 from .db import Database
 from .downloader import MediaDownloader
@@ -215,6 +217,16 @@ class RuntimeSyncCoordinator:
             source = self.profile_source_factory()
             try:
                 return probe_from_payload(await source.fetch_creator_profile_payload(creator_id))
+            finally:
+                await source.close()
+
+    async def scan_creator_catalog(self, creator_id: str) -> AsyncIterator[list[dict[str, Any]]]:
+        async with self._profile_lock:
+            await self._require_side_session()
+            source = self.profile_source_factory()
+            try:
+                async for records in source.iter_creator_catalog(creator_id):
+                    yield records
             finally:
                 await source.close()
 
@@ -522,6 +534,7 @@ class ArchiveRuntime:
             database, self.sync.probe_creator_profile, rescue=self.sync.trigger_creator_archive
         )
         self.creator_media = CreatorMediaPreserver(database, settings.archive_root)
+        self.creator_catalog = CreatorCatalogScanner(database, self.sync.scan_creator_catalog)
         self._creator_backfill_task: asyncio.Task[int] | None = None
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
@@ -579,6 +592,7 @@ class ArchiveRuntime:
         for job, seconds, job_id in (
             (self.creator_checker.run_tick, CREATOR_CHECK_EVERY_SECONDS, "creator-status-check"),
             (self.creator_media.run_batch, CREATOR_MEDIA_EVERY_SECONDS, "creator-media-preserve"),
+            (self.creator_catalog.run_tick, CREATOR_CATALOG_EVERY_SECONDS, "creator-catalog-scan"),
         ):
             self._scheduler.add_job(
                 job,

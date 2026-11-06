@@ -891,6 +891,39 @@ class PlaywrightDouyinSource:
             raise ProviderChanged("Douyin nested source returned invalid links")
         return [str(value) for value in result if str(value).startswith("https://")]
 
+    async def iter_creator_catalog(
+        self, creator_id: str, *, max_scrolls: int = 60
+    ) -> AsyncIterator[list[dict[str, Any]]]:
+        """Scroll the creator's page and yield the work records the page itself loads.
+
+        Calling Douyin's post list directly is refused without the page's own
+        signature, so this only reads the responses of normal browsing.
+        """
+        await self.open()
+        await self._page.goto(
+            f"https://www.douyin.com/user/{creator_id}",
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        yielded: set[str] = set()
+        stable_rounds = 0
+        for _ in range(max_scrolls):
+            await self._page.wait_for_timeout(1_500)
+            fresh = [
+                record
+                for item_id, record in self._captured_item_payloads.items()
+                if item_id not in yielded
+            ]
+            if fresh:
+                yielded.update(str(record.get("aweme_id", record.get("aweme_id_str"))) for record in fresh)
+                stable_rounds = 0
+                yield fresh
+            else:
+                stable_rounds += 1
+                if stable_rounds >= 3:
+                    return
+            await self._scroll_account_panel()
+
     async def iter_creator_raw_pages(
         self,
         creator_id: str,

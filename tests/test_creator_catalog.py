@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+from douyin_archive.creator_catalog import PAUSE_SECONDS, CreatorCatalogScanner
+from douyin_archive.db import Database
+from douyin_archive.library_models import CreatorRecord
+from douyin_archive.library_repository import LibraryRepository
+from douyin_archive.library_scope import library_item_sql
+
+
+def record(item_id: str, creator_id: str = "c1") -> dict:
+    return {
+        "aweme_id": item_id,
+        "desc": f"作品 {item_id}",
+        "aweme_type": 0,
+        "create_time": 100,
+        "author": {"nickname": "乐酷", "sec_uid": creator_id},
+        "video": {"cover": {"url_list": [f"https://x/{item_id}.jpg"]}, "play_addr": {"url_list": ["https://x/v.mp4"]}},
+        "statistics": {"digg_count": 5},
+    }
+
+
+async def open_db(root: Path, *, post_count: int = 2) -> Database:
+    database = Database(root / "data" / "archive.sqlite3")
+    await database.open()
+    await LibraryRepository(database).upsert_creator(CreatorRecord("c1", "乐酷", "leku", post_count=post_count))
+    return database
+
+
+def scanner_for(database: Database, pages: list[list[dict]]) -> CreatorCatalogScanner:
+    async def scan(creator_id: str):
+        for page in pages:
+            yield page
+
+    return CreatorCatalogScanner(database, scan)
+
+
+def test_scan_records_only_the_creators_works_outside_the_library(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path)
+        scanner = scanner_for(database, [[record("1"), record("2", "someone-else")], [record("3")]])
+        seen = await scanner.scan_creator("c1")
+        creator = await database.fetchone(
+            "SELECT catalog_scanned_at, catalog_item_count FROM creators WHERE remote_id='c1'"
+        )
+        catalog = await database.fetchall("SELECT item_id FROM creator_catalog_items ORDER BY item_id")
+        items = await database.fetchone("SELECT COUNT(*) AS n FROM items")
+        await database.close()
+        return seen, creator, catalog, items
+
+    seen, creator, catalog, items = asyncio.run(scenario())
+
+    assert seen == 2
+    assert [row["item_id"] for row in catalog] == ["1", "3"]
+    assert creator["catalog_item_count"] == 2 and creator["catalog_scanned_at"]
+    # The library feeds scan items; a catalog must not grow them.
+    assert items["n"] == 0
+
+
+def test_removed_creators_works_move_into_items_outside_the_library_scope(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path)
+        scanner = scanner_for(database, [[record("1"), record("3")]])
+        await scanner.scan_creator("c1")
+        untouched = await scanner.promote_removed_creators()
+        await database.execute("UPDATE creators SET archive_status='reset' WHERE remote_id='c1'")
+        promoted = await scanner.promote_removed_creators()
+        again = await scanner.promote_removed_creators()
+        rows = await database.fetchall("SELECT remote_id, creator_id, cover_url FROM items ORDER BY remote_id")
+        scoped = await database.fetchone(f"SELECT COUNT(*) AS n FROM items i WHERE {library_item_sql('i')}")
+        await database.close()
+        return untouched, promoted, again, rows, scoped
+
+    untouched, promoted, again, rows, scoped = asyncio.run(scenario())
+
+    assert (untouched, promoted, again) == (0, 2, 0)
+    assert [row["remote_id"] for row in rows] == ["1", "3"]
+    assert rows[0]["cover_url"] == "https://x/1.jpg"
+    assert scoped["n"] == 0
+
+
+def test_repeated_empty_pages_pause_the_scan_and_leave_creators_unmarked(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path)
+        scanner = scanner_for(database, [])
+        for _ in range(3):
+            await scanner.scan_creator("c1")
+        row = await database.fetchone("SELECT catalog_scanned_at FROM creators WHERE remote_id='c1'")
+        await database.close()
+        return scanner.paused_until, row
+
+    paused_until, row = asyncio.run(scenario())
+
+    assert paused_until > PAUSE_SECONDS
+    assert row["catalog_scanned_at"] is None
+
+
+def test_a_creator_without_public_works_is_not_a_warning_sign(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path, post_count=0)
+        scanner = scanner_for(database, [])
+        await scanner.scan_creator("c1")
+        row = await database.fetchone("SELECT catalog_scanned_at FROM creators WHERE remote_id='c1'")
+        await database.close()
+        return scanner.paused_until, row
+
+    paused_until, row = asyncio.run(scenario())
+
+    assert paused_until == 0
+    assert row["catalog_scanned_at"] is not None
