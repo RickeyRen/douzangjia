@@ -123,6 +123,16 @@ export type Creator = {
   archive?: CreatorArchive;
 };
 
+export type CreatorMonitor = {
+  libraryCreators: number;
+  checkedCreators: number;
+  cataloguedCreators: number;
+  catalogItems: number;
+  savedCovers: number;
+  consecutiveFailures: number;
+  catalogPausedUntil: number | null;
+};
+
 export type CreatorArchiveStatus = "active" | "reset" | "deactivated" | "banned" | "vanished";
 
 export type CreatorSnapshot = {
@@ -697,7 +707,7 @@ export const fetchVanishedCreators = ({ cursor, search, sort = "recent" }: { cur
   const params = new URLSearchParams({ limit: "60", sort });
   if (cursor) params.set("cursor", cursor);
   if (search) params.set("search", search);
-  return request<Page<Creator> & { counts: Partial<Record<CreatorArchiveStatus, number>> }>(`/api/creators/vanished?${params}`);
+  return request<Page<Creator> & { counts: Partial<Record<CreatorArchiveStatus, number>>; monitor?: CreatorMonitor }>(`/api/creators/vanished?${params}`);
 };
 export const recheckCreator = (creatorId: string) =>
   request<Creator>(`/api/creators/${encodeURIComponent(creatorId)}/archive-check`, { method: "POST" });

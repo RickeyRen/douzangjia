@@ -149,6 +149,31 @@ async def _with_preserved(request: Request, row) -> dict[str, object]:
     return _serialize_creator(row, preserved)
 
 
+async def _monitor_summary(request: Request) -> dict[str, object]:
+    """How far the background watch has got, and whether Douyin is refusing it."""
+    database = request.app.state.database
+    creators = await database.fetchone(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(c.archive_checked_at IS NOT NULL), 0) AS checked, "
+        "COALESCE(SUM(c.catalog_scanned_at IS NOT NULL), 0) AS catalogued FROM creators c "
+        f"WHERE EXISTS (SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {library_item_sql('i')})"
+    )
+    catalog = await database.fetchone(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(cover_state=1), 0) AS covers FROM creator_catalog_items"
+    )
+    runtime = request.app.state.runtime
+    checker = getattr(runtime, "creator_checker", None)
+    scanner = getattr(runtime, "creator_catalog", None)
+    return {
+        "libraryCreators": int(creators["total"]),
+        "checkedCreators": int(creators["checked"]),
+        "cataloguedCreators": int(creators["catalogued"]),
+        "catalogItems": int(catalog["total"]),
+        "savedCovers": int(catalog["covers"]),
+        "consecutiveFailures": checker.consecutive_failures if checker is not None else 0,
+        "catalogPausedUntil": (scanner.paused_until or None) if scanner is not None else None,
+    }
+
+
 @router.get("/vanished")
 async def vanished_creators(
     request: Request,
@@ -201,6 +226,7 @@ async def vanished_creators(
         "items": [await _with_preserved(request, row) for row in visible],
         "nextCursor": next_cursor,
         "counts": {str(row["archive_status"]): int(row["n"]) for row in counts},
+        "monitor": await _monitor_summary(request),
     }
 
 

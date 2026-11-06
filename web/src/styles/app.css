@@ -1781,6 +1781,21 @@ a.stat:hover {
 }
 
 /* ---------- Vanished creators ---------- */
+.vanished-monitor {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vanished-monitor p {
+  margin: 0;
+}
+
+.vanished-monitor .is-warning {
+  margin-top: 4px;
+  color: var(--warning);
+}
+
 .vanished-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

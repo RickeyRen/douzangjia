@@ -181,10 +181,20 @@ struct Creator: Decodable, Identifiable, Hashable {
     let archive: CreatorArchive?
 }
 
+struct CreatorMonitor: Decodable {
+    let libraryCreators: Int
+    let checkedCreators: Int
+    let cataloguedCreators: Int
+    let catalogItems: Int
+    let savedCovers: Int
+    let consecutiveFailures: Int
+}
+
 struct VanishedPage: Decodable {
     let items: [Creator]
     let nextCursor: String?
     let counts: [String: Int]
+    let monitor: CreatorMonitor?
 }
 
 struct MissingSummary: Decodable {

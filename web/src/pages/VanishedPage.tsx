@@ -1,7 +1,7 @@
 import { Ghost, MagnifyingGlass } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchVanishedCreators, type Creator, type CreatorArchiveStatus } from "../app/api";
+import { fetchVanishedCreators, type Creator, type CreatorArchiveStatus, type CreatorMonitor } from "../app/api";
 import { routeHref } from "../app/router";
 import { t } from "../i18n/t";
 import { ARCHIVE_STATUS_LABEL } from "../lib/creatorArchive";
@@ -14,6 +14,7 @@ export function VanishedPage() {
   const [creators, setCreators] = useState<Creator[] | null>(null);
   const [counts, setCounts] = useState<Partial<Record<CreatorArchiveStatus, number>>>({});
   const [cursor, setCursor] = useState<string | null>(null);
+  const [monitor, setMonitor] = useState<CreatorMonitor | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -36,6 +37,7 @@ export function VanishedPage() {
         if (!active) return;
         setCreators(page.items);
         setCounts(page.counts);
+        setMonitor(page.monitor ?? null);
         setCursor(page.nextCursor);
       })
       .catch(() => active && setError(true));
@@ -74,6 +76,7 @@ export function VanishedPage() {
         title={t("消失的博主")}
         subtitle={t("被封号、资料被重置或注销的博主，这里保留着他们原来的样子和你存下的作品")}
       />
+      {monitor ? <MonitorLine monitor={monitor} /> : null}
       <div className="toolbar">
         <form className="search search-inline" onSubmit={(event) => event.preventDefault()}>
           <MagnifyingGlass size={16} weight="bold" />
@@ -120,6 +123,29 @@ export function VanishedPage() {
         </>
       )}
     </>
+  );
+}
+
+/** Consecutive refusals that are no longer one flaky answer. */
+const REFUSED_AFTER = 5;
+
+function MonitorLine({ monitor }: { monitor: CreatorMonitor }) {
+  const refused = monitor.consecutiveFailures >= REFUSED_AFTER;
+  const paused = Boolean(monitor.catalogPausedUntil && monitor.catalogPausedUntil * 1000 > Date.now());
+  return (
+    <div className="vanished-monitor">
+      <p>
+        {t("已检查 {checked} / {total} 位博主，已记录 {catalogued} 位博主的 {items} 个作品，已存 {covers} 张封面。", {
+          checked: formatInteger(monitor.checkedCreators),
+          total: formatInteger(monitor.libraryCreators),
+          catalogued: formatInteger(monitor.cataloguedCreators),
+          items: formatInteger(monitor.catalogItems),
+          covers: formatInteger(monitor.savedCovers),
+        })}
+      </p>
+      {refused ? <p className="is-warning">{t("最近 {n} 次检查都没有拿到抖音的回应，可能是抖音登录失效或被限制了。", { n: monitor.consecutiveFailures })}</p> : null}
+      {paused ? <p className="is-warning">{t("作品清单记录暂停中：抖音页面连续读不到作品，稍后会自动重试。")}</p> : null}
+    </div>
   );
 }
 

@@ -63,3 +63,21 @@ it("explains the background check when nothing has vanished yet", async () => {
 
   expect(await screen.findByText("还没有发现消失的博主")).toBeTruthy();
 });
+
+it("shows how far the watch has got and warns when Douyin keeps refusing it", async () => {
+  vi.mocked(api.fetchVanishedCreators).mockResolvedValue({
+    items: [],
+    nextCursor: null,
+    counts: {},
+    monitor: { libraryCreators: 4000, checkedCreators: 1000, cataloguedCreators: 10, catalogItems: 2000, savedCovers: 50, consecutiveFailures: 6, catalogPausedUntil: null },
+  });
+  render(
+    <WithAppData value={makeAppData()}>
+      <VanishedPage />
+    </WithAppData>,
+  );
+
+  expect(await screen.findByText(/已检查 1,000 \/ 4,000 位博主/)).toBeTruthy();
+  expect(screen.getByText(/最近 6 次检查都没有拿到抖音的回应/)).toBeTruthy();
+});
+

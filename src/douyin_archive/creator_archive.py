@@ -444,6 +444,8 @@ class CreatorStatusChecker:
         self.rescue = rescue
         self._candidates: list[str] = []
         self._candidates_at = 0
+        # Looks in a row that told us nothing; a long run means Douyin is refusing them.
+        self.consecutive_failures = 0
 
     async def _next_candidate(self) -> str | None:
         now = int(time.time())
@@ -492,6 +494,7 @@ class CreatorStatusChecker:
                 (now - _recheck_after(current) + FAILED_RECHECK_SECONDS, creator_id),
             )
             logger.info("creator status probe skipped for %s: %s", creator_id, error.code)
+            self.consecutive_failures += 1
             return None
         if probe.user:
             record = creator_from_profile(creator_id, probe.user)
@@ -508,7 +511,9 @@ class CreatorStatusChecker:
                 "UPDATE creators SET archive_checked_at=? WHERE remote_id=?",
                 (now - _recheck_after(current) + FAILED_RECHECK_SECONDS, creator_id),
             )
+            self.consecutive_failures += 1
             return None
+        self.consecutive_failures = 0
         status, strength, evidence = verdict
         previous = str(current["archive_status"])
         # Evidence is only written once a verdict is settled, so a creator still

@@ -298,6 +298,8 @@ def test_vanished_endpoints_show_the_creator_as_they_were(tmp_path: Path, master
         home = client.get("/api/home").json()
 
     assert listing["counts"] == {"reset": 1}
+    assert listing["monitor"]["consecutiveFailures"] == 0
+    assert listing["monitor"]["catalogPausedUntil"] is None
     entry = listing["items"][0]
     assert entry["nickname"] == "乐酷"
     assert entry["knownItemCount"] == 2
@@ -341,3 +343,26 @@ def test_vanished_list_searches_former_names_and_sorts_by_saved_works(tmp_path: 
     assert [entry["id"] for entry in found["items"]] == ["gone-1"]
     assert [entry["id"] for entry in first["items"] + rest["items"]] == ["gone-1", "gone-2"]
 
+
+
+def test_checker_counts_looks_that_told_it_nothing_until_one_does(tmp_path: Path) -> None:
+    answers: list = [ProviderUnavailable("offline"), ProfileProbe(8, "请登录", None), ProfileProbe(0, None, user())]
+
+    async def probe(creator_id: str) -> ProfileProbe:
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def scenario():
+        database = await open_db(tmp_path)
+        await LibraryRepository(database).upsert_creator(CreatorRecord("c8", "作者", "author", AVATAR))
+        checker = CreatorStatusChecker(database, probe)
+        counts = []
+        for _ in range(3):
+            await checker.check("c8")
+            counts.append(checker.consecutive_failures)
+        await database.close()
+        return counts
+
+    assert run(scenario()) == [1, 2, 0]

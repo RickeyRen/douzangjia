@@ -14,6 +14,7 @@ struct VanishedCreatorsView: View {
     @State private var error: String?
     @State private var loadingMore = false
     @State private var search = ""
+    @State private var monitor: CreatorMonitor?
     @State private var sort = "recent"
 
     var body: some View {
@@ -22,6 +23,18 @@ struct VanishedCreatorsView: View {
                 Text("被封号、资料被重置或注销的博主。这里保留着他们原来的名字、头像和你存下的作品。")
                     .font(.footnote).foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
+                if let monitor {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("已检查 \(Format.integer(monitor.checkedCreators)) / \(Format.integer(monitor.libraryCreators)) 位博主，已记录 \(Format.integer(monitor.cataloguedCreators)) 位博主的 \(Format.integer(monitor.catalogItems)) 个作品。")
+                            .foregroundStyle(.secondary)
+                        if monitor.consecutiveFailures >= 5 {
+                            Text("最近 \(monitor.consecutiveFailures) 次检查都没有拿到抖音的回应，可能是抖音登录失效或被限制了。")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.caption)
+                    .listRowBackground(Color.clear)
+                }
             }
             if let creators {
                 if creators.isEmpty {
@@ -81,6 +94,7 @@ struct VanishedCreatorsView: View {
             let page = try await model.client.vanishedCreators(cursor: nil, search: search, sort: sort)
             creators = page.items
             counts = page.counts
+            monitor = page.monitor
             cursor = page.nextCursor
             error = nil
         } catch {
