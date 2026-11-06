@@ -327,7 +327,7 @@ function ArchiveProfile({ creator, onChange }: { creator: Creator; onChange: (cr
           })}
         </p>
         <p>
-          {t("你收藏过 {known} 个作品，已存到 NAS {saved} 个。", {
+          {t("记录了 {known} 个作品，其中 {saved} 个的视频已存到 NAS，其余只有封面和文字。", {
             known: formatInteger(creator.knownItemCount),
             saved: formatInteger(creator.archivedItemCount),
           })}

@@ -129,7 +129,7 @@ struct CreatorAvatar: View {
     var body: some View {
         Group {
             if path != nil {
-                RemoteImage(path: path)
+                RemoteImage(path: path, failureIcon: "person.fill")
             } else {
                 Image(systemName: "person.fill")
                     .font(.system(size: size * 0.45))
@@ -255,7 +255,7 @@ struct CreatorArchiveView: View {
             Group {
                 Text(status.hint)
                 Text("这里显示的是 Ta 原来的资料，最后一次见到是 \(Format.date(kept?.lastSeenAt ?? creator.lastSeenAt))。现在抖音上显示为「\(creator.archive?.currentNickname ?? "")」。")
-                Text("你收藏过 \(Format.integer(creator.knownItemCount)) 个作品，已存到 NAS \(Format.integer(creator.archivedItemCount)) 个。")
+                Text("记录了 \(Format.integer(creator.knownItemCount)) 个作品，其中 \(Format.integer(creator.archivedItemCount)) 个的视频已存到 NAS，其余只有封面和文字。")
             }
             .foregroundStyle(.secondary)
             if let message { Text(message) }

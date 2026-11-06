@@ -256,7 +256,11 @@ struct MediaTile: View {
                 HStack(spacing: 4) {
                     if item.starred == true { Image(systemName: "star.fill").foregroundStyle(.yellow) }
                     if item.isGallery { Image(systemName: "square.on.square") }
-                    if !item.isSaved { Image(systemName: "icloud") }
+                    if item.videoIsLost || item.videoIsAtRisk {
+                        Text("仅封面")
+                    } else if !item.isSaved {
+                        Image(systemName: "icloud")
+                    }
                     if let duration = Format.duration(item.douyin?.durationMs), !item.isGallery {
                         Text(duration).monospacedDigit()
                     }

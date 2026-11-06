@@ -1,4 +1,4 @@
-import type { Creator, CreatorArchiveStatus } from "../app/api";
+import type { Creator, CreatorArchiveStatus, FeedItem } from "../app/api";
 import { t } from "../i18n/t";
 
 export const ARCHIVE_STATUS_LABEL: Record<Exclude<CreatorArchiveStatus, "active">, string> = {
@@ -26,4 +26,11 @@ export function formerNames(creator: Creator): string[] {
     if (!snapshot.degraded && !names.includes(snapshot.nickname)) names.push(snapshot.nickname);
   }
   return names.filter((name) => name !== creator.nickname);
+}
+
+/** A work whose video we lack: "lost" can no longer be fetched, "at-risk" may still be. */
+export function unsavedWorkRisk(item: FeedItem): "lost" | "at-risk" | null {
+  const status = item.creator?.archiveStatus;
+  if (!status || status === "active" || item.local.state === "downloaded") return null;
+  return status === "banned" || status === "vanished" ? "lost" : "at-risk";
 }

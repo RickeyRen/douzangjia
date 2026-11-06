@@ -46,6 +46,7 @@ struct RemoteImage: View {
     @Environment(AppModel.self) private var model
     let path: String?
     var contentMode: ContentMode = .fill
+    var failureIcon = "photo"
     @State private var image: UIImage?
     @State private var failed = false
 
@@ -57,7 +58,7 @@ struct RemoteImage: View {
             } else {
                 Rectangle().fill(Color(.secondarySystemBackground))
                     .overlay {
-                        if failed { Image(systemName: "photo").foregroundStyle(.tertiary) }
+                        if failed { Image(systemName: failureIcon).foregroundStyle(.tertiary) }
                     }
             }
         }

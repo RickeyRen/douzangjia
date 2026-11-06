@@ -85,7 +85,7 @@ private struct PlayerPage: View {
                 VStack(spacing: 14) {
                     Image(systemName: "icloud").font(.system(size: 40))
                     Text(statusText).font(.headline)
-                    if item.local?.state != "downloading" {
+                    if item.local?.state != "downloading" && !item.videoIsLost {
                         Button {
                             Task { await save() }
                         } label: {
@@ -102,7 +102,9 @@ private struct PlayerPage: View {
     }
 
     private var statusText: String {
-        switch item.local?.state {
+        if item.videoIsLost { return "视频没有存下来，抖音上也看不到了" }
+        if item.videoIsAtRisk && item.local?.state != "downloading" { return "视频还没存下来，抖音上可能很快就看不到了" }
+        return switch item.local?.state {
         case "downloading": "正在存到 NAS…"
         case "retry": "下载遇到问题，稍后会自动重试"
         case "failed": "下载失败"

@@ -1,3 +1,4 @@
+import { unsavedWorkRisk } from "../lib/creatorArchive";
 import { CloudArrowDown, CloudSlash, ImageSquare, Images, Play, Star } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -112,9 +113,15 @@ export function MediaTile({
           </span>
           <span>
             {!local ? (
-              <span className="tile-tag is-cloud" title={t("尚未下载到 NAS")}>
-                <CloudArrowDown size={12} weight="bold" />
-              </span>
+              unsavedWorkRisk(item) ? (
+                <span className="tile-tag is-gone" title={t("视频没有存下来，只有封面和文字")}>
+                  {t("仅封面")}
+                </span>
+              ) : (
+                <span className="tile-tag is-cloud" title={t("尚未下载到 NAS")}>
+                  <CloudArrowDown size={12} weight="bold" />
+                </span>
+              )
             ) : null}
             {item.type === "gallery" ? (
               <span className="tile-tag">

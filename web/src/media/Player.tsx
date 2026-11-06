@@ -17,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState, type TouchEvent, type WheelEvent } from "react";
 
+import { unsavedWorkRisk } from "../lib/creatorArchive";
 import { archiveItem, checkRemoteAvailability, type FeedItem, type RemoteAvailability } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { formatBytes, formatCount, formatDate, formatDuration } from "../lib/format";
@@ -303,6 +304,7 @@ export function Player({
   const name = item.creator?.nickname || item.author;
   const backdrop = thumbnailCandidates(item)[0];
   const downloaded = item.local.state === "downloaded";
+  const risk = unsavedWorkRisk(item);
 
   return (
     <div className="player" role="dialog" aria-modal="true" aria-label={t("播放：{title}", { title: itemTitle(item) })}>
@@ -341,12 +343,22 @@ export function Player({
           ) : (
             <div className="player-empty">
               {backdrop ? <img src={backdrop} alt="" referrerPolicy="no-referrer" /> : null}
-              <p>{item.local.state === "failed" ? t("这个作品下载失败了。") : t("这个作品还没有下载到 NAS。")}</p>
+              <p>
+                {risk === "lost"
+                  ? t("视频没有存下来，抖音上也看不到了，这里只留下封面和文字。")
+                  : risk === "at-risk"
+                    ? t("视频还没存下来，抖音上可能很快就看不到了。")
+                    : item.local.state === "failed"
+                      ? t("这个作品下载失败了。")
+                      : t("这个作品还没有下载到 NAS。")}
+              </p>
               <div className="player-empty-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => void downloadNow()}>
-                  <CloudArrowDown size={16} weight="bold" />
-                  {item.local.state === "failed" ? t("重新下载") : t("立即下载")}
-                </button>
+                {risk !== "lost" ? (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void downloadNow()}>
+                    <CloudArrowDown size={16} weight="bold" />
+                    {item.local.state === "failed" ? t("重新下载") : t("立即下载")}
+                  </button>
+                ) : null}
                 <a className="btn btn-secondary btn-sm" href={douyinUrl(item)} target="_blank" rel="noreferrer">
                   <ArrowSquareOut size={16} weight="bold" />
                   {t("在抖音打开")}
@@ -543,7 +555,7 @@ function DetailPanel({
               <DownloadSimple size={20} />
               {t("下载原片")}
             </a>
-          ) : (
+          ) : unsavedWorkRisk(item) === "lost" ? null : (
             <button type="button" className="panel-action" onClick={onDownloadNow}>
               <CloudArrowDown size={20} />
               {t("存到 NAS")}

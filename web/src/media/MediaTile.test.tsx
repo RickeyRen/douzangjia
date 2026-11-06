@@ -67,3 +67,14 @@ it("previews downloaded videos after hovering on a pointer device", () => {
     vi.useRealTimers();
   }
 });
+
+it("marks a removed creator's unsaved work as having only its cover", () => {
+  const item = makeItem({
+    media: [],
+    local: { state: "waiting", readyAssets: 0, totalAssets: 0, downloadedBytes: 0, totalBytes: null },
+    creator: { id: "c1", nickname: "乐酷", uniqueId: null, avatarUrl: null, archiveStatus: "banned" },
+  });
+  render(<MediaTile item={item} onOpen={vi.fn()} />);
+
+  expect(screen.getByText("仅封面")).toBeTruthy();
+});

@@ -71,7 +71,7 @@ export type FeedItem = {
   albums?: Array<{ id: number; name: string }>;
   tags?: string[];
   note?: string | null;
-  creator?: { id: string; nickname: string; uniqueId: string | null; avatarUrl: string | null } | null;
+  creator?: { id: string; nickname: string; uniqueId: string | null; avatarUrl: string | null; archiveStatus?: CreatorArchiveStatus } | null;
   douyin?: {
     statistics: Record<string, number>;
     durationMs: number | null;

@@ -40,6 +40,10 @@ struct DouyinInfo: Decodable, Hashable {
     let durationMs: Int?
 }
 
+struct FeedCreator: Decodable, Hashable {
+    let archiveStatus: CreatorArchiveStatus?
+}
+
 struct FeedItem: Decodable, Identifiable, Hashable {
     let awemeId: String
     let author: String
@@ -53,8 +57,16 @@ struct FeedItem: Decodable, Identifiable, Hashable {
     let media: [MediaFile]
     let local: LocalArchiveState?
     let douyin: DouyinInfo?
+    let creator: FeedCreator?
 
     var id: String { awemeId }
+    /// The video was never saved and the creator's account can no longer serve it.
+    var videoIsLost: Bool {
+        !isSaved && (creator?.archiveStatus == .banned || creator?.archiveStatus == .vanished)
+    }
+    var videoIsAtRisk: Bool {
+        !isSaved && (creator?.archiveStatus == .reset || creator?.archiveStatus == .deactivated)
+    }
     var isGallery: Bool { type == "gallery" }
     var isSaved: Bool { !media.isEmpty }
     var previewPath: String? { thumbnailUrl ?? coverUrl }
