@@ -8,7 +8,7 @@ from ..avatars import avatar_route
 from ..creator_archive import preserved_identity
 from ..library_scope import library_item_sql
 from ..sync_health import sync_health_snapshot
-from .feed import _serialize_item
+from .feed import _serialize_item, cover_store_for
 
 router = APIRouter(prefix="/api")
 
@@ -136,6 +136,7 @@ async def home(request: Request) -> dict[str, Any]:
         f"WHERE {in_library} GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
+    covers = cover_store_for(request)
     return {
         "stats": {
             "items": totals["items"],
@@ -151,9 +152,9 @@ async def home(request: Request) -> dict[str, Any]:
         },
         "vanishedCreators": vanished_creators,
         "health": await sync_health(request),
-        "recent": [await _serialize_item(database, row) for row in recent_rows],
-        "starred": [await _serialize_item(database, row) for row in starred_rows],
-        "gone": [await _serialize_item(database, row) for row in gone_rows],
+        "recent": [await _serialize_item(database, row, covers) for row in recent_rows],
+        "starred": [await _serialize_item(database, row, covers) for row in starred_rows],
+        "gone": [await _serialize_item(database, row, covers) for row in gone_rows],
         "shelves": shelves,
         "creators": [
             {

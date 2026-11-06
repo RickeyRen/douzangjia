@@ -6,15 +6,20 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from ..avatars import avatar_route
 from ..creator_archive import preserved_identity, serialize_snapshot
+from ..item_covers import ItemCoverStore, local_cover_route
 from ..library_scope import library_item_sql
 from ..remote_availability import RemoteAvailabilityService
 from ..search import RELEVANCE_SQL, fts_query, search_clause
 
 router = APIRouter(prefix="/api")
+
+
+def cover_store_for(request: Request) -> ItemCoverStore:
+    return ItemCoverStore(request.app.state.settings.archive_root)
 
 
 def _local_state(job_status: str | None, *, ready_assets: int, total_assets: int) -> str:
@@ -53,7 +58,7 @@ def _json_object(value: object) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-async def _serialize_item(database, row) -> dict[str, Any]:
+async def _serialize_item(database, row, cover_store: ItemCoverStore) -> dict[str, Any]:
     collections = await database.fetchall(
         "SELECT c.remote_id, c.name FROM collections c "
         "JOIN collection_items ci ON ci.collection_id=c.remote_id "
@@ -115,6 +120,7 @@ async def _serialize_item(database, row) -> dict[str, Any]:
     ready_assets = int(local["ready_assets"]) if local is not None else 0
     statistics = _json_object(row["statistics_json"])
     metadata = _json_object(row["metadata_json"])
+    kept_cover = local_cover_route(cover_store, str(row["remote_id"]))
     return {
         "awemeId": row["remote_id"],
         "creatorId": row["creator_id"],
@@ -124,9 +130,9 @@ async def _serialize_item(database, row) -> dict[str, Any]:
         "publishedAt": row["published_at"],
         "archivedAt": row["first_seen_at"],
         "sourceUrl": row["source_url"],
-        "coverUrl": row["cover_url"],
+        "coverUrl": kept_cover or row["cover_url"],
         "thumbnailUrl": (
-            f"/api/media/{media[0]['id']}/poster" if media else row["cover_url"] or None
+            f"/api/media/{media[0]['id']}/poster" if media else kept_cover or row["cover_url"] or None
         ),
         "starred": star is not None,
         "starredAt": star["starred_at"] if star is not None else None,
@@ -408,12 +414,22 @@ async def feed(
     )
     has_more = len(rows) > limit
     visible = rows[:limit]
-    items = [await _serialize_item(request.app.state.database, row) for row in visible]
+    items = [await _serialize_item(request.app.state.database, row, cover_store_for(request)) for row in visible]
     next_cursor = None
     if has_more and visible:
         last = visible[-1]
         next_cursor = _encode_feed_cursor(last["feed_sort_key"], str(last["remote_id"]))
     return {"items": items, "nextCursor": next_cursor}
+
+
+@router.get("/items/{remote_id}/cover")
+async def item_cover(remote_id: str, request: Request):
+    store = cover_store_for(request)
+    if not store.has(remote_id):
+        return JSONResponse(status_code=404, content={"code": "COVER_UNAVAILABLE", "message": "封面没有存下来"})
+    return FileResponse(
+        store.path_for(remote_id), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=2592000"}
+    )
 
 
 @router.get("/items/{remote_id}")
@@ -426,7 +442,7 @@ async def item_detail(remote_id: str, request: Request):
             status_code=404,
             content={"code": "ITEM_NOT_FOUND", "message": "归档作品不存在"},
         )
-    return await _serialize_item(request.app.state.database, row)
+    return await _serialize_item(request.app.state.database, row, cover_store_for(request))
 
 
 @router.post("/items/{remote_id}/remote-check")

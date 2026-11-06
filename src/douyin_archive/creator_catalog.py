@@ -94,6 +94,8 @@ class CreatorCatalogScanner:
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(item_id) DO UPDATE SET "
                     "description=excluded.description, cover_url=excluded.cover_url, "
+                    "cover_state=CASE WHEN creator_catalog_items.cover_state=2 THEN 0 "
+                    "ELSE creator_catalog_items.cover_state END, "
                     "statistics_json=excluded.statistics_json, last_seen_at=excluded.last_seen_at",
                     (
                         item.remote_id,

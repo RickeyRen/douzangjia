@@ -3,8 +3,14 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import httpx
+from fastapi.testclient import TestClient
+
+from douyin_archive.api import create_app
+from douyin_archive.config import Settings
 from douyin_archive.creator_catalog import PAUSE_SECONDS, CreatorCatalogScanner
 from douyin_archive.db import Database
+from douyin_archive.item_covers import ItemCoverPreserver
 from douyin_archive.library_models import CreatorRecord
 from douyin_archive.library_repository import LibraryRepository
 from douyin_archive.library_scope import library_item_sql
@@ -110,3 +116,48 @@ def test_a_creator_without_public_works_is_not_a_warning_sign(tmp_path: Path) ->
 
     assert paused_until == 0
     assert row["catalog_scanned_at"] is not None
+
+
+def test_covers_are_saved_once_and_served_instead_of_douyins(tmp_path: Path, master_key: str) -> None:
+    calls: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if "gone" in str(request.url):
+            return httpx.Response(404)
+        return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=b"jpeg")
+
+    async def scenario():
+        database = await open_db(tmp_path)
+        await database.execute(
+            "INSERT INTO creator_catalog_items (item_id, creator_id, author_name, item_type, cover_url, "
+            "first_seen_at, last_seen_at) VALUES ('1', 'c1', 'a', 'video', 'https://x/1.jpg', 1, 1), "
+            "('2', 'c1', 'a', 'video', 'https://x/gone.jpg', 1, 1)"
+        )
+        # A favourite without a saved video also keeps its cover.
+        await database.execute(
+            "INSERT INTO items (remote_id, author_name, description, item_type, first_seen_at, last_seen_at, "
+            "creator_id, cover_url) VALUES ('3', 'a', 'd', 'video', 1, 1, 'c1', 'https://x/3.jpg')"
+        )
+        await database.execute("INSERT INTO item_stars (item_id, starred_at) VALUES ('3', 1)")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            preserver = ItemCoverPreserver(database, tmp_path, client=client)
+            saved = await preserver.run_batch()
+            await preserver.run_batch()
+        states = await database.fetchall("SELECT item_id, cover_state FROM creator_catalog_items ORDER BY item_id")
+        await database.close()
+        return saved, states
+
+    saved, states = asyncio.run(scenario())
+
+    assert saved == 2
+    assert [(row["item_id"], row["cover_state"]) for row in states] == [("1", 1), ("2", 2), ("3", 1)]
+    assert len(calls) == 3
+
+    with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
+        item = client.get("/api/items/3").json()
+        assert item["coverUrl"] == "/api/items/3/cover"
+        assert item["thumbnailUrl"] == "/api/items/3/cover"
+        assert client.get("/api/items/3/cover").content == b"jpeg"
+        assert client.get("/api/items/2/cover").status_code == 404

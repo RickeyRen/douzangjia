@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from ..dashboard_service import DashboardService
 from ..download_policy import DownloadPolicyService
 from ..library_repository import LibraryRepository
-from .feed import _serialize_item
+from .feed import _serialize_item, cover_store_for
 
 router = APIRouter(prefix="/api/library")
 
@@ -171,7 +171,7 @@ async def library_feed(
     )
     has_more = len(rows) > limit
     visible = rows[:limit]
-    items = [await _serialize_item(request.app.state.database, row) for row in visible]
+    items = [await _serialize_item(request.app.state.database, row, cover_store_for(request)) for row in visible]
     next_cursor = None
     if has_more and visible:
         last = visible[-1]
