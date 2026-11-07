@@ -60,7 +60,7 @@ class ItemCoverPreserver:
             f"AND {library_item_sql('i')} "
             "ON CONFLICT(item_id) DO UPDATE SET cover_url=excluded.cover_url, "
             "cover_state=CASE WHEN creator_catalog_items.cover_state=2 "
-            "AND creator_catalog_items.cover_url<>excluded.cover_url THEN 0 "
+            "AND creator_catalog_items.cover_url IS NOT excluded.cover_url THEN 0 "
             "ELSE creator_catalog_items.cover_state END"
         )
 

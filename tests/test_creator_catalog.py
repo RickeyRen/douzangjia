@@ -161,3 +161,46 @@ def test_covers_are_saved_once_and_served_instead_of_douyins(tmp_path: Path, mas
         assert item["thumbnailUrl"] == "/api/items/3/cover"
         assert client.get("/api/items/3/cover").content == b"jpeg"
         assert client.get("/api/items/2/cover").status_code == 404
+
+
+def test_a_gallery_that_had_no_cover_url_is_retried_when_one_arrives(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path)
+        await database.execute(
+            "INSERT INTO creator_catalog_items (item_id, creator_id, author_name, item_type, cover_state, "
+            "first_seen_at, last_seen_at) VALUES ('3', 'c1', 'a', 'gallery', 2, 1, 1)"
+        )
+        await database.execute(
+            "INSERT INTO items (remote_id, author_name, description, item_type, first_seen_at, last_seen_at, "
+            "creator_id, cover_url) VALUES ('3', 'a', 'd', 'gallery', 1, 1, 'c1', 'https://x/3.jpg')"
+        )
+        await database.execute("INSERT INTO item_stars (item_id, starred_at) VALUES ('3', 1)")
+        await ItemCoverPreserver(database, tmp_path).enlist_library_items()
+        row = await database.fetchone("SELECT cover_url, cover_state FROM creator_catalog_items WHERE item_id='3'")
+        await database.close()
+        return row
+
+    row = asyncio.run(scenario())
+
+    assert (row["cover_url"], row["cover_state"]) == ("https://x/3.jpg", 0)
+
+
+def test_migration_rescans_only_creators_whose_galleries_lack_covers(tmp_path: Path) -> None:
+    async def scenario():
+        database = await open_db(tmp_path)
+        await LibraryRepository(database).upsert_creator(CreatorRecord("c2", "二号", "two", post_count=1))
+        await database.execute("UPDATE creators SET catalog_scanned_at=100")
+        await database.execute(
+            "INSERT INTO creator_catalog_items (item_id, creator_id, author_name, item_type, cover_url, "
+            "first_seen_at, last_seen_at) VALUES ('1', 'c1', 'a', 'gallery', NULL, 1, 1), "
+            "('2', 'c2', 'a', 'video', 'https://x/2.jpg', 1, 1)"
+        )
+        script = (Path(__file__).parents[1] / "src/douyin_archive/migrations/018_gallery_covers.sql").read_text()
+        await database.connection.executescript(script)
+        rows = await database.fetchall("SELECT remote_id, catalog_scanned_at FROM creators ORDER BY remote_id")
+        await database.close()
+        return rows
+
+    rows = asyncio.run(scenario())
+
+    assert [(row["remote_id"], row["catalog_scanned_at"]) for row in rows] == [("c1", None), ("c2", 100)]

@@ -85,6 +85,14 @@ def _asset_url(container: Any) -> tuple[str | None, int | None]:
     return url, size
 
 
+def _first_cover(video: dict[str, Any]) -> str | None:
+    for cover_key in ("cover", "origin_cover", "originCover", "dynamic_cover"):
+        cover_url, _ = _asset_url(video.get(cover_key))
+        if cover_url:
+            return cover_url
+    return None
+
+
 def _guess_mime(url: str, fallback: str) -> str:
     suffix = PurePosixPath(urlparse(url).path).suffix.lower()
     guessed = mimetypes.types_map.get(suffix)
@@ -121,6 +129,7 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
     duration_ms: int | None = None
     width: int | None = None
     height: int | None = None
+    video = record.get("video") if isinstance(record.get("video"), dict) else {}
     images = record.get("images")
     if isinstance(images, list) and images:
         item_type = "gallery"
@@ -137,17 +146,15 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
                         size,
                     )
                 )
+        # Douyin's small thumbnail when it sends one, else the first full image.
+        cover_url = _first_cover(video) or (assets[0].url if assets else None)
     else:
         item_type = "video"
-        video = record.get("video") if isinstance(record.get("video"), dict) else {}
         address = video.get("play_addr", video.get("playAddr"))
         url, size = _asset_url(address)
         if url:
             assets.append(MediaAsset(remote_id, 0, "video", url, "video/mp4", size))
-        for cover_key in ("cover", "origin_cover", "originCover", "dynamic_cover"):
-            cover_url, _ = _asset_url(video.get(cover_key))
-            if cover_url:
-                break
+        cover_url = _first_cover(video)
         duration_ms = optional_int(video.get("duration", record.get("duration")))
         width = optional_int(video.get("width"))
         height = optional_int(video.get("height"))

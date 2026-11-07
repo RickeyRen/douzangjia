@@ -55,6 +55,22 @@ def test_video_and_gallery_assets_are_normalized() -> None:
     assert page.has_more is True
 
 
+def test_gallery_cover_prefers_the_thumbnail_and_falls_back_to_the_first_image() -> None:
+    images = [{"url_list": ["https://media.test/one.jpeg"]}, {"url_list": ["https://media.test/two.webp"]}]
+    with_thumbnail, without_thumbnail = normalize_page(
+        {
+            "status_code": 0,
+            "aweme_list": [
+                {"aweme_id": "1", "images": images, "video": {"cover": {"url_list": ["https://media.test/small.jpeg"]}}},
+                {"aweme_id": "2", "images": images},
+            ],
+        }
+    ).items
+
+    assert with_thumbnail.cover_url == "https://media.test/small.jpeg"
+    assert without_thumbnail.cover_url == "https://media.test/one.jpeg"
+
+
 def test_nested_data_envelope_and_missing_author_are_tolerated() -> None:
     page = normalize_page(
         {
