@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from .creator_archive import record_snapshot
@@ -12,6 +13,17 @@ from .library_models import (
     SourceEntityRecord,
     SourceIntegrity,
 )
+
+logger = logging.getLogger(__name__)
+
+# A full scan that returns far fewer entries than we already hold is far more
+# likely cut short by Douyin than a mass unfavouriting, so membership is kept.
+RECONCILE_MIN_EXISTING = 20
+RECONCILE_MIN_SHARE = 0.5
+
+
+def _looks_cut_short(existing: int, seen: int) -> bool:
+    return existing >= RECONCILE_MIN_EXISTING and seen < existing * RECONCILE_MIN_SHARE
 
 
 class LibraryRepository:
@@ -185,9 +197,21 @@ class LibraryRepository:
             (source_id, item_id, remote_order, metadata_json, now, now),
         )
 
+    async def _scan_cut_short(self, table: str, source_id: str, seen: int) -> bool:
+        row = await self.db.fetchone(f"SELECT COUNT(*) AS total FROM {table} WHERE source_id=?", (source_id,))
+        existing = int(row["total"]) if row else 0
+        if not _looks_cut_short(existing, seen):
+            return False
+        logger.warning(
+            "kept %s membership of %s: full scan saw %d of %d entries", table, source_id, seen, existing
+        )
+        return True
+
     async def reconcile_source_items(
         self, source_id: str, current_item_ids: set[str]
     ) -> int:
+        if await self._scan_cut_short("source_items", source_id, len(current_item_ids)):
+            return 0
         if not current_item_ids:
             cursor = await self.db.execute(
                 "DELETE FROM source_items WHERE source_id=?", (source_id,)
@@ -237,6 +261,8 @@ class LibraryRepository:
     async def reconcile_source_entities(
         self, source_id: str, current_entity_ids: set[str]
     ) -> int:
+        if await self._scan_cut_short("source_entities", source_id, len(current_entity_ids)):
+            return 0
         if not current_entity_ids:
             cursor = await self.db.execute(
                 "DELETE FROM source_entities WHERE source_id=?", (source_id,)

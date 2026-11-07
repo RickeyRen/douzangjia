@@ -132,6 +132,26 @@ async def test_account_source_membership_can_be_reconciled_without_deleting_item
     assert items is not None and items["total"] == 2
 
 
+async def test_a_full_scan_cut_short_keeps_existing_membership(database: Database) -> None:
+    library = LibraryRepository(database)
+    archive = ArchiveRepository(database)
+    await library.ensure_account_sources()
+    for index in range(40):
+        await archive.upsert_item(
+            remote_id=f"i{index}", author_name="作者", description="d", item_type="video"
+        )
+        await library.link_source_item("account:likes", f"i{index}", f"{index:03d}")
+
+    # Douyin answered with a single entry and "no more": not a mass unlike.
+    assert await library.reconcile_source_items("account:likes", {"i0"}) == 0
+    assert await library.reconcile_source_items("account:likes", set()) == 0
+    # A normal scan that lost a few entries still prunes them.
+    assert await library.reconcile_source_items("account:likes", {f"i{n}" for n in range(35)}) == 5
+
+    links = await database.fetchone("SELECT COUNT(*) AS total FROM source_items WHERE source_id='account:likes'")
+    assert links is not None and links["total"] == 35
+
+
 async def test_source_upsert_preserves_identity_and_updates_remote_state(
     database: Database,
 ) -> None:
