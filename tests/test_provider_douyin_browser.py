@@ -943,3 +943,48 @@ async def test_response_timeout_logs_only_sanitized_paths(
     assert "msToken" not in caplog.text
     assert "secret" not in caplog.text
     await source.close()
+
+
+async def test_profile_request_survives_the_page_navigating_mid_script() -> None:
+    class NavigatingPage(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+            self.waited = False
+
+        async def evaluate(self, script: str, argument: object) -> object:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError(
+                    "Page.evaluate: Execution context was destroyed, most likely because of a navigation"
+                )
+            return {"httpStatus": 200, "statusCode": 0, "user": {"nickname": "乐酷"}}
+
+        async def wait_for_load_state(self, state: str, timeout: int) -> None:
+            self.waited = True
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    page = NavigatingPage()
+    source._page = page
+
+    result = await source.fetch_creator_profile_payload("creator-1")
+
+    assert result["user"] == {"nickname": "乐酷"}
+    assert page.calls == 2
+    assert page.waited
+
+
+async def test_profile_request_does_not_retry_other_errors() -> None:
+    class BrokenPage(FakePage):
+        calls = 0
+
+        async def evaluate(self, script: str, argument: object) -> object:
+            BrokenPage.calls += 1
+            raise RuntimeError("Target closed")
+
+    source = PlaywrightDouyinSource(FakeCoordinator())
+    source._page = BrokenPage()
+
+    with pytest.raises(RuntimeError, match="Target closed"):
+        await source.fetch_creator_profile_payload("creator-1")
+    assert BrokenPage.calls == 1

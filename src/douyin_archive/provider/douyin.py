@@ -372,7 +372,7 @@ class PlaywrightDouyinSource:
         await self.open()
         if "douyin.com" not in str(self._page.url):
             await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
-        result = await self._page.evaluate(
+        result = await self._evaluate_surviving_navigation(
             """
             async ({creatorId}) => { // __douzangjiaCreatorProfileApi
               const url = new URL('/aweme/v1/web/user/profile/other/', window.location.origin);
@@ -407,6 +407,16 @@ class PlaywrightDouyinSource:
         if not isinstance(result, dict) or int(result.get("httpStatus") or 0) != 200:
             raise ProviderUnavailable("Douyin profile request did not complete")
         return result
+
+    async def _evaluate_surviving_navigation(self, script: str, argument: Any) -> Any:
+        """Run a page script, retrying once if the page navigated away underneath it."""
+        try:
+            return await self._page.evaluate(script, argument)
+        except Exception as error:
+            if "Execution context was destroyed" not in str(error):
+                raise
+        await self._page.wait_for_load_state("domcontentloaded", timeout=45_000)
+        return await self._page.evaluate(script, argument)
 
     async def fetch_creator_profile(self, creator_id: str) -> CreatorRecord:
         """Read the creator identity, from the profile record or the rendered page."""
