@@ -22,7 +22,8 @@ final class APIClient {
         let configuration = URLSessionConfiguration.default
         configuration.httpCookieStorage = .shared
         configuration.httpShouldSetCookies = true
-        configuration.timeoutIntervalForRequest = 20
+        // A busy NAS can take a while on the home page; give it room before giving up.
+        configuration.timeoutIntervalForRequest = 45
         session = URLSession(configuration: configuration)
     }
 
@@ -54,8 +55,9 @@ final class APIClient {
 
     func home() async throws -> HomeSnapshot { try await get("/api/home") }
 
-    func feed(filter: LibraryFilter, cursor: String?) async throws -> Page<FeedItem> {
+    func feed(filter: LibraryFilter, cursor: String?, search: String = "") async throws -> Page<FeedItem> {
         var query = [URLQueryItem(name: "limit", value: "30")]
+        if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         switch filter {
         case .all: break
         case .saved: query.append(URLQueryItem(name: "downloaded", value: "true"))
@@ -77,6 +79,15 @@ final class APIClient {
         if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
         return try await get("/api/creators/vanished", query: query)
+    }
+
+    func searchCreators(_ search: String) async throws -> [Creator] {
+        let page: Page<Creator> = try await get(
+            "/api/creators",
+            query: [URLQueryItem(name: "search", value: search), URLQueryItem(name: "sort", value: "items"),
+                    URLQueryItem(name: "limit", value: "20")]
+        )
+        return page.items
     }
 
     func creator(_ creatorId: String) async throws -> Creator { try await get("/api/creators/\(creatorId)") }
@@ -154,8 +165,13 @@ final class APIClient {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw APIError(status: 0, code: "TIMEOUT", message: "NAS 响应太慢，等了 45 秒还没回应，可能正忙。稍后下拉重试。")
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
-            throw APIError(status: 0, code: "NETWORK", message: "连不上 NAS，请确认手机和 NAS 在同一网络，或检查服务器地址。")
+            let host = baseURL.host() ?? baseURL.absoluteString
+            throw APIError(status: 0, code: "NETWORK", message: "连不上 NAS（\(host)），请确认手机和 NAS 在同一网络，并在 设置 › 抖藏家 里打开“本地网络”。")
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {

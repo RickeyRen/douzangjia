@@ -8,6 +8,8 @@
 	<array>
 		<string>zh-Hans</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>抖藏家需要访问局域网里的 NAS，才能读取你存下的作品。</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

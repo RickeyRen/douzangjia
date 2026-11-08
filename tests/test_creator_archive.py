@@ -366,3 +366,16 @@ def test_checker_counts_looks_that_told_it_nothing_until_one_does(tmp_path: Path
         return counts
 
     assert run(scenario()) == [1, 2, 0]
+
+
+def test_creator_search_finds_a_creator_by_a_former_name(tmp_path: Path, master_key: str) -> None:
+    run(seed_vanished(tmp_path))
+    with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
+        client.post("/api/setup", json={"username": "test-admin", "password": "a secure local passphrase"})
+        by_former = client.get("/api/creators", params={"search": "乐酷"}).json()
+        by_current = client.get("/api/creators", params={"search": "49855631198"}).json()
+        miss = client.get("/api/creators", params={"search": "不存在的人"}).json()
+
+    assert [entry["id"] for entry in by_former["items"]] == ["gone-1"]
+    assert [entry["id"] for entry in by_current["items"]] == ["gone-1"]
+    assert miss["items"] == []

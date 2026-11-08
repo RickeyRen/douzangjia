@@ -9,6 +9,13 @@ from typing import Any
 
 import aiosqlite
 
+CACHE_SIZE = -65536  # KiB, i.e. 64 MiB per connection
+
+
+def _is_plain_select(sql: str) -> bool:
+    text = sql.lstrip().lower()
+    return text.startswith("select") and "returning" not in text
+
 
 class Database:
     """One SQLite connection with migrations and serialized write transactions."""
@@ -18,6 +25,10 @@ class Database:
         self._connection: aiosqlite.Connection | None = None
         self._operation_lock = asyncio.Lock()
         self._transaction_owner: asyncio.Task[Any] | None = None
+        # WAL lets a second connection read while the first is inside a long
+        # write transaction, so API requests never queue behind background work.
+        self._reader: aiosqlite.Connection | None = None
+        self._read_lock = asyncio.Lock()
 
     @property
     def connection(self) -> aiosqlite.Connection:
@@ -35,10 +46,21 @@ class Database:
         await self._connection.execute("PRAGMA busy_timeout=5000")
         await self._connection.execute("PRAGMA journal_mode=WAL")
         await self._connection.execute("PRAGMA synchronous=NORMAL")
+        await self._connection.execute(f"PRAGMA cache_size={CACHE_SIZE}")
         await self._migrate()
+        if str(self.path) != ":memory:":
+            reader = await aiosqlite.connect(self.path, isolation_level=None)
+            reader.row_factory = aiosqlite.Row
+            await reader.execute("PRAGMA busy_timeout=5000")
+            await reader.execute("PRAGMA query_only=ON")
+            await reader.execute(f"PRAGMA cache_size={CACHE_SIZE}")
+            self._reader = reader
         return self
 
     async def close(self) -> None:
+        if self._reader is not None:
+            await self._reader.close()
+            self._reader = None
         if self._connection is not None:
             await self._connection.close()
             self._connection = None
@@ -70,20 +92,35 @@ class Database:
             return await self.connection.execute(sql, tuple(parameters))
 
     async def fetchone(self, sql: str, parameters: Iterable[Any] = ()) -> Row | None:
-        async with self._operation():
-            cursor = await self.connection.execute(sql, tuple(parameters))
+        async with self._read_connection(sql) as connection:
+            cursor = await connection.execute(sql, tuple(parameters))
             try:
                 return await cursor.fetchone()
             finally:
                 await cursor.close()
 
     async def fetchall(self, sql: str, parameters: Iterable[Any] = ()) -> list[Row]:
-        async with self._operation():
-            cursor = await self.connection.execute(sql, tuple(parameters))
+        async with self._read_connection(sql) as connection:
+            cursor = await connection.execute(sql, tuple(parameters))
             try:
                 return await cursor.fetchall()
             finally:
                 await cursor.close()
+
+    @asynccontextmanager
+    async def _read_connection(self, sql: str) -> AsyncIterator[aiosqlite.Connection]:
+        # Inside its own transaction a task must read its uncommitted writes,
+        # and INSERT ... RETURNING goes through fetchone too.
+        if (
+            self._reader is None
+            or asyncio.current_task() is self._transaction_owner
+            or not _is_plain_select(sql)
+        ):
+            async with self._operation():
+                yield self.connection
+            return
+        async with self._read_lock:
+            yield self._reader
 
     @asynccontextmanager
     async def _operation(self) -> AsyncIterator[None]:

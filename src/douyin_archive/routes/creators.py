@@ -108,9 +108,13 @@ async def list_creators(
     conditions: list[str] = []
     parameters: list[object] = []
     if search:
-        conditions.append("(c.nickname LIKE ? OR c.unique_id LIKE ?)")
+        # A former name finds the creator too, so a renamed account is not lost.
+        conditions.append(
+            "(c.nickname LIKE ? OR c.unique_id LIKE ? OR EXISTS (SELECT 1 FROM creator_snapshots s "
+            "WHERE s.creator_id=c.remote_id AND (s.nickname LIKE ? OR s.unique_id LIKE ?)))"
+        )
         term = f"%{search}%"
-        parameters.extend((term, term))
+        parameters.extend((term, term, term, term))
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     # The "items" order ranks creators by how much of them the archive holds.
     sort_key = "c.last_seen_at" if sort == "recent" else "known_item_count"

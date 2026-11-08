@@ -10,11 +10,23 @@ final class LibraryFeed {
     private var exhausted = false
     private var generation = 0
 
-    func reload(client: APIClient, filter: LibraryFilter, onError: (Error) -> Void) async {
+    var creators: [Creator] = []
+    private var search = ""
+
+    func reload(client: APIClient, filter: LibraryFilter, search: String = "", onError: (Error) -> Void) async {
         generation += 1
         cursor = nil
         exhausted = false
         items = []
+        self.search = search
+        let started = generation
+        if search.isEmpty {
+            creators = []
+        } else {
+            let found = (try? await client.searchCreators(search)) ?? []
+            guard started == generation else { return }
+            creators = found
+        }
         await loadMore(client: client, filter: filter, onError: onError)
     }
 
@@ -24,13 +36,15 @@ final class LibraryFeed {
         let started = generation
         defer { loading = false }
         do {
-            let page = try await client.feed(filter: filter, cursor: cursor)
+            let page = try await client.feed(filter: filter, cursor: cursor, search: search)
             guard started == generation else { return }
             let known = Set(items.map(\.id))
             items.append(contentsOf: page.items.filter { !known.contains($0.id) })
             cursor = page.nextCursor
             exhausted = page.nextCursor == nil
             error = nil
+        } catch is CancellationError {
+            return
         } catch {
             onError(error)
             self.error = error.localizedDescription
@@ -47,12 +61,18 @@ struct LibraryView: View {
     @State private var filter: LibraryFilter = LibraryView.initialFilter
     @State private var feed = LibraryFeed()
     @State private var player: PlayerSelection?
+    @State private var search = ""
+
+    private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 3)]
 
     var body: some View {
         NavigationStack {
             ScrollView {
+                if !feed.creators.isEmpty {
+                    creatorResults
+                }
                 LazyVGrid(columns: columns, spacing: 3) {
                     ForEach(Array(feed.items.enumerated()), id: \.element.id) { index, item in
                         Button {
@@ -81,6 +101,10 @@ struct LibraryView: View {
                     } actions: {
                         Button("重试") { Task { await reload() } }
                     }
+                } else if feed.items.isEmpty && !query.isEmpty {
+                    if feed.creators.isEmpty {
+                        ContentUnavailableView.search(text: query)
+                    }
                 } else if feed.items.isEmpty {
                     ContentUnavailableView(emptyTitle, systemImage: "tray")
                 }
@@ -96,8 +120,12 @@ struct LibraryView: View {
                     .frame(maxWidth: 320)
                 }
             }
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品描述、博主名或抖音号")
             .refreshable { await reload() }
-            .task(id: filter) {
+            .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
+            .task(id: "\(filter.rawValue)|\(query)") {
+                if !query.isEmpty { try? await Task.sleep(for: .milliseconds(350)) }
+                if Task.isCancelled { return }
                 await reload()
                 #if DEBUG
                 // Simulator QA: `-devOpenPlayer N` opens the player on item N.
@@ -130,6 +158,30 @@ struct LibraryView: View {
     }
 
     private func reload() async {
-        await feed.reload(client: model.client, filter: filter, onError: model.handle)
+        await feed.reload(client: model.client, filter: filter, search: query, onError: model.handle)
+    }
+
+    private var creatorResults: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("博主").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(feed.creators) { creator in
+                        NavigationLink(value: CreatorRoute(id: creator.id)) {
+                            VStack(spacing: 6) {
+                                CreatorAvatar(path: creator.avatarUrl, size: 56)
+                                Text(creator.nickname).font(.caption).lineLimit(1)
+                                Text("\(creator.knownItemCount) 个作品").font(.caption2).foregroundStyle(.secondary)
+                            }
+                            .frame(width: 76)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(.vertical, 10)
     }
 }

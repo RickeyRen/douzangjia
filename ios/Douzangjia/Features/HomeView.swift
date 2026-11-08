@@ -184,6 +184,8 @@ struct HomeView: View {
             home = try await snapshot
             missing = try? await summary
             loadError = nil
+        } catch is CancellationError {
+            return
         } catch {
             model.handle(error)
             loadError = error.localizedDescription
