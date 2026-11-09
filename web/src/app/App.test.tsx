@@ -62,9 +62,11 @@ function renderApp() {
 it("lands signed-in owners on a content-first home page", async () => {
   renderApp();
 
-  expect(await screen.findByRole("heading", { name: /天鹰座/ })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "存档总览" })).toBeInTheDocument();
+  expect(await screen.findByText(/抖音账号 天鹰座 已连接/)).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "最近收藏" })).toBeInTheDocument();
-  expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+  const nav = screen.getByRole("navigation", { name: "主导航" });
+  expect(nav).toHaveTextContent("首页作品博主消失的博主下载设置");
 });
 
 it("re-scans from settings and can return without logging in", async () => {

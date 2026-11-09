@@ -1,30 +1,57 @@
-import { CaretRight, CloudCheck, CloudSlash, FilmStrip, Shuffle, Star, Users } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowClockwise, ArrowUpRight, CalendarBlank, CloudCheck, Ghost, HardDrives, Shuffle, Sparkle, SquaresFour, Users } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { archiveMissing, fetchHome, fetchMissingSummary, unqueuedCount, type FeedItem, type HomeSnapshot, type MissingSummary } from "../app/api";
+import {
+  archiveMissing,
+  fetchHome,
+  fetchMissingSummary,
+  triggerSync,
+  unqueuedCount,
+  type CreatorArchiveStatus,
+  type FeedItem,
+  type HomeSnapshot,
+  type MissingSummary,
+} from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
-import { formatBytes, formatInteger, greeting } from "../lib/format";
+import { ARCHIVE_STATUS_LABEL } from "../lib/creatorArchive";
+import { formatBytes, formatInteger, formatRelative } from "../lib/format";
 import { refreshArchiveProgress, useArchiveProgress } from "../lib/useArchiveProgress";
 import { useFeed } from "../lib/useFeed";
 import { MediaTile, TileSkeleton } from "../media/MediaTile";
 import { Player } from "../media/Player";
 import { useMediaNavigation } from "../media/useMediaNavigation";
-import { sourceLabel } from "../shell/sourceMeta";
-import { SourceIcon } from "../shell/SourceIcon";
 import { Avatar, ErrorState, Spinner } from "../ui/primitives";
 import { DownloadProgress } from "./DownloadProgress";
 import { FirstSync } from "./FirstSync";
+import { SavedHeatmap, SpeedChart } from "./HomeCharts";
 import { t } from "../i18n/t";
 
+const STATUS_TONE: Record<Exclude<CreatorArchiveStatus, "active">, string> = {
+  banned: "st-red",
+  reset: "st-amber",
+  deactivated: "st-gray",
+  vanished: "st-olive",
+};
+
+type RecentFilter = "all" | "video" | "gallery";
+
+function weekRange(now = new Date()): string {
+  const start = new Date(now.getTime() - 6 * 86_400_000);
+  const label = (date: Date) => t("{m}月{d}日", { m: date.getMonth() + 1, d: date.getDate() });
+  return `${label(start)} – ${label(now)}`;
+}
+
 export function HomePage() {
-  const { account, toast } = useAppData();
+  const { account, health, refreshHealth, toast } = useAppData();
   const [missing, setMissing] = useState<MissingSummary | null>(null);
   const [queueing, setQueueing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [home, setHome] = useState<HomeSnapshot | null>(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [shelf, setShelf] = useState<{ items: FeedItem[]; index: number } | null>(null);
+  const [recentFilter, setRecentFilter] = useState<RecentFilter>("all");
   const [shuffleSeed, setShuffleSeed] = useState<number | null>(null);
   const [shuffleIndex, setShuffleIndex] = useState(0);
   const shuffle = useFeed(shuffleSeed === null ? null : { sort: "random", seed: shuffleSeed, downloaded: true, limit: 20 });
@@ -62,195 +89,241 @@ export function HomePage() {
     }
   }
 
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      await triggerSync(false);
+      toast(t("已开始同步"));
+      window.setTimeout(() => void refreshHealth(), 3000);
+    } catch {
+      toast(t("无法开始同步，请查看状态页"));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const patchShelfItem = useCallback((awemeId: string, patch: Partial<FeedItem>) => {
     const apply = (items: FeedItem[]) => items.map((item) => (item.awemeId === awemeId ? { ...item, ...patch } : item));
     setShelf((current) => (current ? { ...current, items: apply(current.items) } : current));
     setHome((current) => (current ? { ...current, recent: apply(current.recent), starred: apply(current.starred), gone: apply(current.gone) } : current));
   }, []);
 
-  const name = account?.account?.nickname;
-  const hello = useMemo(() => greeting(), []);
+  const range = useMemo(() => weekRange(), []);
+  const recent = useMemo(() => {
+    const items = home?.recent ?? [];
+    return recentFilter === "all" ? items : items.filter((item) => item.type === recentFilter);
+  }, [home, recentFilter]);
 
   if (error) return <ErrorState onRetry={reload} />;
   if (home && home.stats.items === 0) return <FirstSync onReady={reload} />;
 
+  const stats = home?.stats;
+  const week = home?.activity?.week;
+  const syncHealth = health ?? home?.health ?? null;
+  const nickname = account?.account?.nickname;
+  const subtitle = [
+    syncHealth?.lastSuccessAt ? t("最后同步 {when}", { when: formatRelative(syncHealth.lastSuccessAt) }) : t("还没有完成过同步"),
+    nickname ? t("抖音账号 {name} 已连接", { name: nickname }) : null,
+    syncHealth?.intervalSeconds ? t("自动同步每 {m} 分钟一次", { m: Math.round(syncHealth.intervalSeconds / 60) }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const savedShare = stats && stats.items ? (stats.downloadedItems / stats.items) * 100 : 0;
+  const videoShare = stats && stats.items ? (stats.videos / Math.max(1, stats.videos + stats.galleries)) * 100 : 0;
+  const vanishedCount = stats?.vanishedCreators ?? home?.vanishedCreators?.length ?? 0;
+  const vanished = home?.vanishedCreators ?? [];
+  const topCreators = home?.creators ?? [];
+  const topMax = Math.max(1, ...topCreators.map((creator) => creator.itemCount));
+  const unqueued = progress && missing ? unqueuedCount(missing) : 0;
+  const hasDownloadRow = Boolean(progress && (progress.active || progress.failedTotal > 0)) || unqueued > 0;
+
   return (
-    <>
-      <section className="hero">
+    <div className="overview">
+      <header className="ov-head">
         <div>
-          <h1>
-            {hello}
-            {name ? `，${name}` : ""}
-          </h1>
-          <p>{home ? t("你的抖音收藏都在这里 · {n} 个作品", { n: formatInteger(home.stats.items) }) : t("正在整理你的收藏…")}</p>
+          <h1>{t("存档总览")}</h1>
+          <p>{home ? subtitle : t("正在整理你的收藏…")}</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={!home || home.stats.downloadedItems === 0}
-          onClick={() => {
-            setShuffleIndex(0);
-            setShuffleSeed(1 + Math.floor(Math.random() * 65_000));
-          }}
-        >
-          <Shuffle size={17} weight="bold" />
-          {t("随便看看")}
-        </button>
-      </section>
-
-      <div className="stats">
-        <a className="stat" href={routeHref({ name: "library", filters: {} })}>
-          <span>
-            <FilmStrip size={15} /> 收藏作品
+        <div className="ov-actions">
+          <span className="ghost-chip" title={t("卡片上的增长数字按最近 7 天计算")}>
+            <CalendarBlank size={15} />
+            {range}
           </span>
-          <strong>{home ? formatInteger(home.stats.items) : "—"}</strong>
-          <small>{home ? t("视频 {videos} · 图集 {galleries}", { videos: formatInteger(home.stats.videos), galleries: formatInteger(home.stats.galleries) }) : " "}</small>
-        </a>
-        <a className="stat" href={routeHref({ name: "library", filters: { downloaded: true } })}>
-          <span>
-            <CloudCheck size={15} /> 已存到 NAS
-          </span>
-          <strong>{home ? formatInteger(home.stats.downloadedItems) : "—"}</strong>
-          <small>{home ? t("占用 {size}", { size: formatBytes(home.stats.archivedBytes) }) : " "}</small>
-        </a>
-        <a className="stat" href={routeHref({ name: "starred", filters: {} })}>
-          <span>
-            <Star size={15} /> 精选
-          </span>
-          <strong>{home ? formatInteger(home.stats.starred) : "—"}</strong>
-          <small>{t("按 S 键或点星标加入")}</small>
-        </a>
-        <a className="stat" href={routeHref({ name: "creators", query: "" })}>
-          <span>
-            <Users size={15} /> 博主
-          </span>
-          <strong>{home ? formatInteger(home.stats.creators) : "—"}</strong>
-          <small>{t("收藏涉及的创作者")}</small>
-        </a>
-        <a className="stat stat-gone" href={routeHref({ name: "gone", filters: {} })}>
-          <span>
-            <CloudSlash size={15} /> 已在抖音消失
-          </span>
-          <strong>{home ? formatInteger(home.stats.gone) : "—"}</strong>
-          <small>{home ? t("已抽查 {n} 个", { n: formatInteger(home.stats.remoteChecked) }) : " "}</small>
-        </a>
-      </div>
-
-      {progress && (progress.active || progress.failedTotal > 0) ? (
-        <DownloadProgress progress={progress} variant="home" />
-      ) : null}
-      {progress && missing && unqueuedCount(missing) > 0 ? (
-        <section className="cta">
-          <div>
-            <strong>{t("还有 {n} 个收藏作品没有存到 NAS", { n: formatInteger(unqueuedCount(missing)) })}</strong>
-            <p>{missing.estimatedBytes ? t("按已下载作品的平均大小估算，大约需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : t("它们目前只有抖音上的链接，作者删除后就看不到了。")}</p>
-          </div>
-          <button type="button" className="btn btn-primary btn-sm" disabled={queueing} onClick={() => void downloadMissing()}>
-            {queueing ? <Spinner size={14} /> : <CloudCheck size={15} weight="bold" />}
-            {t("全部存到 NAS")}
+          <button
+            type="button"
+            className="ghost-chip is-button"
+            disabled={!home || home.stats.downloadedItems === 0}
+            onClick={() => {
+              setShuffleIndex(0);
+              setShuffleSeed(1 + Math.floor(Math.random() * 65_000));
+            }}
+          >
+            <Shuffle size={15} />
+            {t("随便看看")}
           </button>
-        </section>
-      ) : null}
+          <button type="button" className="btn btn-primary btn-glow" disabled={syncing} onClick={() => void syncNow()}>
+            {syncing ? <Spinner size={14} /> : <ArrowClockwise size={15} weight="bold" />}
+            {t("立即同步")}
+          </button>
+        </div>
+      </header>
 
-      <section className="section">
-        <div className="section-header">
-          <h2>{t("最近收藏")}</h2>
-          <a href={routeHref({ name: "library", filters: {} })}>
-            全部 <CaretRight size={13} weight="bold" />
-          </a>
-        </div>
-        <div className="shelf">
-          {home
-            ? home.recent.map((item, index) => (
-                <MediaTile key={item.awemeId} item={item} onOpen={() => setShelf({ items: home.recent, index })} onOpenCreator={handlers.openCreator} />
-              ))
-            : Array.from({ length: 8 }, (_, index) => <TileSkeleton key={index} />)}
-        </div>
+      <section className="bento kpis" aria-label={t("存档统计")}>
+        <KpiCard
+          href={routeHref({ name: "library", filters: {} })}
+          icon={<SquaresFour size={15} />}
+          label={t("收藏作品")}
+          value={stats ? formatInteger(stats.items) : "—"}
+          pill={week?.items ? <span className="pill up">+{formatInteger(week.items)}</span> : null}
+          sub={stats ? t("视频 {videos} · 图集 {galleries}", { videos: formatInteger(stats.videos), galleries: formatInteger(stats.galleries) }) : " "}
+        >
+          <div className="split" aria-hidden="true">
+            <i style={{ width: `${videoShare}%` }} />
+            <i style={{ width: `${100 - videoShare}%` }} />
+          </div>
+        </KpiCard>
+        <KpiCard
+          href={routeHref({ name: "library", filters: { downloaded: true } })}
+          icon={<HardDrives size={15} />}
+          label={t("已存到 NAS")}
+          value={stats ? formatInteger(stats.downloadedItems) : "—"}
+          pill={week?.saved ? <span className="pill up">+{formatInteger(week.saved)}</span> : null}
+          sub={stats ? t("占用 {size} · 占收藏 {p}%", { size: formatBytes(stats.archivedBytes), p: savedShare.toFixed(1) }) : " "}
+        >
+          <div className="bar" aria-hidden="true">
+            <i style={{ width: `${Math.min(100, savedShare)}%` }} />
+          </div>
+        </KpiCard>
+        <KpiCard
+          href={routeHref({ name: "creators", query: "" })}
+          icon={<Users size={15} />}
+          label={t("博主")}
+          value={stats ? formatInteger(stats.creators) : "—"}
+          pill={week?.creators ? <span className="pill olive">+{formatInteger(week.creators)}</span> : null}
+          sub={topCreators[0] ? t("收藏最多：{name} {n} 个", { name: topCreators[0].nickname, n: formatInteger(topCreators[0].itemCount) }) : t("收藏涉及的创作者")}
+        >
+          <div className="ticks" aria-hidden="true">
+            {topCreators.slice(0, 14).map((creator, index) => (
+              <i key={creator.id} className={index < 3 ? (index === 0 ? "is-top" : "is-hi") : undefined} style={{ height: `${Math.max(3, Math.round((creator.itemCount / topMax) * 20))}px` }} />
+            ))}
+          </div>
+        </KpiCard>
+        <KpiCard
+          href={routeHref({ name: "vanished" })}
+          icon={<Ghost size={15} />}
+          label={t("已在抖音消失")}
+          value={stats ? formatInteger(vanishedCount) : "—"}
+          unit={t("位")}
+          pill={week?.vanished ? <span className="pill down">+{formatInteger(week.vanished)}</span> : null}
+          sub={vanishedCount ? t("原来的头像、昵称和作品都已留档") : t("还没有博主从抖音消失")}
+        >
+          {vanished.length ? (
+            <div className="avs" aria-hidden="true">
+              {vanished.slice(0, 5).map((creator) => (
+                <span key={creator.id} className="gone-av">
+                  <Avatar src={creator.avatarUrl} name={creator.nickname} size={26} />
+                </span>
+              ))}
+              {vanishedCount > 5 ? <span className="more">+{formatInteger(vanishedCount - 5)}</span> : null}
+            </div>
+          ) : null}
+        </KpiCard>
       </section>
 
-      {home && home.gone.length ? (
-        <section className="section">
-          <div className="section-header">
-            <h2>{t("这些已经从抖音消失了")}</h2>
-            <a href={routeHref({ name: "gone", filters: {} })}>
-              全部 <CaretRight size={13} weight="bold" />
-            </a>
-          </div>
-          <div className="shelf">
-            {home.gone.map((item, index) => (
-              <MediaTile key={item.awemeId} item={item} onOpen={() => setShelf({ items: home.gone, index })} onOpenCreator={handlers.openCreator} />
-            ))}
-          </div>
+      {hasDownloadRow ? (
+        <section className="dl-row" aria-label={t("下载")}>
+          {progress ? <DownloadProgress progress={progress} variant="home" /> : null}
+          {unqueued > 0 && missing ? (
+            <section className="card dl-card dl-act">
+              <span className="act-l">
+                <Sparkle size={13} weight="fill" />
+                {t("待存档")}
+              </span>
+              <h3>
+                {t("还有")} <b className="num">{formatInteger(unqueued)}</b> {t("个收藏作品没有存到 NAS")}
+              </h3>
+              <p>{missing.estimatedBytes ? t("按已存作品的平均大小估算，约 {size}", { size: formatBytes(missing.estimatedBytes) }) : t("它们目前只有抖音上的链接，作者删除后就看不到了")}</p>
+              <button type="button" className="btn-w" disabled={queueing} onClick={() => void downloadMissing()}>
+                {queueing ? <Spinner size={14} /> : <CloudCheck size={16} weight="bold" />}
+                {t("全部存到 NAS")}
+                <ArrowUpRight size={14} weight="bold" />
+              </button>
+            </section>
+          ) : null}
         </section>
       ) : null}
 
-      {home && home.starred.length ? (
-        <section className="section">
-          <div className="section-header">
-            <h2>{t("精选")}</h2>
-            <a href={routeHref({ name: "starred", filters: {} })}>
-              全部 <CaretRight size={13} weight="bold" />
+      <section className="bento charts">
+        <SpeedChart activity={home?.activity} currentBps={progress?.active && progress.active.status !== "paused" ? progress.active.speedBps : null} />
+        <SavedHeatmap activity={home?.activity} />
+      </section>
+
+      <section className="bento lists">
+        <section className="card gonec" aria-label={t("已在抖音消失的博主")}>
+          <div className="row-h top">
+            <div>
+              <h2 className="h4">{t("已在抖音消失的博主")}</h2>
+              <p className="cap">{t("Ta 原来的样子，这里还留着")}</p>
+            </div>
+            <span className="sp" />
+            <a className="pill down" href={routeHref({ name: "vanished" })}>
+              {t("{n} 位", { n: formatInteger(vanishedCount) })}
             </a>
           </div>
-          <div className="shelf">
-            {home.starred.map((item, index) => (
-              <MediaTile key={item.awemeId} item={item} onOpen={() => setShelf({ items: home.starred, index })} onOpenCreator={handlers.openCreator} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {home && home.shelves.length ? (
-        <section className="section">
-          <div className="section-header">
-            <h2>{t("收藏夹与来源")}</h2>
-          </div>
-          <div className="collections">
-            {home.shelves.map((shelfInfo) => {
-              return (
-                <a key={shelfInfo.id} className="collection" href={routeHref({ name: "library", sourceId: shelfInfo.id, filters: {} })}>
-                  {shelfInfo.covers.length ? (
-                    <div className="mosaic">
-                      {[0, 1, 2].map((position) => (
-                        <MosaicCell key={position} src={shelfInfo.covers[position]} />
-                      ))}
+          {vanished.length ? (
+            <ul className="glist">
+              {vanished.slice(0, 5).map((creator) => (
+                <li key={creator.id}>
+                  <a href={routeHref({ name: "creator", creatorId: creator.id, filters: {} })}>
+                    <span className="gone-av">
+                      <Avatar src={creator.avatarUrl} name={creator.nickname} size={36} />
+                    </span>
+                    <div>
+                      <b>{creator.nickname}</b>
+                      <span>{t("留档 {n} 个作品", { n: formatInteger(creator.itemCount) })}</span>
                     </div>
-                  ) : (
-                    <div className="mosaic-empty">
-                      <SourceIcon source={shelfInfo} size={34} />
-                    </div>
-                  )}
-                  <strong>
-                    <SourceIcon source={shelfInfo} size={16} />
-                    {sourceLabel(shelfInfo)}
-                  </strong>
-                  <small>{formatInteger(shelfInfo.itemCount)} 个作品</small>
-                </a>
-              );
-            })}
-          </div>
+                    {creator.status !== "active" ? <span className={`st ${STATUS_TONE[creator.status]}`}>{ARCHIVE_STATUS_LABEL[creator.status]}</span> : null}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="gone-empty">{home ? t("还没有发现被封禁、注销或清空作品的博主。抖藏家会每天检查一遍。") : " "}</p>
+          )}
         </section>
-      ) : null}
 
-      {home && home.creators.length ? (
-        <section className="section">
-          <div className="section-header">
-            <h2>{t("收藏最多的博主")}</h2>
-            <a href={routeHref({ name: "creators", query: "" })}>
-              全部 <CaretRight size={13} weight="bold" />
-            </a>
+        <section className="card recc">
+          <div className="row-h top">
+            <div>
+              <h2 className="h4">{t("最近收藏")}</h2>
+              <p className="cap">{week ? t("最近 7 天新增 {n} 个 · 存到 NAS {saved} 个", { n: formatInteger(week.items), saved: formatInteger(week.saved) }) : t("最新发现的收藏作品")}</p>
+            </div>
+            <span className="sp" />
+            <div className="mini-seg" role="group" aria-label={t("作品类型")}>
+              {(
+                [
+                  ["all", t("全部")],
+                  ["video", t("视频")],
+                  ["gallery", t("图集")],
+                ] as Array<[RecentFilter, string]>
+              ).map(([value, label]) => (
+                <button key={value} type="button" aria-pressed={recentFilter === value} onClick={() => setRecentFilter(value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="people">
-            {home.creators.map((creator) => (
-              <a key={creator.id} className="person" href={routeHref({ name: "creator", creatorId: creator.id, filters: {} })}>
-                <Avatar src={creator.avatarUrl} name={creator.nickname} />
-                <strong>{creator.nickname}</strong>
-                <small>{formatInteger(creator.itemCount)} 个作品</small>
-              </a>
-            ))}
+          <div className="rec">
+            {home
+              ? recent.slice(0, 12).map((item) => (
+                  <MediaTile key={item.awemeId} item={item} onOpen={() => setShelf({ items: recent, index: recent.indexOf(item) })} onOpenCreator={handlers.openCreator} />
+                ))
+              : Array.from({ length: 6 }, (_, index) => <TileSkeleton key={index} />)}
+            {home && recent.length === 0 ? <p className="gone-empty">{t("最近没有这类作品")}</p> : null}
           </div>
         </section>
-      ) : null}
+      </section>
 
       {shelf ? (
         <Player
@@ -275,12 +348,27 @@ export function HomePage() {
           {...handlers.playerProps(() => setShuffleSeed(null))}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
-function MosaicCell({ src }: { src?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) return <span />;
-  return <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
+function KpiCard({ href, icon, label, value, unit, pill, sub, children }: { href: string; icon: ReactNode; label: string; value: string; unit?: string; pill: ReactNode; sub: string; children?: ReactNode }) {
+  return (
+    <a className="card kpi" href={href}>
+      <div className="kpi-h">
+        <span className="chip-ic">{icon}</span>
+        <span className="kpi-l">{label}</span>
+        <span className="circ" aria-hidden="true">
+          <ArrowUpRight size={13} />
+        </span>
+      </div>
+      <div className="kpi-n">
+        <span className="num big">{value}</span>
+        {unit ? <span className="kpi-u">{unit}</span> : null}
+        {pill}
+      </div>
+      <div className="kpi-s">{sub}</div>
+      {children}
+    </a>
+  );
 }

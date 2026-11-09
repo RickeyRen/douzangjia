@@ -57,7 +57,7 @@ it("shows overall percent, size, speed and what is downloading now", () => {
   expect(screen.getByText("2 个作品下载失败")).toBeInTheDocument();
 });
 
-it("pauses every running batch", async () => {
+it("shows the running batch and the failures side by side on home", async () => {
   vi.mocked(api.controlArchiveBatch).mockResolvedValue({ id: 7, kind: "missing", targetId: "all", status: "paused" });
   const user = userEvent.setup();
   render(
@@ -67,7 +67,9 @@ it("pauses every running batch", async () => {
   );
   await user.click(screen.getByRole("button", { name: /暂停/ }));
   expect(api.controlArchiveBatch).toHaveBeenCalledWith(7, "pause");
-  expect(screen.getByText("2 个下载失败，去状态页重试")).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "下载进度" })).toHaveTextContent("/ 200");
+  expect(screen.getByText("2 个作品没能存到 NAS")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /全部重试/ })).toBeInTheDocument();
 });
 
 it("retries failed downloads when nothing else is running", async () => {

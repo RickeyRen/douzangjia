@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
 
@@ -19,6 +21,15 @@ HOME_SHELF_SIZE = 12
 # and recount in the background at most this often.
 LIBRARY_TOTALS_TTL_SECONDS = 300
 SHELF_SOURCE_KINDS = ("favorite_collection", "favorite_video", "like", "post", "watch_later")
+ACTIVITY_DAYS = 70
+SPEED_WINDOW_SECONDS = 24 * 60 * 60
+SPEED_BUCKET_SECONDS = 600
+WEEK_SECONDS = 7 * 24 * 60 * 60
+# The charts move in day and 10-minute steps; recompute them at most this often.
+ACTIVITY_TTL_SECONDS = 60
+SHANGHAI = ZoneInfo("Asia/Shanghai")
+# China keeps UTC+8 all year, so SQL can bucket days with a fixed offset.
+SHANGHAI_OFFSET_SECONDS = 8 * 60 * 60
 
 
 async def sync_health(request: Request, *, now: int | None = None) -> dict[str, Any]:
@@ -36,17 +47,23 @@ async def sync_health(request: Request, *, now: int | None = None) -> dict[str, 
     )
 
 
-async def _count_library(database: Any) -> dict[str, Any]:
+async def _count_library(database: Any, *, now: int | None = None) -> dict[str, Any]:
     in_library = library_item_sql("i")
+    week_ago = (int(time.time()) if now is None else now) - WEEK_SECONDS
     totals = await database.fetchone(
         "SELECT COUNT(*) AS items, "
         "COALESCE(SUM(CASE WHEN item_type='video' THEN 1 ELSE 0 END), 0) AS videos, "
-        "COALESCE(SUM(CASE WHEN item_type='gallery' THEN 1 ELSE 0 END), 0) AS galleries "
-        f"FROM items i WHERE {in_library}"
+        "COALESCE(SUM(CASE WHEN item_type='gallery' THEN 1 ELSE 0 END), 0) AS galleries, "
+        "COALESCE(SUM(CASE WHEN first_seen_at>=? THEN 1 ELSE 0 END), 0) AS items_week "
+        f"FROM items i WHERE {in_library}",
+        (week_ago,),
     )
     creators = await database.fetchone(
-        "SELECT COUNT(*) AS total FROM creators c WHERE EXISTS "
-        f"(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {in_library})"
+        "SELECT COUNT(*) AS total, "
+        "COALESCE(SUM(CASE WHEN c.first_seen_at>=? THEN 1 ELSE 0 END), 0) AS week "
+        "FROM creators c WHERE EXISTS "
+        f"(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {in_library})",
+        (week_ago,),
     )
     creator_rows = await database.fetchall(
         "SELECT c.remote_id, c.nickname, c.unique_id, c.avatar_url, COUNT(i.remote_id) AS items "
@@ -59,7 +76,61 @@ async def _count_library(database: Any) -> dict[str, Any]:
         "videos": totals["videos"],
         "galleries": totals["galleries"],
         "creators": creators["total"],
+        "items_week": totals["items_week"],
+        "creators_week": creators["week"],
         "creator_rows": [dict(row) for row in creator_rows],
+    }
+
+
+async def home_activity(
+    database: Any, counts: dict[str, Any], *, now: int | None = None
+) -> dict[str, Any]:
+    """Per-day saves (Shanghai dates) and the last day's download speed for the home charts."""
+    now = int(time.time()) if now is None else now
+    today = datetime.fromtimestamp(now, tz=SHANGHAI).date()
+    first_day = today - timedelta(days=ACTIVITY_DAYS - 1)
+    start = int(datetime(first_day.year, first_day.month, first_day.day, tzinfo=SHANGHAI).timestamp())
+    # An item counts on the day its first file landed, so re-downloads never count twice.
+    offset = SHANGHAI_OFFSET_SECONDS
+    saved_rows = await database.fetchall(
+        "SELECT (first_done + ?) / 86400 AS day, COUNT(*) AS saved FROM ("
+        "SELECT MIN(completed_at) AS first_done FROM media_files "
+        "WHERE status='ready' AND completed_at IS NOT NULL GROUP BY item_id"
+        ") WHERE first_done>=? AND first_done<=? GROUP BY day",
+        (offset, start, now),
+    )
+    by_day = {int(row["day"]): int(row["saved"]) for row in saved_rows}
+    epoch_day = (start + offset) // 86400
+    daily = [
+        {
+            "date": (first_day + timedelta(days=index)).isoformat(),
+            "count": by_day.get(epoch_day + index, 0),
+        }
+        for index in range(ACTIVITY_DAYS)
+    ]
+    speed_rows = await database.fetchall(
+        "SELECT CAST(sampled_at / ? AS INTEGER) * ? AS bucket, "
+        "AVG(download_speed_bps) AS bps FROM metric_samples "
+        "WHERE resolution='raw' AND sampled_at>=? GROUP BY bucket ORDER BY bucket",
+        (SPEED_BUCKET_SECONDS, SPEED_BUCKET_SECONDS, now - SPEED_WINDOW_SECONDS),
+    )
+    vanished_week = await database.fetchone(
+        "SELECT COUNT(*) AS total FROM creators "
+        "WHERE archive_status<>'active' AND archive_status_since>=?",
+        (now - WEEK_SECONDS,),
+    )
+    return {
+        "dailySaved": daily,
+        "speed": [
+            {"at": int(row["bucket"]), "bps": round(float(row["bps"]), 1)} for row in speed_rows
+        ],
+        "speedBucketSeconds": SPEED_BUCKET_SECONDS,
+        "week": {
+            "items": int(counts.get("items_week", 0)),
+            "saved": sum(day["count"] for day in daily[-7:]),
+            "creators": int(counts.get("creators_week", 0)),
+            "vanished": int(vanished_week["total"]) if vanished_week is not None else 0,
+        },
     }
 
 
@@ -88,6 +159,17 @@ async def library_counts(request: Request) -> dict[str, Any]:
 
         state.home_library_refresh = asyncio.create_task(refresh())
     return counts
+
+
+async def cached_activity(request: Request, counts: dict[str, Any]) -> dict[str, Any]:
+    state = request.app.state
+    cached = getattr(state, "home_activity", None)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < ACTIVITY_TTL_SECONDS:
+        return cached[1]
+    activity = await home_activity(state.database, counts)
+    state.home_activity = (now, activity)
+    return activity
 
 
 @router.get("/home")
@@ -195,6 +277,7 @@ async def home(request: Request) -> dict[str, Any]:
             "vanishedCreators": vanished["total"],
         },
         "vanishedCreators": vanished_creators,
+        "activity": await cached_activity(request, counts),
         "health": await sync_health(request),
         "recent": [await _serialize_item(database, row, covers) for row in recent_rows],
         "starred": [await _serialize_item(database, row, covers) for row in starred_rows],

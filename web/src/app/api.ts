@@ -475,13 +475,38 @@ export type HomeSnapshot = {
     starred: number;
     gone: number;
     remoteChecked: number;
+    vanishedCreators?: number;
   };
+  /** Creators whose Douyin account vanished, newest first. */
+  vanishedCreators?: HomeVanishedCreator[];
+  /** Absent from servers older than the violet home page. */
+  activity?: HomeActivity;
   health: SyncHealth;
   recent: FeedItem[];
   starred: FeedItem[];
   gone: FeedItem[];
   shelves: HomeShelf[];
   creators: HomeCreator[];
+};
+
+export type HomeVanishedCreator = {
+  id: string;
+  nickname: string;
+  uniqueId: string | null;
+  avatarUrl: string | null;
+  status: CreatorArchiveStatus;
+  since: number | null;
+  itemCount: number;
+};
+
+export type HomeActivity = {
+  /** Oldest first, one entry per Shanghai calendar day, today last. */
+  dailySaved: Array<{ date: string; count: number }>;
+  /** Average download speed per bucket over the last 24 hours. */
+  speed: Array<{ at: number; bps: number }>;
+  speedBucketSeconds: number;
+  /** What changed in the last 7 days. */
+  week: { items: number; saved: number; creators: number; vanished: number };
 };
 
 export type FeedSort = "archived" | "published" | "source" | "starred" | "random" | "album" | "relevance";

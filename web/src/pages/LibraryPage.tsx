@@ -1,8 +1,9 @@
-import { CloudArrowDown, CloudSlash, Images, MagnifyingGlass, MusicNotes, PencilSimple, Star, Tag, Trash } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+import { CaretDown, CaretUp, CloudArrowDown, CloudSlash, Images, MagnifyingGlass, MusicNotes, PencilSimple, Plus, Star, Tag, Trash } from "@phosphor-icons/react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
   archiveSource,
+  createAlbum,
   deleteAlbum,
   fetchCreators,
   renameAlbum,
@@ -52,6 +53,7 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
   if (sourceId && source && ENTITY_SOURCE_KINDS.has(source.kind)) {
     return (
       <>
+        <SourceStrip activeId={sourceId} routeName={route.name} />
         <SourceHeader source={source} />
         <EntityList sourceId={source.id} />
       </>
@@ -60,7 +62,7 @@ export function LibraryPage({ route }: { route: LibraryRoute }) {
 
   return (
     <>
-      <SourceStrip activeId={sourceId} routeName={route.name} />
+      <SourceStrip activeId={sourceId} routeName={route.name} albumId={albumId} />
       {route.name === "album" ? (
         <AlbumHeader albumId={route.albumId} />
       ) : route.name === "tag" ? (
@@ -259,24 +261,90 @@ function SourceHeader({ source }: { source: LibrarySource }) {
   );
 }
 
-/** Horizontal source switcher for phones, where the sidebar is hidden. */
-function SourceStrip({ activeId, routeName }: { activeId?: string; routeName: string }) {
-  const { sources } = useAppData();
+/** Everything the old sidebar listed: picks, gone works, albums, Douyin favorite folders and account lists. */
+function SourceStrip({ activeId, routeName, albumId }: { activeId?: string; routeName: string; albumId?: number }) {
+  const { sources, albums, refreshAlbums, toast } = useAppData();
+  const [showEmpty, setShowEmpty] = useState(false);
+  const [newAlbum, setNewAlbum] = useState<string | null>(null);
   const groups = groupSources(sources);
-  const list = [...groups.collections, ...groups.accountActive];
-  if (!list.length) return null;
+
+  async function submitAlbum(event: FormEvent) {
+    event.preventDefault();
+    const name = (newAlbum ?? "").trim();
+    if (!name) return;
+    try {
+      const album = await createAlbum(name);
+      setNewAlbum(null);
+      await refreshAlbums();
+      navigate({ name: "album", albumId: album.id, filters: {} });
+    } catch {
+      toast(t("创建相册失败，可能已有同名相册"));
+    }
+  }
+
+  const sourceChip = (source: LibrarySource) => (
+    <a key={source.id} className="chip" href={routeHref({ name: "library", sourceId: source.id, filters: {} })} aria-pressed={source.id === activeId}>
+      <SourceIcon source={source} size={14} />
+      {sourceLabel(source)}
+      {source.discoveredCount ? <small className="num">{formatInteger(source.discoveredCount)}</small> : null}
+    </a>
+  );
+
   return (
-    <div className="source-strip" aria-label={t("切换来源")}>
-      <a className="chip" href={routeHref({ name: "library", filters: {} })} aria-pressed={routeName === "library" && !activeId}>
-        {t("全部")}
-      </a>
-      {list.map((source) => (
-        <a key={source.id} className="chip" href={routeHref({ name: "library", sourceId: source.id, filters: {} })} aria-pressed={source.id === activeId}>
-          <SourceIcon source={source} size={14} />
-          {sourceLabel(source)}
+    <nav className="source-strip" aria-label={t("切换来源")}>
+      <div className="source-group">
+        <a className="chip" href={routeHref({ name: "library", filters: {} })} aria-pressed={routeName === "library" && !activeId}>
+          {t("全部作品")}
         </a>
-      ))}
-    </div>
+        <a className="chip" href={routeHref({ name: "starred", filters: {} })} aria-pressed={routeName === "starred"}>
+          <Star size={14} />
+          {t("精选")}
+        </a>
+        <a className="chip" href={routeHref({ name: "gone", filters: {} })} aria-pressed={routeName === "gone"}>
+          <CloudSlash size={14} />
+          {t("已在抖音消失")}
+        </a>
+      </div>
+      <div className="source-group">
+        <span className="source-group-label">{t("相册")}</span>
+        {albums.map((album) => (
+          <a key={album.id} className="chip" href={routeHref({ name: "album", albumId: album.id, filters: {} })} aria-pressed={album.id === albumId}>
+            <Images size={14} />
+            {album.name}
+            {album.itemCount ? <small className="num">{formatInteger(album.itemCount)}</small> : null}
+          </a>
+        ))}
+        {newAlbum !== null ? (
+          <form className="chip chip-input" onSubmit={(event) => void submitAlbum(event)}>
+            <input autoFocus aria-label={t("新相册名称")} placeholder={t("相册名称，回车创建")} maxLength={60} value={newAlbum} onChange={(event) => setNewAlbum(event.target.value)} onBlur={() => !newAlbum && setNewAlbum(null)} onKeyDown={(event) => event.key === "Escape" && setNewAlbum(null)} />
+          </form>
+        ) : (
+          <button type="button" className="chip chip-dashed" aria-label={t("新建相册")} onClick={() => setNewAlbum("")}>
+            <Plus size={14} weight="bold" />
+            {albums.length ? t("新建") : t("新建相册")}
+          </button>
+        )}
+      </div>
+      {groups.collections.length ? (
+        <div className="source-group">
+          <span className="source-group-label">{t("收藏夹")}</span>
+          {groups.collections.map(sourceChip)}
+        </div>
+      ) : null}
+      {groups.accountActive.length || groups.accountEmpty.length ? (
+        <div className="source-group">
+          <span className="source-group-label">{t("抖音账号")}</span>
+          {groups.accountActive.map(sourceChip)}
+          {showEmpty ? groups.accountEmpty.map(sourceChip) : null}
+          {groups.accountEmpty.length ? (
+            <button type="button" className="chip chip-dashed" onClick={() => setShowEmpty((value) => !value)} aria-expanded={showEmpty}>
+              {showEmpty ? <CaretUp size={14} /> : <CaretDown size={14} />}
+              {showEmpty ? t("收起空来源") : t("还有 {n} 个空来源", { n: groups.accountEmpty.length })}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </nav>
   );
 }
 
