@@ -20,7 +20,6 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    header
                     if let loadError, home == nil {
                         ContentUnavailableView {
                             Label("读取失败", systemImage: "wifi.exclamationmark")
@@ -28,7 +27,8 @@ struct HomeView: View {
                             Text(loadError)
                         } actions: {
                             Button("重试") { Task { await load() } }
-                                .buttonStyle(PrimaryButtonStyle(compact: true))
+                                .buttonStyle(.glassProminent)
+                                .tint(Theme.violet2)
                         }
                         .card()
                     }
@@ -49,10 +49,9 @@ struct HomeView: View {
                 .padding(.bottom, 12)
             }
             .scrollIndicators(.hidden)
-            .tabBarClearance()
-            .statusBarScrim()
             .screenBackground()
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("抖藏家")
+            .toolbar { toolbarContent }
             .refreshable { await load() }
             .task { await load() }
             .onAppear { poller.start(client: model.client, onError: model.handle) }
@@ -87,15 +86,9 @@ struct HomeView: View {
 
     // MARK: Sections
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image("AppIconPreview")
-                .resizable()
-                .frame(width: 30, height: 30)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1))
-            Text("抖藏家").font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.text)
-            Spacer(minLength: 8)
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
             if home != nil {
                 ConnectionPill(text: "NAS 在线", color: Theme.lime)
             } else if loadError != nil {
@@ -103,16 +96,11 @@ struct HomeView: View {
             } else {
                 ConnectionPill(text: "连接中", color: Theme.muted)
             }
-            Button { showSettings = true } label: {
-                Text(String(model.username.prefix(1)).uppercased().isEmpty ? "我" : String(model.username.prefix(1)).uppercased())
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(hex: 0x1A1530))
-                    .frame(width: 32, height: 32)
-                    .background(LinearGradient(colors: [Theme.text, Color(hex: 0xB5A8EE)], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
-            }
-            .accessibilityLabel("设置")
         }
-        .frame(height: 48)
+        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("设置", systemImage: "gearshape") { showSettings = true }
+        }
     }
 
     private var hero: some View {
@@ -219,11 +207,14 @@ struct HomeView: View {
                 } label: {
                     HStack(spacing: 6) {
                         if queueing { ProgressView().controlSize(.small).tint(Color(hex: 0x120C33)) }
-                        Text("全部存到 NAS")
+                        Text("全部存到 NAS").fontWeight(.semibold)
                         Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .bold))
                     }
+                    .foregroundStyle(Color(hex: 0x120C33))
                 }
-                .buttonStyle(LavenderButtonStyle())
+                // Lavender fill: a violet one would vanish into the violet card.
+                .buttonStyle(.glassProminent)
+                .tint(Theme.text)
                 .disabled(queueing)
             }
         }

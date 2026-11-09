@@ -92,7 +92,9 @@ private struct PlayerPage: View {
                         } label: {
                             Label(queued ? "已加入下载" : "存到 NAS", systemImage: "icloud.and.arrow.down")
                         }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(.glassProminent)
+                        .tint(Theme.violet2)
+                        .controlSize(.large)
                         .disabled(queued)
                     }
                     if let message { Text(message).font(.footnote).opacity(0.8) }

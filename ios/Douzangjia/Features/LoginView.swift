@@ -40,9 +40,8 @@ struct LoginView: View {
                 } header: {
                     Text("NAS 地址")
                 } footer: {
-                    Text("在家里用局域网地址；在外面需要先连上能访问 NAS 的 VPN。").foregroundStyle(Theme.muted)
+                    Text("在家里用局域网地址；在外面需要先连上能访问 NAS 的 VPN。")
                 }
-                .listRowBackground(Theme.panel)
 
                 Section("本地管理员") {
                     TextField("用户名", text: $username)
@@ -58,7 +57,6 @@ struct LoginView: View {
                         .submitLabel(.go)
                         .onSubmit { Task { await submit() } }
                 }
-                .listRowBackground(Theme.panel)
 
                 if let error {
                     Section {
@@ -66,7 +64,6 @@ struct LoginView: View {
                             .foregroundStyle(Theme.redText)
                             .font(.subheadline)
                     }
-                    .listRowBackground(Theme.red.opacity(0.1))
                 }
 
                 Section {
@@ -75,20 +72,20 @@ struct LoginView: View {
                     } label: {
                         HStack {
                             if pending { ProgressView().tint(.white).padding(.trailing, 6) }
-                            Text(pending ? "正在登录…" : "登录")
+                            Text(pending ? "正在登录…" : "登录").fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(.glassProminent)
+                    .tint(Theme.violet2)
+                    .controlSize(.large)
                     .disabled(pending || username.isEmpty || password.isEmpty || server.isEmpty)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
             }
-            .darkList()
             .navigationTitle("登录")
             .navigationBarTitleDisplayMode(.inline)
-            .darkNavigationBar()
             .onAppear {
                 if server.isEmpty { server = model.serverAddress }
                 if username.isEmpty { username = model.username }

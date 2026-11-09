@@ -38,9 +38,6 @@ enum Theme {
 
     /// Horizontal page margin, as in the 390pt frames.
     static let pageInset: CGFloat = 18
-    /// Room the floating tab bar takes at the bottom of every tab.
-    static let tabBarClearance: CGFloat = 62
-
     static let progressGradient = LinearGradient(colors: [violet, violet3], startPoint: .leading, endPoint: .trailing)
 
     /// The "save everything" call-to-action card.
@@ -104,34 +101,6 @@ extension View {
         background(Theme.bg.ignoresSafeArea())
     }
 
-    /// Keeps the last row of a scrolling page clear of the floating tab bar.
-    func tabBarClearance() -> some View {
-        safeAreaPadding(.bottom, Theme.tabBarClearance)
-    }
-
-    /// Dims content that scrolls under the status bar on pages without a navigation bar.
-    func statusBarScrim() -> some View {
-        overlay(alignment: .top) {
-            Color.clear.frame(height: 0)
-                .background(
-                    LinearGradient(colors: [Theme.bg, Theme.bg.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-                        .ignoresSafeArea(edges: .top)
-                )
-                .allowsHitTesting(false)
-        }
-    }
-
-    /// Dark list styling for Form / List screens.
-    func darkList() -> some View {
-        scrollContentBackground(.hidden).background(Theme.bg.ignoresSafeArea())
-    }
-
-    /// Dark system navigation bar for pushed pages and sheets.
-    func darkNavigationBar() -> some View {
-        toolbarBackground(Theme.bg, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-    }
 }
 
 // MARK: - Small parts
@@ -216,7 +185,7 @@ struct Pill: View {
     }
 }
 
-/// "NAS 在线" status capsule.
+/// "NAS 在线" status: a glowing dot and a label, sized for a toolbar item (the bar draws the glass).
 struct ConnectionPill: View {
     let text: String
     let color: Color
@@ -225,14 +194,12 @@ struct ConnectionPill: View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 7, height: 7)
                 .background(Circle().fill(color.opacity(0.15)).frame(width: 13, height: 13))
-            Text(text).font(.system(size: 11.5, weight: .medium)).foregroundStyle(Theme.text)
+            Text(text).font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.text)
         }
         .lineLimit(1)
         .fixedSize()
-        .padding(.horizontal, 10)
-        .frame(height: 28)
-        .background(Theme.panel, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
+        .padding(.horizontal, 6)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -280,144 +247,6 @@ struct IconChip: View {
             .foregroundStyle(tint)
             .frame(width: size, height: size)
             .background(fill, in: RoundedRectangle(cornerRadius: size * 0.31, style: .continuous))
-    }
-}
-
-/// Large page title used by the tab roots ("作品", "下载").
-struct PageTitle: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 28, weight: .semibold))
-            .foregroundStyle(Theme.text)
-            .lineLimit(1)
-    }
-}
-
-// MARK: - Buttons
-
-/// Filled electric-violet capsule.
-struct PrimaryButtonStyle: ButtonStyle {
-    var compact = false
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: compact ? 13 : 15, weight: .semibold))
-            .lineLimit(1)
-            .foregroundStyle(.white)
-            .padding(.horizontal, compact ? 16 : 20)
-            .frame(minHeight: compact ? 36 : 48)
-            .background(Theme.violet, in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
-            .shadow(color: Theme.violet.opacity(isEnabled ? 0.45 : 0), radius: 12, y: 6)
-            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
-    }
-}
-
-/// Lavender capsule used on the violet call-to-action card.
-struct LavenderButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .semibold))
-            .lineLimit(1)
-            .foregroundStyle(Color(hex: 0x120C33))
-            .padding(.horizontal, 16)
-            .frame(height: 36)
-            .background(Theme.text, in: Capsule())
-            .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.6)
-    }
-}
-
-/// Outlined capsule: red for retry/destructive, neutral otherwise.
-struct OutlineButtonStyle: ButtonStyle {
-    var danger = true
-    var small = false
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: small ? 11 : 12, weight: .semibold))
-            .lineLimit(1)
-            .fixedSize()
-            .foregroundStyle(danger ? Color(hex: 0xFF8A98) : Theme.text)
-            .padding(.horizontal, small ? 10 : 12)
-            .frame(height: small ? 24 : 30)
-            .background(danger ? Theme.red.opacity(0.06) : Theme.panel3, in: Capsule())
-            .overlay(Capsule().strokeBorder(danger ? Theme.red.opacity(0.45) : Theme.line2, lineWidth: 1))
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.45)
-    }
-}
-
-/// Quiet bordered capsule ("暂停", "重新检查").
-struct GhostButtonStyle: ButtonStyle {
-    var small = true
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: small ? 12 : 13, weight: .medium))
-            .lineLimit(1)
-            .fixedSize()
-            .foregroundStyle(small ? Theme.muted : Theme.text)
-            .padding(.horizontal, small ? 11 : 16)
-            .frame(height: small ? 28 : 40)
-            .background(Theme.panel, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.line2, lineWidth: 1))
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.45)
-    }
-}
-
-// MARK: - Tab bar
-
-struct DZTabItem: Identifiable {
-    let id: Int
-    let title: String
-    let systemImage: String
-}
-
-/// Floating dark capsule tab bar; the selected tab is filled violet.
-struct DZTabBar: View {
-    @Binding var selection: Int
-    let items: [DZTabItem]
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(items) { item in
-                let on = item.id == selection
-                Button {
-                    selection = item.id
-                } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: item.systemImage).font(.system(size: 17, weight: on ? .semibold : .regular))
-                        Text(item.title).font(.system(size: 10.5, weight: on ? .semibold : .regular))
-                    }
-                    .foregroundStyle(on ? .white : Theme.muted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background {
-                        if on {
-                            Capsule().fill(Theme.violet)
-                                .shadow(color: Theme.violet.opacity(0.5), radius: 10, y: 4)
-                        }
-                    }
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
-        }
-        .padding(5)
-        .frame(width: 276, height: 60)
-        .background(.ultraThinMaterial, in: Capsule())
-        .background(Color(red: 24 / 255, green: 22 / 255, blue: 31 / 255).opacity(0.86), in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.line2, lineWidth: 1))
-        .shadow(color: .black.opacity(0.5), radius: 15, y: 12)
-        .animation(.snappy(duration: 0.25), value: selection)
     }
 }
 

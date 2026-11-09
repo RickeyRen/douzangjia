@@ -12,27 +12,20 @@ struct SettingsView: View {
                     LabeledContent("NAS 地址", value: model.serverAddress)
                     LabeledContent("管理员", value: model.username.isEmpty ? "—" : model.username)
                 }
-                .listRowBackground(Theme.panel)
                 Section {
                     Text("扫码登录抖音、相册整理和来源设置请在电脑上打开抖藏家网页操作。")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                 }
-                .listRowBackground(Theme.panel)
                 Section {
                     Button("退出登录", role: .destructive) { confirmSignOut = true }
-                        .foregroundStyle(Theme.redText)
                 }
-                .listRowBackground(Theme.panel)
                 Section {
                     LabeledContent("版本", value: appVersion)
                 }
-                .listRowBackground(Theme.panel)
             }
-            .darkList()
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
-            .darkNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }

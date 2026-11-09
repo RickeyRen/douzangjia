@@ -68,10 +68,10 @@ struct VanishedCreatorsView: View {
                 ProgressView().frame(maxWidth: .infinity).listRowBackground(Color.clear)
             }
         }
-        .tabBarClearance()
-        .darkList()
+        // Keeps the hairline panel rows of the archive pages on the near-black canvas.
+        .scrollContentBackground(.hidden)
+        .screenBackground()
         .navigationTitle("已在抖音消失")
-        .darkNavigationBar()
         .searchable(text: $search, prompt: "曾用名或抖音号")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -249,11 +249,9 @@ struct CreatorArchiveView: View {
             .padding(.bottom, 12)
         }
         .scrollIndicators(.hidden)
-        .tabBarClearance()
         .screenBackground()
         .navigationTitle("博主存档")
         .navigationBarTitleDisplayMode(.inline)
-        .darkNavigationBar()
         .task {
             if creator == nil { await load() }
         }
@@ -352,12 +350,15 @@ struct CreatorArchiveView: View {
                 HStack(spacing: 8) {
                     if status == .reset {
                         Button { Task { await rescue() } } label: { Label("抢救全部作品", systemImage: "icloud.and.arrow.down") }
-                            .buttonStyle(PrimaryButtonStyle(compact: true))
+                            .buttonStyle(.glassProminent)
+                            .tint(Theme.violet2)
                     }
                     Button { Task { await recheck() } } label: { Text("重新检查") }
-                        .buttonStyle(GhostButtonStyle())
+                        .buttonStyle(.glass)
                     if busy { ProgressView().controlSize(.small) }
                 }
+                .controlSize(.small)
+                .font(.system(size: 12.5, weight: .semibold))
                 .disabled(busy)
                 .padding(.top, 2)
             }
@@ -395,34 +396,14 @@ struct CreatorArchiveView: View {
     }
 
     private func segmentPicker(_ creator: Creator) -> some View {
-        let options: [(ArchiveSegment, String)] = [
-            (.all, "全部 \(Format.integer(creator.knownItemCount))"),
-            (.saved, "已存 \(Format.integer(creator.archivedItemCount))"),
-            (.cover, "仅封面 \(Format.integer(max(0, creator.knownItemCount - creator.archivedItemCount)))"),
-        ]
-        return HStack(spacing: 0) {
-            ForEach(options, id: \.0) { option, title in
-                let on = option == segment
-                Button { segment = option } label: {
-                    Text(title)
-                        .font(.system(size: 12.5, weight: on ? .semibold : .regular))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .foregroundStyle(on ? .white : Theme.muted)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
-                        .background { if on { Capsule().fill(Theme.violet) } }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
+        Picker("显示", selection: $segment) {
+            Text("全部 \(Format.integer(creator.knownItemCount))").tag(ArchiveSegment.all)
+            Text("已存 \(Format.integer(creator.archivedItemCount))").tag(ArchiveSegment.saved)
+            Text("仅封面 \(Format.integer(max(0, creator.knownItemCount - creator.archivedItemCount)))").tag(ArchiveSegment.cover)
         }
-        .padding(3)
-        .background(Theme.panel, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
+        .pickerStyle(.segmented)
         .padding(.top, 8)
-        .padding(.bottom, 4)
-        .animation(.snappy(duration: 0.2), value: segment)
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder

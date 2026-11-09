@@ -62,7 +62,6 @@ struct LibraryView: View {
     @State private var feed = LibraryFeed()
     @State private var player: PlayerSelection?
     @State private var search = ""
-    @FocusState private var searchFocused: Bool
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -72,9 +71,7 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    PageTitle(text: "作品").frame(height: 46)
-                    searchRow
-                    chips
+                    filterPicker
                     if !feed.creators.isEmpty {
                         creatorResults
                     }
@@ -111,7 +108,8 @@ struct LibraryView: View {
                             Text(error)
                         } actions: {
                             Button("重试") { Task { await reload() } }
-                                .buttonStyle(PrimaryButtonStyle(compact: true))
+                                .buttonStyle(.glassProminent)
+                                .tint(Theme.violet2)
                         }
                     } else if feed.items.isEmpty && !query.isEmpty {
                         if feed.creators.isEmpty {
@@ -125,11 +123,14 @@ struct LibraryView: View {
                 .padding(.bottom, 12)
             }
             .scrollIndicators(.hidden)
-            .tabBarClearance()
-            .statusBarScrim()
             .scrollDismissesKeyboard(.immediately)
             .screenBackground()
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("作品")
+            .navigationBarTitleDisplayMode(.large)
+            // Always shown under the title, as the old search row was.
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品描述、博主名或抖音号")
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .refreshable { await reload() }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .task(id: "\(filter.rawValue)|\(query)") {
@@ -150,75 +151,14 @@ struct LibraryView: View {
         }
     }
 
-    private var searchRow: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                TextField("", text: $search, prompt: Text("作品描述、博主名或抖音号").foregroundStyle(Theme.dim))
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.text)
-                    .tint(Theme.violet3)
-                    .focused($searchFocused)
-                    .submitLabel(.search)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                if !search.isEmpty {
-                    Button { search = "" } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Theme.text)
-                            .frame(width: 20, height: 20)
-                            .background(Theme.gray, in: Circle())
-                    }
-                    .accessibilityLabel("清除")
-                }
-            }
-            .padding(.leading, 14)
-            .padding(.trailing, 10)
-            .frame(height: 44)
-            .background(Theme.panel, in: Capsule())
-            .overlay(
-                Capsule().strokeBorder(searchFocused ? Theme.violet2 : Theme.line2, lineWidth: searchFocused ? 1.5 : 1)
-            )
-            .background(
-                Capsule().stroke(Theme.violet.opacity(searchFocused ? 0.18 : 0), lineWidth: 8)
-            )
-            .animation(.easeOut(duration: 0.15), value: searchFocused)
-            if searchFocused || !search.isEmpty {
-                Button("取消") {
-                    search = ""
-                    searchFocused = false
-                }
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.violet4)
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: searchFocused || !search.isEmpty)
-        .padding(.top, 4)
-    }
-
-    private var chips: some View {
-        HStack(spacing: 6) {
+    private var filterPicker: some View {
+        Picker("筛选", selection: $filter) {
             ForEach(LibraryFilter.allCases) { option in
-                let on = option == filter
-                Button { filter = option } label: {
-                    Text(option.title)
-                        .font(.system(size: 12.5, weight: on ? .semibold : .regular))
-                        .foregroundStyle(on ? .white : Theme.muted)
-                        .lineLimit(1)
-                        .padding(.horizontal, 13)
-                        .frame(height: 30)
-                        .background(on ? Theme.violet : Theme.panel, in: Capsule())
-                        .overlay(Capsule().strokeBorder(on ? .clear : Theme.line, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
+                Text(option.title).tag(option)
             }
-            Spacer(minLength: 0)
         }
-        .padding(.top, 6)
+        .pickerStyle(.segmented)
+        .padding(.top, 4)
     }
 
     private static var initialFilter: LibraryFilter {

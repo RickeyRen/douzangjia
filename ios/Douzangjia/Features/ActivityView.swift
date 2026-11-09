@@ -15,7 +15,7 @@ struct ActivityView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    header
+                    storage
                     downloads
                     SectionHeader(title: "同步")
                     syncPanel
@@ -25,10 +25,8 @@ struct ActivityView: View {
                 .padding(.bottom, 12)
             }
             .scrollIndicators(.hidden)
-            .tabBarClearance()
-            .statusBarScrim()
             .screenBackground()
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("下载")
             .refreshable { await load() }
             .task { await load() }
             .onAppear { poller.start(client: model.client, onError: model.handle) }
@@ -36,32 +34,29 @@ struct ActivityView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            PageTitle(text: "下载")
-            Spacer(minLength: 8)
-            if let stats {
-                VStack(alignment: .trailing, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Label("NAS 已存", systemImage: "externaldrive")
-                            .labelStyle(.titleAndIcon)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.muted)
-                        Text(Format.bytes(stats.archivedBytes))
-                            .font(.system(size: 11, weight: .semibold)).monospacedDigit()
-                            .foregroundStyle(Theme.text)
-                    }
-                    GlowBar(fraction: stats.items > 0 ? Double(stats.downloadedItems) / Double(stats.items) : 0, height: 5)
-                        .frame(width: 150)
+    /// How much of the library is already on the NAS.
+    @ViewBuilder
+    private var storage: some View {
+        if let stats {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Label("NAS 已存", systemImage: "externaldrive")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                    Text(Format.bytes(stats.archivedBytes))
+                        .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(Theme.text)
+                    Spacer(minLength: 8)
                     Text("\(Format.integer(stats.downloadedItems)) / \(Format.integer(stats.items)) 个作品")
-                        .font(.system(size: 10.5)).monospacedDigit()
+                        .font(.system(size: 11.5)).monospacedDigit()
                         .foregroundStyle(Theme.muted)
                 }
                 .lineLimit(1)
-                .fixedSize()
+                GlowBar(fraction: stats.items > 0 ? Double(stats.downloadedItems) / Double(stats.items) : 0, height: 5)
             }
+            .card(padding: EdgeInsets(top: 12, leading: 16, bottom: 14, trailing: 16))
         }
-        .frame(minHeight: 52)
     }
 
     @ViewBuilder
@@ -108,7 +103,8 @@ struct ActivityView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(GhostButtonStyle(small: false))
+            .buttonStyle(.glass)
+            .controlSize(.large)
             .disabled(syncing)
             if let note { Text(note).font(.system(size: 11.5)).foregroundStyle(Theme.muted) }
         }

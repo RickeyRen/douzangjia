@@ -146,22 +146,25 @@ struct DownloadProgressCard: View {
 
     @ViewBuilder
     private var controls: some View {
-        if active.isPaused {
-            Button { Task { await control("resume") } } label: {
-                Label("继续", systemImage: "play.fill").labelStyle(.titleAndIcon)
+        Group {
+            if active.isPaused {
+                Button { Task { await control("resume") } } label: {
+                    Label("继续", systemImage: "play.fill").labelStyle(.titleAndIcon)
+                }
+            } else {
+                Button { Task { await control("pause") } } label: {
+                    Label("暂停", systemImage: "pause.fill").labelStyle(.titleAndIcon)
+                }
             }
-            .buttonStyle(GhostButtonStyle())
-        } else {
-            Button { Task { await control("pause") } } label: {
-                Label("暂停", systemImage: "pause.fill")
+            Button(role: .destructive) { confirmStop = true } label: {
+                Image(systemName: "stop.fill")
             }
-            .buttonStyle(GhostButtonStyle())
+            .tint(Theme.redText)
+            .accessibilityLabel("停止")
         }
-        Button { confirmStop = true } label: {
-            Image(systemName: "stop.fill").font(.system(size: 10))
-        }
-        .buttonStyle(GhostButtonStyle())
-        .accessibilityLabel("停止")
+        .buttonStyle(.glass)
+        .controlSize(.small)
+        .font(.system(size: 12, weight: .medium))
     }
 
     private var perMinute: String? {
@@ -349,7 +352,10 @@ struct FailureSection: View {
                 Text("全部重试")
             }
         }
-        .buttonStyle(OutlineButtonStyle(small: small))
+        .buttonStyle(.glass)
+        .controlSize(small ? .mini : .small)
+        .font(.system(size: 12, weight: .semibold))
+        .tint(Theme.redText)
         .disabled(busy)
     }
 
