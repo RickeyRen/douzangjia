@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抖藏家 · V2 琥珀影像</title>
+<style>
+:root{
+  --bg:#070707;
+  --s1:#0F0F0F;
+  --s2:#151514;
+  --s3:#1D1C1A;
+  --s4:#262522;
+  --line:rgba(255,244,220,.07);
+  --line2:rgba(255,244,220,.12);
+  --tx:#F4EFE3;
+  --tx2:#B8B2A5;
+  --tx3:#7D786E;
+  --gold:#C2A546;
+  --yel:#F1D13F;
+  --green:#44574D;
+  --green2:#6E8A79;
+  --rust:#A1522F;
+  --red:#E0563A;
+  --coral:#FF5470;
+  --grad:linear-gradient(105deg,#F6E79A 0%,#E2C95C 38%,#B9B66E 70%,#8FA586 100%);
+  --num:"SF Pro Display",-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#030303}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Helvetica Neue",sans-serif;
+  color:var(--tx);
+  -webkit-font-smoothing:antialiased;
+  width:1800px;
+  margin:0 auto;
+  padding:56px 36px 80px;
+  font-size:14px;
+  line-height:1.45;
+}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ============ 页头 ============ */
+.doc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:48px;padding-bottom:36px;border-bottom:1px solid var(--line)}
+.doc-title{display:flex;gap:22px;align-items:center}
+.doc-title .logo{width:72px;height:72px;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.06)}
+.doc-title .logo svg{width:100%;height:100%;display:block}
+.kicker{font-size:12px;letter-spacing:.24em;color:var(--gold);font-weight:600}
+.doc-title h1{font-size:40px;font-weight:700;letter-spacing:-.01em;margin-top:6px;line-height:1.1}
+.doc-title h1 span{color:var(--tx3);font-weight:400}
+.doc-ref{margin-top:10px;color:var(--tx2);font-size:14px;max-width:620px}
+.palette{display:flex;gap:12px}
+.sw{width:118px}
+.sw i{display:block;height:72px;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.sw b{display:block;margin-top:10px;font-size:13px;font-weight:600}
+.sw em{display:block;font-style:normal;font-size:12px;color:var(--tx3);font-family:var(--num);letter-spacing:.04em}
+
+.sec-label{display:flex;align-items:baseline;gap:14px;margin:44px 0 18px}
+.sec-label b{font-family:var(--num);font-size:13px;color:var(--bg);background:var(--gold);width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;transform:translateY(-2px)}
+.sec-label h2{font-size:20px;font-weight:600}
+.sec-label span{color:var(--tx3);font-size:13px}
+
+/* ============ 缩略图 ============ */
+.th{position:relative;overflow:hidden;background:#222}
+.th::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 52%,rgba(0,0,0,.62) 100%);pointer-events:none}
+.g1{background:radial-gradient(circle at 68% 40%,#FFE2A0 0 7%,rgba(255,190,110,.55) 8%,transparent 26%),linear-gradient(180deg,#2A1B2C 0%,#7B3A3A 30%,#D9844C 52%,#3B2A2C 53%,#14191C 100%)}
+.g2{background:radial-gradient(ellipse at 28% 72%,rgba(232,128,58,.95),transparent 42%),radial-gradient(circle at 75% 25%,rgba(150,210,200,.35),transparent 40%),linear-gradient(160deg,#0F3B3A,#1F5753 48%,#0A1A1B)}
+.g3{background:repeating-linear-gradient(90deg,rgba(255,206,130,.32) 0 2px,transparent 2px 8px) 0 100%/100% 42% no-repeat,linear-gradient(180deg,#0B0F21 0%,#1E2645 58%,#4A2E3E 100%)}
+.g4{background:radial-gradient(ellipse at 50% 110%,#0F1712 30%,transparent 31%),radial-gradient(circle at 30% 30%,rgba(210,220,170,.35),transparent 35%),linear-gradient(170deg,#3C5B48,#44574D 45%,#151E18)}
+.g5{background:radial-gradient(circle at 52% 62%,#F0CF84 0 15%,#C98A45 16% 22%,transparent 23%),linear-gradient(135deg,#4F2C1C,#A1522F 58%,#2E1810)}
+.g6{background:conic-gradient(from 210deg at 60% 45%,#2A2F6E,#6A3B9A,#C2A546,#2A2F6E),#1C1F4A}
+.g7{background:radial-gradient(circle at 78% 22%,#FFF6D8 0 6%,transparent 7%),linear-gradient(180deg,#7FA1B2 0%,#B9CBD1 44%,#D7AE76 45%,#B3703F 72%,#5E3420 100%)}
+.g8{background:linear-gradient(90deg,#141414 0 18%,transparent 18% 82%,#141414 82%),linear-gradient(180deg,#D8CFB9 0%,#8A8170 55%,#2B2823 100%)}
+.g9{background:radial-gradient(ellipse at 50% 100%,#2E3438 35%,transparent 36%),linear-gradient(180deg,#E3E6E6,#9AA3A6 55%,#454C50)}
+.g10{background:radial-gradient(circle at 38% 30%,#FFF4C2 0 9%,transparent 32%),linear-gradient(180deg,#D8BC57 0%,#9C8436 50%,#3A3014 100%)}
+.g11{background:radial-gradient(circle at 70% 70%,rgba(240,160,90,.8),transparent 30%),linear-gradient(200deg,#3A2A24,#6E3B26 50%,#1A120E)}
+.g12{background:radial-gradient(circle at 50% 42%,#4A4A46 0 16%,transparent 17%),linear-gradient(200deg,#2A2A28,#0D0D0D)}
+.g13{background:linear-gradient(0deg,#0E1A1A 0 30%,transparent 30%),radial-gradient(circle at 40% 45%,rgba(120,200,190,.6),transparent 40%),linear-gradient(180deg,#123236,#2D6A66)}
+.g14{background:radial-gradient(circle at 30% 70%,#F5B5A0 0 12%,transparent 13%),radial-gradient(circle at 65% 40%,#FFD9C8 0 9%,transparent 10%),linear-gradient(150deg,#E9A08A,#B4566A 60%,#5A2238)}
+.g15{background:radial-gradient(ellipse at 50% 120%,#F2D9B0 40%,transparent 41%),linear-gradient(180deg,#F8E7C9,#E5B98A 70%)}
+.g16{background:radial-gradient(circle at 60% 35%,#FFE9B8 0 10%,transparent 11%),linear-gradient(180deg,#5B6F8A,#C9A27A 70%,#7A5038)}
+.gray{filter:grayscale(.85) brightness(.62) contrast(.9)}
+
+.dur{position:absolute;right:7px;bottom:6px;z-index:2;font-family:var(--num);font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);letter-spacing:.02em}
+.tag{position:absolute;left:7px;top:7px;z-index:2;font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;line-height:16px}
+.tag.ok{background:rgba(241,209,63,.94);color:#1A1606}
+.tag.cv{background:rgba(10,10,10,.62);color:#CFC9BC;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.chk{position:absolute;right:7px;top:7px;z-index:3;width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);background:rgba(0,0,0,.18)}
+.sel .chk{background:var(--yel);border-color:var(--yel);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.sel .chk::after{content:"";position:absolute;left:6.5px;top:3.5px;width:5px;height:10px;border:solid #151100;border-width:0 2.2px 2.2px 0;transform:rotate(45deg)}
+.sel::before{content:"";position:absolute;inset:0;z-index:2;box-shadow:inset 0 0 0 2.5px var(--yel);background:rgba(241,209,63,.10)}
+
+/* 头像 */
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;color:#fff;flex:none;position:relative}
+.a1{background:linear-gradient(140deg,#C2A546,#7A6420)}
+.a2{background:linear-gradient(140deg,#A1522F,#5A2814)}
+.a3{background:linear-gradient(140deg,#44574D,#1F2A24)}
+.a4{background:linear-gradient(140deg,#6A6458,#2E2B26)}
+.a5{background:linear-gradient(140deg,#D0784A,#7C3416)}
+.a6{background:linear-gradient(140deg,#8FA586,#3E5446)}
+.a7{background:linear-gradient(140deg,#E6C86A,#A1522F)}
+.gone{filter:grayscale(1);opacity:.78}
+
+/* ============ A 网页版 ============ */
+.web-wrap{width:1728px;border-radius:22px;background:#111;padding:14px;box-shadow:0 40px 100px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.05)}
+.web-bar{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px 12px}
+.web-bar i{width:12px;height:12px;border-radius:50%;background:#2A2A2A}
+.web-bar .url{margin-left:20px;height:24px;flex:0 0 420px;border-radius:7px;background:#1B1B1B;color:var(--tx3);font-size:12px;display:flex;align-items:center;padding:0 12px;gap:8px;font-family:var(--num)}
+.web-scale{width:1700px;overflow:hidden;border-radius:12px}
+.web{width:1440px;zoom:1.1805;background:var(--bg);display:grid;grid-template-columns:232px 1fr;min-height:1110px}
+.web-host{}
+.side{border-right:1px solid var(--line);padding:26px 18px;display:flex;flex-direction:column;background:#0A0A0A}
+.brand{display:flex;align-items:center;gap:12px;padding:0 8px 26px}
+.brand .lg{width:36px;height:36px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.brand .lg svg{width:100%;height:100%;display:block}
+.brand b{font-size:18px;font-weight:700;display:block;line-height:1.1}
+.brand small{font-size:11px;color:var(--tx3);letter-spacing:.08em}
+.nav-h{font-size:11px;color:var(--tx3);letter-spacing:.16em;padding:18px 12px 8px}
+.nav a{display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:12px;color:var(--tx2);font-size:14px;text-decoration:none}
+.nav a.on{background:var(--s3);color:var(--tx);box-shadow:inset 0 0 0 1px var(--line)}
+.nav a.on svg{color:var(--yel)}
+.nav a .cnt{margin-left:auto;font-size:12px;color:var(--tx3);font-family:var(--num)}
+.nav a .cnt.r{color:#fff;background:var(--rust);padding:0 7px;border-radius:9px;line-height:18px;font-size:11px}
+.nas{margin-top:auto;background:var(--s2);border-radius:16px;padding:16px;box-shadow:inset 0 0 0 1px var(--line)}
+.nas .row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:#7FC48F;box-shadow:0 0 0 3px rgba(127,196,143,.18);flex:none}
+.nas p{font-size:12px;color:var(--tx3);margin-top:4px}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--grad)}
+.nas .bar{margin:14px 0 8px}
+.nas .u{display:flex;justify-content:space-between;font-size:12px;color:var(--tx2)}
+
+.main{padding:26px 36px 40px;min-width:0}
+.top{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.top h3{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.top .sub{color:var(--tx3);font-size:13px;margin-left:4px;margin-top:6px}
+.search{margin-left:auto;width:340px;height:42px;border-radius:12px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--line);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--tx3);font-size:13px}
+.search kbd{margin-left:auto;font-family:var(--num);font-size:11px;color:var(--tx3);border:1px solid var(--line2);border-radius:6px;padding:1px 6px}
+.ibtn{width:42px;height:42px;border-radius:12px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--line);display:flex;align-items:center;justify-content:center;color:var(--tx2)}
+.me{width:42px;height:42px;font-size:15px}
+
+.r1{display:grid;grid-template-columns:1fr 372px;gap:22px}
+.hero{position:relative;height:392px;border-radius:24px;overflow:hidden;background:#0B1414}
+.scene{position:absolute;inset:0}
+.scene .sky{position:absolute;inset:0;background:radial-gradient(ellipse 50% 60% at 72% 58%,rgba(255,170,90,.85),rgba(214,104,52,.45) 35%,transparent 70%),radial-gradient(ellipse 60% 50% at 20% 0%,rgba(80,150,140,.55),transparent 70%),linear-gradient(180deg,#0E2627 0%,#1D3B37 38%,#7A4A2E 64%,#2A1A12 100%)}
+.scene .sun{position:absolute;width:120px;height:120px;border-radius:50%;left:66%;top:44%;background:radial-gradient(circle,#FFF1C4 0 30%,rgba(255,214,140,.6) 45%,transparent 70%);filter:blur(1px)}
+.scene .m1{position:absolute;left:0;right:0;bottom:0;height:62%;background:linear-gradient(180deg,#24302B,#121815);clip-path:polygon(0 38%,9% 26%,18% 34%,29% 14%,40% 30%,49% 22%,58% 40%,66% 30%,76% 44%,86% 28%,95% 36%,100% 30%,100% 100%,0 100%)}
+.scene .m2{position:absolute;left:0;right:0;bottom:0;height:44%;background:linear-gradient(180deg,#141A16,#070707);clip-path:polygon(0 30%,12% 46%,24% 34%,38% 52%,52% 38%,63% 50%,78% 30%,90% 44%,100% 36%,100% 100%,0 100%)}
+.scene .road{position:absolute;left:50%;bottom:0;width:70%;height:34%;transform:translateX(-50%);background:linear-gradient(180deg,rgba(194,165,70,.0),rgba(194,165,70,.22));clip-path:polygon(47% 0,53% 0,100% 100%,0 100%)}
+.scene .van{position:absolute;left:44%;bottom:17%;width:64px;height:30px;border-radius:9px 12px 5px 5px;background:linear-gradient(180deg,#E9DFC6,#A79C83);box-shadow:0 8px 18px rgba(0,0,0,.6)}
+.scene .van::before{content:"";position:absolute;left:8px;top:6px;width:30px;height:10px;border-radius:3px;background:#2B3A3A}
+.scene .van::after{content:"";position:absolute;left:8px;right:8px;bottom:-6px;height:10px;background:radial-gradient(circle at 12% 50%,#111 0 5px,transparent 6px),radial-gradient(circle at 88% 50%,#111 0 5px,transparent 6px)}
+.scene .grain{position:absolute;inset:0;background:repeating-radial-gradient(circle at 30% 30%,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);mix-blend-mode:overlay}
+.scene .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,7,7,.86) 0%,rgba(7,7,7,.5) 42%,rgba(7,7,7,0) 70%),linear-gradient(0deg,rgba(7,7,7,.95) 0%,rgba(7,7,7,0) 45%)}
+.hero-in{position:absolute;left:36px;top:34px;right:36px}
+.pill{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px;border-radius:14px;background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:12px;color:var(--tx);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.hero h4{font-size:44px;line-height:1.12;font-weight:700;letter-spacing:-.01em;margin-top:22px}
+.hero h4 em{font-style:normal;color:var(--yel)}
+.hero .lead{margin-top:12px;color:var(--tx2);font-size:15px;max-width:500px}
+.hero .now{position:absolute;right:28px;top:30px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--tx2)}
+.play{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.stats{position:absolute;left:24px;right:24px;bottom:22px;display:grid;grid-template-columns:repeat(4,1fr);border-radius:18px;background:rgba(14,14,14,.55);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.stat{padding:16px 20px;position:relative}
+.stat+.stat::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:1px;background:rgba(255,255,255,.08)}
+.stat small{font-size:12px;color:var(--tx3);display:block}
+.stat b{font-size:28px;font-weight:600;display:block;margin-top:2px;line-height:1.2}
+.stat b u{text-decoration:none;font-size:15px;color:var(--tx2);font-weight:500;margin-left:3px}
+.stat p{font-size:12px;color:var(--tx2);margin-top:2px;white-space:nowrap}
+.stat.warn b{color:#F08A5D}
+
+.act-note{display:flex;align-items:center;justify-content:space-between;margin:20px 4px 10px;font-size:13px;color:var(--tx2)}
+.act-note b{color:var(--tx);font-weight:600}
+.cta{height:74px;border-radius:22px;background:var(--grad);display:flex;align-items:center;padding:0 12px 0 26px;gap:16px;color:#14130C;box-shadow:0 14px 40px rgba(226,201,92,.18),inset 0 1px 0 rgba(255,255,255,.5)}
+.cta .ic{width:44px;height:44px;border-radius:14px;background:#14130C;color:var(--yel);display:flex;align-items:center;justify-content:center}
+.cta b{font-size:20px;font-weight:700}
+.cta span{font-size:13px;opacity:.7;margin-left:8px}
+.cta .go{margin-left:auto;height:50px;padding:0 20px;border-radius:15px;background:rgba(20,19,12,.12);display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.quick{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+.q{height:88px;border-radius:18px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--tx2)}
+.q svg{color:var(--tx);width:22px;height:22px}
+
+.rail{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--s2);border-radius:22px;box-shadow:inset 0 0 0 1px var(--line);padding:20px}
+.card-h{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx2)}
+.card-h .lv{display:inline-flex;align-items:center;gap:6px;color:var(--yel);font-weight:600}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--yel);box-shadow:0 0 0 4px rgba(241,209,63,.18)}
+.card-h .more{margin-left:auto;color:var(--tx3)}
+.prog .big{display:flex;align-items:baseline;gap:8px;margin-top:14px}
+.prog .big b{font-size:40px;font-weight:600;line-height:1}
+.prog .big span{font-size:16px;color:var(--tx3)}
+.prog .big em{margin-left:auto;font-style:normal;font-size:13px;color:var(--gold);font-weight:600}
+.prog .bar{height:8px;margin:16px 0 14px;border-radius:4px}
+.prog .bar i{border-radius:4px}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv div{background:var(--s3);border-radius:12px;padding:10px 12px}
+.kv small{display:block;font-size:11px;color:var(--tx3)}
+.kv b{display:block;font-size:15px;font-weight:600;margin-top:2px;white-space:nowrap}
+.prog .task{font-size:15px;font-weight:600;margin-top:12px}
+.fail{display:flex;align-items:center;gap:14px;padding:18px 18px 18px 20px}
+.fail .fi{width:42px;height:42px;border-radius:13px;background:rgba(161,82,47,.2);color:#F08A5D;display:flex;align-items:center;justify-content:center;flex:none}
+.fail b{display:block;font-size:14px;font-weight:600}
+.fail p{font-size:12px;color:var(--tx3);margin-top:2px}
+.btn2{margin-left:auto;height:36px;padding:0 14px;border-radius:11px;background:var(--s4);color:var(--tx);font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px var(--line2)}
+.store{flex:1;display:flex;flex-direction:column}
+.store b.n{font-size:22px;font-weight:600}
+.spark{margin-top:auto;padding-top:18px}
+.spark .h{display:flex;justify-content:space-between;font-size:12px;color:var(--tx3)}
+.spark .h b{color:var(--tx);font-weight:600}
+.spark .cols{display:flex;align-items:flex-end;gap:8px;height:64px;margin-top:10px}
+.spark .cols i{flex:1;border-radius:5px 5px 2px 2px;background:#2E2C27}
+.spark .cols i.on{background:var(--grad)}
+.spark .d{display:flex;gap:8px;margin-top:6px}
+.spark .d span{flex:1;text-align:center;font-size:10px;color:var(--tx3)}
+.mix{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:16px}
+.mix div{background:var(--s3);border-radius:12px;padding:10px 12px}
+.mix small{display:block;font-size:11px;color:var(--tx3)}
+.mix b{display:block;font-size:15px;font-weight:600;margin-top:2px}
+.store .bar{margin:12px 0 10px}
+.seg-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.07);gap:2px}
+.seg-bar i{display:block;height:100%}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--tx3);margin-top:12px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend span::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c)}
+
+.row-h{display:flex;align-items:center;margin:32px 2px 14px}
+.row-h h5{font-size:18px;font-weight:600}
+.row-h .sub{font-size:13px;color:var(--tx3);margin-left:12px}
+.row-h a{margin-left:auto;font-size:13px;color:var(--gold);text-decoration:none;font-weight:600}
+.gone-row{display:grid;grid-template-columns:repeat(5,1fr) 150px;gap:12px}
+.gc{background:var(--s2);border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:inset 0 0 0 1px var(--line);min-width:0}
+.gc .av{width:46px;height:46px;font-size:17px}
+.gc b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;margin-top:4px;padding:1px 7px;border-radius:6px;line-height:17px;white-space:nowrap}
+.st.ban{color:#FF8A6A;background:rgba(224,86,58,.16)}
+.st.reset{color:#E6C86A;background:rgba(194,165,70,.16)}
+.st.del{color:#B8B2A5;background:rgba(255,255,255,.08)}
+.st.empty{color:#9DC0AA;background:rgba(68,87,77,.35)}
+.gc.all{justify-content:center;flex-direction:column;gap:2px;font-size:13px;color:var(--tx2)}
+.gc.all b{font-size:22px;color:var(--tx)}
+.recent{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+.rc .th{aspect-ratio:3/4;border-radius:16px}
+.rc h6{font-size:14px;font-weight:600;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc p{font-size:12px;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ============ iPhone ============ */
+.phones{display:grid;grid-template-columns:repeat(4,410px);justify-content:space-between}
+.ph-cap{display:flex;align-items:baseline;gap:10px;margin:0 0 14px 6px}
+.ph-cap b{font-family:var(--num);font-size:12px;color:var(--bg);background:var(--gold);width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;transform:translateY(-1px)}
+.ph-cap h3{font-size:16px;font-weight:600}
+.ph-cap span{font-size:12px;color:var(--tx3)}
+.phone{width:410px;height:864px;padding:10px;border-radius:62px;background:linear-gradient(145deg,#2A2A2A,#141414);box-shadow:0 0 0 1.5px #3C3C3C,0 40px 80px rgba(0,0,0,.7),inset 0 0 0 1px #000}
+.scr{position:relative;width:390px;height:844px;border-radius:52px;overflow:hidden;background:var(--bg)}
+.island{position:absolute;left:50%;top:11px;width:124px;height:36px;margin-left:-62px;background:#000;border-radius:20px;z-index:50}
+.sbar{position:absolute;left:0;right:0;top:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:4px 30px 0 40px;z-index:40;font-family:var(--num);font-weight:600;font-size:16px;color:#fff}
+.sbar .ic{display:flex;gap:6px;align-items:center}
+.home-ind{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:rgba(255,255,255,.85);z-index:60}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;z-index:45;display:grid;grid-template-columns:repeat(3,1fr);padding-top:9px;background:rgba(9,9,9,.84);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:1px solid var(--line)}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--tx3);font-weight:500}
+.tabbar svg{width:24px;height:24px}
+.tabbar .on{color:var(--yel)}
+.tabbar .bd{position:relative}
+.tabbar .bd::after{content:"";position:absolute;top:-1px;right:-4px;width:8px;height:8px;border-radius:50%;background:var(--rust);box-shadow:0 0 0 2px #0B0B0B}
+.pad{padding:0 16px}
+
+/* B 首页 */
+.m-hero{position:relative;height:262px}
+.m-hero .scene .van{display:none}
+.m-hero .scene .shade{background:linear-gradient(0deg,rgba(7,7,7,1) 0%,rgba(7,7,7,.55) 34%,rgba(7,7,7,0) 62%),linear-gradient(180deg,rgba(7,7,7,.45),rgba(7,7,7,0) 28%)}
+.m-hero .scene .sun{left:58%;top:40%;width:90px;height:90px}
+.m-hero .scene .van{left:38%;width:46px;height:22px;bottom:30%}
+.m-hero .scene .van::before{width:20px;height:7px;left:6px;top:5px}
+.m-hero .scene .van::after{bottom:-5px;height:8px;background:radial-gradient(circle at 14% 50%,#111 0 4px,transparent 5px),radial-gradient(circle at 86% 50%,#111 0 4px,transparent 5px)}
+.m-hero .scene .m1{height:58%}
+.m-hero .scene .m2{height:46%}
+.m-top{position:absolute;left:16px;right:16px;top:60px;display:flex;align-items:center;gap:10px;z-index:5}
+.m-top .lg{width:32px;height:32px;border-radius:9px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.m-top .lg svg{width:100%;height:100%;display:block}
+.m-top b{font-size:17px;font-weight:700}
+.glass-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#fff}
+.m-top .glass-btn:first-of-type{margin-left:auto}
+.m-hero-in{position:absolute;left:16px;right:16px;bottom:8px;z-index:5}
+.m-hero-in .pill{height:24px;font-size:11px;padding:0 10px}
+.m-hero-in h4{font-size:26px;line-height:1.22;font-weight:700;margin-top:10px;letter-spacing:-.01em}
+.m-hero-in h4 em{font-style:normal;color:var(--yel)}
+.m-stats{display:flex;gap:0;margin-top:12px}
+.m-stats div{flex:1;position:relative;padding-left:12px}
+.m-stats div:first-child{padding-left:0}
+.m-stats div+div::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:rgba(255,255,255,.12)}
+.m-stats b{display:block;font-size:19px;font-weight:600;line-height:1.2}
+.m-stats small{font-size:11px;color:var(--tx3)}
+.m-stats .w b{color:#F08A5D}
+.m-note{font-size:12px;color:var(--tx2);margin:12px 2px 8px;display:flex;justify-content:space-between}
+.m-note b{color:var(--tx)}
+.m-cta{height:58px;border-radius:18px;background:var(--grad);display:flex;align-items:center;gap:12px;padding:0 8px 0 18px;color:#14130C;box-shadow:0 10px 30px rgba(226,201,92,.16),inset 0 1px 0 rgba(255,255,255,.5)}
+.m-cta .ic{width:30px;height:30px;border-radius:9px;background:#14130C;color:var(--yel);display:flex;align-items:center;justify-content:center}
+.m-cta .ic svg{width:17px;height:17px}
+.m-cta b{font-size:17px;font-weight:700}
+.m-cta .go{margin-left:auto;height:42px;padding:0 12px;border-radius:13px;background:rgba(20,19,12,.12);display:flex;align-items:center;font-size:12px;font-weight:600}
+.m-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.m-quick div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--tx2)}
+.m-quick i{width:64px;height:52px;border-radius:17px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--line);display:flex;align-items:center;justify-content:center;color:var(--tx)}
+.m-card{margin-top:10px;background:var(--s2);border-radius:20px;box-shadow:inset 0 0 0 1px var(--line);padding:14px 16px}
+.m-prog .t{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2)}
+.m-prog .t .lv{color:var(--yel);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.m-prog .t .n{margin-left:auto;font-size:13px;color:var(--tx);font-weight:600}
+.m-prog .t .n span{color:var(--tx3);font-weight:400}
+.m-prog .bar{margin:10px 0 8px}
+.m-prog p{font-size:11px;color:var(--tx3)}
+.m-fail{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px}
+.m-fail .fi{width:34px;height:34px;border-radius:11px;background:rgba(161,82,47,.2);color:#F08A5D;display:flex;align-items:center;justify-content:center;flex:none}
+.m-fail .fi svg{width:18px;height:18px}
+.m-fail b{display:block;font-size:13px;font-weight:600}
+.m-fail p{font-size:11px;color:var(--tx3);margin-top:1px}
+.m-fail .btn2{height:32px;padding:0 12px;font-size:12px;border-radius:10px}
+.m-sec{display:flex;align-items:center;margin:14px 2px 10px}
+.m-sec b{font-size:15px;font-weight:600}
+.m-sec span{font-size:11px;color:var(--tx3);margin-left:8px}
+.m-sec a{margin-left:auto;font-size:12px;color:var(--gold);font-weight:600;text-decoration:none}
+.m-gone{display:flex;gap:12px;overflow:hidden}
+.m-gone div{width:60px;flex:none;text-align:center}
+.m-gone .av{width:46px;height:46px;font-size:18px;margin:0 auto}
+.m-gone b{display:block;font-size:11px;font-weight:500;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2)}
+.m-gone .st{font-size:9.5px;padding:0 5px;line-height:15px;margin-top:3px}
+.m-recent{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.m-recent .th{aspect-ratio:3/4;border-radius:12px}
+
+/* C 作品页 */
+.m-head{position:absolute;left:0;right:0;top:54px;z-index:20}
+.m-title{display:flex;align-items:center;height:44px;padding:0 16px}
+.m-title h4{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.m-title .c{font-size:13px;color:var(--tx3);margin-left:10px;margin-top:8px}
+.m-title .sel-btn{margin-left:auto;height:30px;padding:0 13px;border-radius:15px;background:var(--yel);color:#151100;font-size:13px;font-weight:600;display:flex;align-items:center}
+.m-search{display:flex;align-items:center;gap:12px;padding:8px 16px 0}
+.m-search .f{flex:1;height:40px;border-radius:12px;background:var(--s3);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--tx3);font-size:15px}
+.m-search .f svg{width:18px;height:18px}
+.m-search .f .v{color:var(--tx);display:flex;align-items:center}
+.m-search .f .v::after{content:"";width:2px;height:19px;background:var(--yel);margin-left:2px;border-radius:1px}
+.m-search .f .x{margin-left:auto;width:18px;height:18px;border-radius:50%;background:#55534E;color:#151515;display:flex;align-items:center;justify-content:center}
+.m-search .f .x svg{width:10px;height:10px;stroke-width:3}
+.m-search .cancel{font-size:15px;color:var(--gold)}
+.chips{display:flex;gap:8px;padding:12px 16px 0;overflow:hidden}
+.chip{height:30px;padding:0 13px;border-radius:15px;background:var(--s2);box-shadow:inset 0 0 0 1px var(--line);font-size:12px;color:var(--tx2);display:flex;align-items:center;white-space:nowrap;flex:none}
+.chip.on{background:var(--tx);color:#111;font-weight:600;box-shadow:none}
+.chip u{text-decoration:none;font-family:var(--num);margin-left:4px;opacity:.6}
+.lbl{display:flex;align-items:center;font-size:12px;color:var(--tx3);padding:16px 16px 8px}
+.lbl b{color:var(--tx);font-size:14px;font-weight:600;margin-right:6px}
+.lbl a{margin-left:auto;color:var(--gold);font-weight:600;text-decoration:none}
+.creators{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.cr{display:flex;align-items:center;gap:10px;background:var(--s2);border-radius:16px;padding:10px 12px;box-shadow:inset 0 0 0 1px var(--line)}
+.cr .av{width:40px;height:40px;font-size:15px}
+.cr b{display:block;font-size:14px;font-weight:600;white-space:nowrap}
+.cr b mark{background:none;color:var(--yel)}
+.cr small{font-size:11px;color:var(--tx3)}
+.cr .arr{margin-left:auto;color:var(--tx3)}
+.cr .arr svg{width:16px;height:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.grid3 .th{aspect-ratio:1/1.12}
+.float{position:absolute;left:12px;right:12px;bottom:96px;z-index:44;height:60px;border-radius:20px;background:rgba(30,29,27,.86);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:0 18px 40px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.08);display:flex;align-items:center;padding:0 8px 0 10px;gap:10px}
+.float .stack{display:flex}
+.float .stack .th{width:34px;height:40px;border-radius:8px;box-shadow:0 0 0 2px #1E1D1B}
+.float .stack .th+.th{margin-left:-14px}
+.float .stack .th::after{display:none}
+.float .t b{display:block;font-size:14px;font-weight:600}
+.float .t small{font-size:11px;color:var(--tx3)}
+.float .go{margin-left:auto;height:44px;padding:0 16px;border-radius:14px;background:var(--yel);color:#151100;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.float .go svg{width:16px;height:16px;stroke-width:2.4}
+
+/* D 博主存档 */
+.d-hero{position:relative;height:250px;overflow:hidden}
+.d-hero .bgimg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 70% 30%,rgba(161,82,47,.55),transparent 70%),radial-gradient(ellipse 60% 60% at 10% 60%,rgba(68,87,77,.55),transparent 70%),linear-gradient(180deg,#1A1512,#0B0A09);filter:grayscale(.4)}
+.d-hero .bgimg::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 2px,transparent 2px 12px)}
+.d-hero .fade{position:absolute;inset:0;background:linear-gradient(0deg,var(--bg) 0%,rgba(7,7,7,0) 70%)}
+.d-nav{position:absolute;left:16px;right:16px;top:58px;display:flex;align-items:center;z-index:5;gap:10px}
+.d-nav .glass-btn:last-child{margin-left:auto}
+.d-nav .ttl{font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:14px;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.d-id{position:absolute;left:16px;right:16px;bottom:0;display:flex;align-items:flex-end;gap:14px;z-index:5}
+.d-id .av{width:84px;height:84px;font-size:32px;box-shadow:0 0 0 4px var(--bg),0 0 0 5px rgba(255,255,255,.08)}
+.d-id .av::after{content:"";position:absolute;right:2px;bottom:2px;width:22px;height:22px;border-radius:50%;background:var(--red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E") center/12px no-repeat;box-shadow:0 0 0 3px var(--bg)}
+.d-id h4{font-size:24px;font-weight:700;line-height:1.15}
+.d-id p{font-size:12px;color:var(--tx3);margin-top:4px;display:flex;align-items:center;gap:8px}
+.d-id .st{margin-top:0}
+.d-note{margin:16px 16px 0;padding:12px 14px;border-radius:16px;background:linear-gradient(135deg,rgba(161,82,47,.16),rgba(161,82,47,.06));box-shadow:inset 0 0 0 1px rgba(161,82,47,.28);font-size:12.5px;line-height:1.62;color:#E3D9CB;display:flex;gap:10px}
+.d-note svg{width:17px;height:17px;color:#F08A5D;margin-top:2px}
+.d-note b{color:#fff;font-weight:600}
+.d-stats{display:grid;grid-template-columns:repeat(3,1fr);margin:14px 16px 0;background:var(--s2);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line)}
+.d-stats div{padding:11px 0;text-align:center;position:relative}
+.d-stats div+div::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:1px;background:var(--line2)}
+.d-stats b{display:block;font-size:19px;font-weight:600;line-height:1.25}
+.d-stats b.y{color:var(--yel)}
+.d-stats small{font-size:11px;color:var(--tx3)}
+.d-saved{margin:12px 16px 0}
+.d-saved .row{display:flex;justify-content:space-between;font-size:12px;color:var(--tx2)}
+.d-saved .row b{color:var(--tx);font-weight:600}
+.d-saved .bar{margin-top:8px;height:5px}
+.seg{display:flex;margin:14px 16px 10px;background:var(--s2);border-radius:12px;padding:3px;box-shadow:inset 0 0 0 1px var(--line)}
+.seg div{flex:1;height:30px;border-radius:9px;font-size:12px;color:var(--tx2);display:flex;align-items:center;justify-content:center;gap:4px}
+.seg div.on{background:var(--s4);color:var(--tx);font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.seg u{text-decoration:none;font-family:var(--num);opacity:.6}
+.grid3.d .th{aspect-ratio:1/1.2}
+.cover-txt{position:absolute;left:8px;right:8px;bottom:7px;z-index:2;font-size:10px;line-height:1.35;color:#D8D2C6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cover-ic{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:2;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.7)}
+.cover-ic svg{width:15px;height:15px}
+
+/* E 下载页 */
+.e-head{padding:56px 16px 0;display:flex;align-items:center}
+.e-head h4{font-size:28px;font-weight:700}
+.e-head .glass-btn{margin-left:auto;background:var(--s3);box-shadow:inset 0 0 0 1px var(--line)}
+.e-total{margin:10px 16px 0;border-radius:22px;padding:14px 16px;position:relative;overflow:hidden;background:radial-gradient(ellipse 80% 90% at 100% 0%,rgba(194,165,70,.26),transparent 60%),radial-gradient(ellipse 60% 80% at 0% 100%,rgba(68,87,77,.35),transparent 60%),var(--s2);box-shadow:inset 0 0 0 1px var(--line)}
+.e-total .t{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2)}
+.e-total .t .lv{color:var(--yel);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.e-total .t .pause{margin-left:auto;height:28px;padding:0 11px;border-radius:14px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:5px;color:var(--tx);font-weight:600}
+.e-total .t .pause svg{width:13px;height:13px}
+.e-total .big{display:flex;align-items:baseline;gap:6px;margin-top:8px}
+.e-total .big b{font-size:36px;font-weight:600;line-height:1}
+.e-total .big span{font-size:15px;color:var(--tx3)}
+.e-total .big em{margin-left:auto;font-style:normal;font-size:20px;font-weight:600;color:var(--yel)}
+.e-total .bar{margin:10px 0 8px;height:8px;border-radius:4px}
+.e-total .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx2)}
+.e-total .meta b{color:var(--tx);font-weight:600}
+.e-store{margin-top:10px;padding-top:9px;border-top:1px solid var(--line2);display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--tx2)}
+.e-store svg{width:16px;height:16px;color:var(--tx3)}
+.e-store .bar{flex:1;height:4px;margin:0}
+.e-store .bar i{width:3%;min-width:6px;background:var(--gold)}
+.e-store b{color:var(--tx);font-weight:600}
+.e-lbl{display:flex;align-items:center;padding:10px 18px 4px;font-size:12px;color:var(--tx3)}
+.e-lbl b{font-size:15px;color:var(--tx);font-weight:600;margin-right:6px}
+.e-lbl .act{margin-left:auto;color:var(--gold);font-weight:600}
+.dl{display:flex;align-items:center;gap:12px;padding:4px 16px}
+.dl .th{width:38px;height:46px;border-radius:9px;flex:none}
+.dl .th::after{display:none}
+.dl .b{flex:1;min-width:0}
+.dl .nm{display:flex;font-size:13px;font-weight:500}
+.dl .nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl .nm em{font-style:normal;margin-left:auto;padding-left:10px;font-size:12px;color:var(--tx2);font-family:var(--num);flex:none}
+.dl .bar{height:4px;margin:6px 0 4px}
+.dl .sm{display:flex;font-size:11px;color:var(--tx3);font-family:var(--num)}
+.dl .sm span:last-child{margin-left:auto}
+.fl-list{margin:0 16px;background:var(--s2);border-radius:18px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.fl{display:flex;align-items:center;gap:10px;padding:6px 10px 6px 12px;height:41px}
+.fl+.fl{border-top:1px solid var(--line)}
+.fl .th{width:26px;height:29px;border-radius:7px;flex:none}
+.fl .th::after{display:none}
+.fl .b{flex:1;min-width:0}
+.fl .b b{display:block;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl .b small{display:flex;align-items:center;gap:4px;font-size:10.5px;color:#E58A66}
+.fl .b small::before{content:"";width:5px;height:5px;border-radius:50%;background:#E0563A}
+.fl .rt{height:26px;padding:0 10px;border-radius:13px;background:var(--s4);font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:4px;flex:none;box-shadow:inset 0 0 0 1px var(--line2)}
+.fl .rt svg{width:12px;height:12px}
+</style>
+</head>
+<body>
+
+<!-- 图标与图形定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="ibg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">
+      <stop offset="0" stop-color="#1C1C21"/><stop offset="1" stop-color="#0A0A0C"/>
+    </linearGradient>
+    <linearGradient id="imark" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="724" y2="790">
+      <stop offset="0" stop-color="#FF5470"/><stop offset="1" stop-color="#EE1248"/>
+    </linearGradient>
+    <symbol id="app-icon" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="url(#ibg)"/>
+      <path fill="url(#imark)" stroke="url(#imark)" stroke-width="28" stroke-linejoin="round" d="M 356 264 H 668 Q 698 264 698 294 V 768 L 512 652 L 326 768 V 294 Q 326 264 356 264 Z"/>
+      <path fill="#121215" stroke="#121215" stroke-width="30" stroke-linejoin="round" d="M 478 396 L 478 532 L 588 464 Z"/>
+    </symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 4l8.5 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-4v-6h-6v6H5A1.5 1.5 0 0 1 3.5 19z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 10.5 5 5 5-5"/><path d="M4.5 19.5h15"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M20 20v-4h-4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+    <symbol id="i-ghost" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 11-6.6"/><path d="m17 16 4 4m0-4-4 4"/></symbol>
+    <symbol id="i-nas" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="7" rx="2"/><rect x="4" y="13.5" width="16" height="7" rx="2"/><path d="M8 7h.01M8 17h.01M12 7h4M12 17h4"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5M12 17.5h.01"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><path d="M5.5 12h.01M12 12h.01M18.5 12h.01" stroke-width="3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 2.5-2.5L20 19"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 4v11M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+    <symbol id="sig" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#fff"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#fff"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#fff"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#fff"/></symbol>
+    <symbol id="wifi" viewBox="0 0 16 12"><path d="M8 2.3c2.4 0 4.6.9 6.2 2.5l1.2-1.2A10.4 10.4 0 0 0 8 .6 10.4 10.4 0 0 0 .6 3.6l1.2 1.2A8.7 8.7 0 0 1 8 2.3zm0 3.4c1.5 0 2.8.6 3.8 1.5L13 6a7 7 0 0 0-10 0l1.2 1.2c1-.9 2.3-1.5 3.8-1.5zm0 3.4c.6 0 1.1.2 1.5.6L8 11.2 6.5 9.7c.4-.4.9-.6 1.5-.6z" fill="#fff"/></symbol>
+    <symbol id="batt" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="rgba(255,255,255,.4)"/><rect x="2" y="2" width="20" height="9" rx="2.5" fill="#fff"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="rgba(255,255,255,.4)"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ 页头 ============ -->
+<header class="doc-head">
+  <div>
+    <div class="doc-title">
+      <div class="logo"><svg><use href="#app-icon"/></svg></div>
+      <div>
+        <div class="kicker">抖藏家 · 设计稿 V2</div>
+        <h1>琥珀影像 <span>Amber Media</span></h1>
+      </div>
+    </div>
+    <p class="doc-ref">参考 Dribbble「Video Editor App – Home &amp; Media Library UI」（Creliq）的电影感暗色媒体库：炭黑底、沉浸式大头图、渐变主按钮、满屏缩略图网格与黄色圆勾选中态。</p>
+  </div>
+  <div class="palette">
+    <div class="sw"><i style="background:#070707"></i><b>夜幕黑</b><em>#070707</em></div>
+    <div class="sw"><i style="background:#151514"></i><b>炭灰面板</b><em>#151514</em></div>
+    <div class="sw"><i style="background:#C2A546"></i><b>琥珀金</b><em>#C2A546</em></div>
+    <div class="sw"><i style="background:#F1D13F"></i><b>勾选黄</b><em>#F1D13F</em></div>
+    <div class="sw"><i style="background:#44574D"></i><b>墨绿</b><em>#44574D</em></div>
+    <div class="sw"><i style="background:#A1522F"></i><b>锈红</b><em>#A1522F</em></div>
+    <div class="sw"><i style="background:linear-gradient(105deg,#F6E79A,#E2C95C 38%,#B9B66E 70%,#8FA586)"></i><b>主按钮渐变</b><em>F6E79A → 8FA586</em></div>
+  </div>
+</header>
+
+<!-- ============ A 网页版首页 ============ -->
+<div class="sec-label"><b>A</b><h2>网页版首页</h2><span>1440 × 1110 画框 · 等比放大展示</span></div>
+<div class="web-wrap">
+  <div class="web-bar"><i></i><i></i><i></i><div class="url"><svg class="i" style="width:12px;height:12px"><use href="#i-nas"/></svg>nas.local:8080</div></div>
+  <div class="web-scale web-host">
+  <div class="web">
+    <aside class="side">
+      <div class="brand">
+        <div class="lg"><svg><use href="#app-icon"/></svg></div>
+        <div><b>抖藏家</b><small>存到自家 NAS</small></div>
+      </div>
+      <nav class="nav">
+        <a class="on"><svg class="i"><use href="#i-home"/></svg>首页</a>
+        <a><svg class="i"><use href="#i-grid"/></svg>作品<span class="cnt">18,402</span></a>
+        <a><svg class="i"><use href="#i-user"/></svg>博主<span class="cnt">13,229</span></a>
+        <a><svg class="i"><use href="#i-down"/></svg>下载<span class="cnt r">5</span></a>
+      </nav>
+      <div class="nav-h">资料库</div>
+      <nav class="nav">
+        <a><svg class="i"><use href="#i-ghost"/></svg>消失的博主<span class="cnt">14</span></a>
+        <a><svg class="i"><use href="#i-nas"/></svg>已存到 NAS<span class="cnt">4,695</span></a>
+        <a><svg class="i"><use href="#i-image"/></svg>仅封面<span class="cnt">13,707</span></a>
+        <a><svg class="i"><use href="#i-gear"/></svg>设置</a>
+      </nav>
+      <div class="nas">
+        <div class="row"><span class="dot"></span>NAS 在线</div>
+        <p>/volume1/抖藏家</p>
+        <div class="bar"><i style="width:4%"></i></div>
+        <div class="u"><span class="num">82.0 GB</span><span class="num">共 102 TB</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="top">
+        <h3>首页</h3><span class="sub">上次同步 10 分钟前</span>
+        <div class="search"><svg class="i" style="width:17px;height:17px"><use href="#i-search"/></svg>搜索作品、博主、抖音号<kbd>⌘K</kbd></div>
+        <div class="ibtn"><svg class="i"><use href="#i-sync"/></svg></div>
+        <div class="av a1 me">佳</div>
+      </div>
+
+      <div class="r1">
+        <div>
+          <div class="hero">
+            <div class="scene"><div class="sky"></div><div class="sun"></div><div class="m1"></div><div class="road"></div><div class="m2"></div><div class="van"></div><div class="grain"></div><div class="shade"></div></div>
+            <div class="hero-in">
+              <span class="pill"><span class="dot" style="background:var(--yel);box-shadow:0 0 0 3px rgba(241,209,63,.2)"></span>你的私人抖音片库</span>
+              <h4>收藏会消失，<br><em>存档不会。</em></h4>
+              <p class="lead">博主改名、封号、清空作品后，NAS 上依然留着 Ta 原来的样子。</p>
+            </div>
+            <div class="now"><span>正在回看 · 三拓展房车野外避暑</span><div class="play"><svg class="i" style="width:16px;height:16px;color:#fff"><use href="#i-play"/></svg></div></div>
+            <div class="stats">
+              <div class="stat"><small>收藏作品</small><b class="num">18,402</b><p>视频 14,246 · 图集 4,156</p></div>
+              <div class="stat"><small>已存到 NAS</small><b class="num">4,695</b><p>占用 82.0 GB</p></div>
+              <div class="stat"><small>博主</small><b class="num">13,229</b><p>来自你的全部收藏</p></div>
+              <div class="stat warn"><small>已在抖音消失</small><b class="num">14<u>位</u></b><p>资料已为你留档</p></div>
+            </div>
+          </div>
+          <div class="act-note"><span>还有 <b class="num">13,892</b> 个收藏作品没有存到 NAS · 约 <b class="num">225 GB</b></span><span style="color:var(--tx3)">NAS 剩余空间充足</span></div>
+          <div class="cta">
+            <div class="ic"><svg class="i" style="width:22px;height:22px"><use href="#i-down"/></svg></div>
+            <div><b>全部存到 NAS</b><span>· 13,892 个作品</span></div>
+            <div class="go">开始保存<svg class="i" style="width:18px;height:18px"><use href="#i-arrow"/></svg></div>
+          </div>
+          <div class="quick">
+            <div class="q"><svg class="i"><use href="#i-sync"/></svg>同步收藏</div>
+            <div class="q"><svg class="i"><use href="#i-search"/></svg>搜索作品</div>
+            <div class="q"><svg class="i"><use href="#i-user"/></svg>全部博主</div>
+            <div class="q"><svg class="i"><use href="#i-ghost"/></svg>消失的博主</div>
+            <div class="q"><svg class="i"><use href="#i-list"/></svg>下载队列</div>
+            <div class="q"><svg class="i"><use href="#i-gear"/></svg>设置</div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <div class="card prog">
+            <div class="card-h"><span class="lv"><span class="pulse"></span>正在下载</span><span>「全部保存」</span><span class="more"><svg class="i" style="width:18px;height:18px"><use href="#i-pause"/></svg></span></div>
+            <div class="big"><b class="num">1,203</b><span class="num">/ 13,892</span><em class="num">8.7%</em></div>
+            <div class="bar"><i style="width:8.7%"></i></div>
+            <div class="kv">
+              <div><small>速度</small><b class="num">每分钟 11 个</b></div>
+              <div><small>预计</small><b>20 小时</b></div>
+              <div><small>带宽</small><b class="num">12.4 MB/s</b></div>
+            </div>
+          </div>
+          <div class="card fail">
+            <div class="fi"><svg class="i"><use href="#i-alert"/></svg></div>
+            <div><b>5 个作品没能存到 NAS</b><p>抖音暂时拿不到下载链接</p></div>
+            <div class="btn2"><svg class="i" style="width:15px;height:15px"><use href="#i-retry"/></svg>全部重试</div>
+          </div>
+          <div class="card store">
+            <div class="card-h"><svg class="i" style="width:17px;height:17px"><use href="#i-nas"/></svg>NAS 存储<span class="more num">82.0 GB / 102 TB</span></div>
+            <div style="margin-top:12px;display:flex;align-items:baseline;gap:8px"><b class="n num">4,695</b><span style="font-size:13px;color:var(--tx3)">个作品已安全存档</span></div>
+            <div class="seg-bar" style="margin-top:14px"><i style="width:25.5%;background:var(--yel)"></i><i style="width:74.5%;background:#2A2926"></i></div>
+            <div class="legend"><span style="--c:var(--yel)">已存 25.5%</span><span style="--c:#4A4843">仅封面 74.5%</span><span style="--c:var(--rust)">失败 5</span></div>
+            <div class="spark"><div class="h"><span>近 7 天新增存档</span><b class="num">+612</b></div><div class="cols"><i style="height:38%"></i><i style="height:52%"></i><i style="height:30%"></i><i style="height:66%"></i><i style="height:48%"></i><i style="height:80%"></i><i class="on" style="height:100%"></i></div><div class="d"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>今天</span></div></div>
+            <div class="mix"><div><small>视频</small><b class="num">3,912</b></div><div><small>图集</small><b class="num">783</b></div><div><small>博主资料</small><b class="num">13,229</b></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-h"><h5>已在抖音消失的博主</h5><span class="sub">他们原来的资料和作品都还在这里</span><a>查看全部</a></div>
+      <div class="gone-row">
+        <div class="gc"><div class="av a2 gone">是</div><div style="min-width:0"><b>是小周ya</b><span class="st ban">已封禁</span></div></div>
+        <div class="gc"><div class="av a1 gone">乐</div><div style="min-width:0"><b>乐酷</b><span class="st reset">资料被重置</span></div></div>
+        <div class="gc"><div class="av a3 gone">山</div><div style="min-width:0"><b>山野日记</b><span class="st del">已注销</span></div></div>
+        <div class="gc"><div class="av a6 gone">阿</div><div style="min-width:0"><b>阿木</b><span class="st empty">作品已清空</span></div></div>
+        <div class="gc"><div class="av a5 gone">橘</div><div style="min-width:0"><b>橘子汽水</b><span class="st ban">已封禁</span></div></div>
+        <div class="gc all"><b class="num">14 位</b>查看全部</div>
+      </div>
+
+      <div class="row-h"><h5>最近收藏</h5><span class="sub">今天新增 6 个</span><a>全部作品</a></div>
+      <div class="recent">
+        <div class="rc"><div class="th g5"><span class="tag ok">已存</span><span class="dur">2:13</span></div><h6>周末做饭记录</h6><p>@床车流浪者</p></div>
+        <div class="rc"><div class="th g1"><span class="tag ok">已存</span><span class="dur">0:48</span></div><h6>海边日落延时</h6><p>@野生阿翔和CC</p></div>
+        <div class="rc"><div class="th g7"><span class="tag cv">仅封面</span><span class="dur">5:36</span></div><h6>三拓展房车野外避暑</h6><p>@床车流浪者</p></div>
+        <div class="rc"><div class="th g6"><span class="tag ok">已存</span><span class="dur">12:04</span></div><h6>法师篇·海克斯大乱斗</h6><p>@乱斗螃蟹</p></div>
+        <div class="rc"><div class="th g8"><span class="tag cv">仅封面</span><span class="dur">3:21</span></div><h6>无意闯入纽约最贵的街区</h6><p>@野生阿翔和CC</p></div>
+        <div class="rc"><div class="th g9"><span class="tag cv">仅封面</span><span class="dur">1:57</span></div><h6>老毛子光顾打仗了</h6><p>@乱斗螃蟹</p></div>
+      </div>
+    </main>
+  </div>
+  </div>
+</div>
+
+<!-- ============ iPhone ============ -->
+<div class="sec-label"><b>B–E</b><h2>iPhone</h2><span>390 × 844 · 灵动岛 · 底部 Tab：首页 / 作品 / 下载</span></div>
+<div class="phones">
+
+  <!-- B 首页 -->
+  <div>
+    <div class="ph-cap"><b>B</b><h3>首页</h3><span>沉浸头图 + 渐变大按钮</span></div>
+    <div class="phone"><div class="scr">
+      <div class="island"></div>
+      <div class="sbar"><span>9:41</span><span class="ic"><svg width="18" height="12"><use href="#sig"/></svg><svg width="16" height="12"><use href="#wifi"/></svg><svg width="27" height="13"><use href="#batt"/></svg></span></div>
+      <div class="m-hero">
+        <div class="scene"><div class="sky"></div><div class="sun"></div><div class="m1"></div><div class="road"></div><div class="m2"></div><div class="van"></div><div class="shade"></div></div>
+        <div class="m-top">
+          <div class="lg"><svg><use href="#app-icon"/></svg></div><b>抖藏家</b>
+          <div class="glass-btn"><svg class="i" style="width:18px;height:18px"><use href="#i-search"/></svg></div>
+          <div class="glass-btn"><svg class="i" style="width:18px;height:18px"><use href="#i-gear"/></svg></div>
+        </div>
+        <div class="m-hero-in">
+          <span class="pill"><span class="dot"></span>NAS 在线 · 上次同步 10 分钟前</span>
+          <h4>收藏会消失，<em>存档不会。</em></h4>
+          <div class="m-stats">
+            <div><b class="num">18,402</b><small>收藏作品</small></div>
+            <div><b class="num">4,695</b><small>已存 · 82.0 GB</small></div>
+            <div><b class="num">13,229</b><small>博主</small></div>
+            <div class="w"><b class="num">14</b><small>位已消失</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="pad">
+        <div class="m-note"><span>还有 <b class="num">13,892</b> 个收藏没存到 NAS</span><span>约 <b class="num">225 GB</b></span></div>
+        <div class="m-cta">
+          <div class="ic"><svg class="i"><use href="#i-down"/></svg></div>
+          <b>全部存到 NAS</b>
+          <div class="go">开始<svg class="i" style="width:15px;height:15px;margin-left:2px"><use href="#i-arrow"/></svg></div>
+        </div>
+        <div class="m-quick">
+          <div><i><svg class="i"><use href="#i-sync"/></svg></i>同步收藏</div>
+          <div><i><svg class="i"><use href="#i-user"/></svg></i>全部博主</div>
+          <div><i><svg class="i"><use href="#i-ghost"/></svg></i>消失博主</div>
+          <div><i><svg class="i"><use href="#i-nas"/></svg></i>NAS 存储</div>
+        </div>
+        <div class="m-card m-prog">
+          <div class="t"><span class="lv"><span class="pulse"></span>正在下载</span>「全部保存」<span class="n num">1,203 <span>/ 13,892</span></span></div>
+          <div class="bar"><i style="width:8.7%"></i></div>
+          <p class="num">每分钟 11 个 · 预计 20 小时 · 12.4 MB/s</p>
+        </div>
+        <div class="m-card m-fail">
+          <div class="fi"><svg class="i"><use href="#i-alert"/></svg></div>
+          <div><b>5 个作品没能存到 NAS</b><p>抖音暂时拿不到下载链接</p></div>
+          <div class="btn2"><svg class="i" style="width:13px;height:13px"><use href="#i-retry"/></svg>全部重试</div>
+        </div>
+        <div class="m-sec"><b>已在抖音消失</b><span>14 位</span><a>全部</a></div>
+        <div class="m-gone">
+          <div><div class="av a2 gone">是</div><b>是小周ya</b><span class="st ban">已封禁</span></div>
+          <div><div class="av a1 gone">乐</div><b>乐酷</b><span class="st reset">资料重置</span></div>
+          <div><div class="av a3 gone">山</div><b>山野日记</b><span class="st del">已注销</span></div>
+          <div><div class="av a6 gone">阿</div><b>阿木</b><span class="st empty">已清空</span></div>
+          <div><div class="av a5 gone">橘</div><b>橘子汽水</b><span class="st ban">已封禁</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="on"><svg class="i"><use href="#i-home"/></svg>首页</div>
+        <div><svg class="i"><use href="#i-grid"/></svg>作品</div>
+        <div><span class="bd"><svg class="i"><use href="#i-down"/></svg></span>下载</div>
+      </div>
+      <div class="home-ind"></div>
+    </div></div>
+  </div>
+
+  <!-- C 作品页 -->
+  <div>
+    <div class="ph-cap"><b>C</b><h3>作品</h3><span>搜索“小缘” · 多选存档</span></div>
+    <div class="phone"><div class="scr">
+      <div class="island"></div>
+      <div class="sbar"><span>9:41</span><span class="ic"><svg width="18" height="12"><use href="#sig"/></svg><svg width="16" height="12"><use href="#wifi"/></svg><svg width="27" height="13"><use href="#batt"/></svg></span></div>
+      <div style="padding-top:54px">
+        <div class="m-title"><h4>作品</h4><span class="c num">18,402</span><span class="sel-btn">完成</span></div>
+        <div class="m-search">
+          <div class="f"><svg class="i"><use href="#i-search"/></svg><span class="v">小缘</span><span class="x"><svg class="i"><use href="#i-x"/></svg></span></div>
+          <span class="cancel">取消</span>
+        </div>
+        <div class="chips">
+          <span class="chip on">全部<u>9</u></span><span class="chip">视频<u>7</u></span><span class="chip">图集<u>2</u></span><span class="chip">已存<u>4</u></span><span class="chip">仅封面<u>5</u></span>
+        </div>
+        <div class="lbl"><b>博主</b>2 位匹配</div>
+        <div class="creators">
+          <div class="cr"><div class="av a7">缘</div><div><b><mark>小缘</mark>大王</b><small>3 个作品</small></div><span class="arr"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="cr"><div class="av a3">兔</div><div><b><mark>小缘</mark>兔</b><small>3 个作品</small></div><span class="arr"><svg class="i"><use href="#i-chev"/></svg></span></div>
+        </div>
+        <div class="lbl"><b>作品</b>9 个 · 已选 3 个<a>全选</a></div>
+        <div class="grid3">
+          <div class="th g14"><span class="tag ok">已存</span><span class="chk"></span><span class="dur">0:32</span></div>
+          <div class="th g2 sel"><span class="tag cv">仅封面</span><span class="chk"></span><span class="dur">1:46</span></div>
+          <div class="th g15"><span class="tag ok">已存</span><span class="chk"></span><span class="dur">图集 9</span></div>
+          <div class="th g10 sel"><span class="tag cv">仅封面</span><span class="chk"></span><span class="dur">2:13</span></div>
+          <div class="th g13"><span class="tag ok">已存</span><span class="chk"></span><span class="dur">0:58</span></div>
+          <div class="th g11"><span class="tag ok">已存</span><span class="chk"></span><span class="dur">3:05</span></div>
+          <div class="th g16 sel"><span class="tag cv">仅封面</span><span class="chk"></span><span class="dur">0:21</span></div>
+          <div class="th g4"><span class="tag cv">仅封面</span><span class="chk"></span><span class="dur">图集 4</span></div>
+          <div class="th g12"><span class="tag cv">仅封面</span><span class="chk"></span><span class="dur">1:09</span></div>
+        </div>
+      </div>
+      <div class="float">
+        <div class="stack"><div class="th g2"></div><div class="th g10"></div><div class="th g16"></div></div>
+        <div class="t"><b>已选 3 个</b><small>约 64 MB · 均为仅封面</small></div>
+        <div class="go">存到 NAS<svg class="i"><use href="#i-arrow"/></svg></div>
+      </div>
+      <div class="tabbar">
+        <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+        <div class="on"><svg class="i"><use href="#i-grid"/></svg>作品</div>
+        <div><span class="bd"><svg class="i"><use href="#i-down"/></svg></span>下载</div>
+      </div>
+      <div class="home-ind"></div>
+    </div></div>
+  </div>
+
+  <!-- D 博主存档 -->
+  <div>
+    <div class="ph-cap"><b>D</b><h3>博主存档</h3><span>已消失的博主 · 原貌留档</span></div>
+    <div class="phone"><div class="scr">
+      <div class="island"></div>
+      <div class="sbar"><span>9:41</span><span class="ic"><svg width="18" height="12"><use href="#sig"/></svg><svg width="16" height="12"><use href="#wifi"/></svg><svg width="27" height="13"><use href="#batt"/></svg></span></div>
+      <div class="d-hero">
+        <div class="bgimg"></div><div class="fade"></div>
+        <div class="d-nav">
+          <div class="glass-btn"><svg class="i"><use href="#i-back"/></svg></div>
+          <span class="ttl"><svg class="i" style="width:13px;height:13px"><use href="#i-nas"/></svg>NAS 存档</span>
+          <div class="glass-btn"><svg class="i"><use href="#i-more"/></svg></div>
+        </div>
+        <div class="d-id">
+          <div class="av a2" style="filter:grayscale(.55)">是</div>
+          <div style="padding-bottom:6px">
+            <h4>是小周ya</h4>
+            <p><span class="num">抖音号 44989116000</span><span class="st ban">已封禁</span></p>
+          </div>
+        </div>
+      </div>
+      <div class="d-note">
+        <svg class="i"><use href="#i-alert"/></svg>
+        <div>这里显示的是 Ta 原来的资料，最后一次见到是 <b>2026 年 11 月 7 日</b>。现在抖音上显示为「44989116000」。</div>
+      </div>
+      <div class="d-stats">
+        <div><b class="num">37</b><small>记录作品</small></div>
+        <div><b class="num y">12</b><small>视频已存</small></div>
+        <div><b class="num">12.3万</b><small>粉丝</small></div>
+      </div>
+      <div class="d-saved">
+        <div class="row"><span><b>12 个视频</b>已存到 NAS，其余只有封面和文字</span><span class="num">32%</span></div>
+        <div class="bar"><i style="width:32.4%"></i></div>
+      </div>
+      <div class="seg"><div class="on">全部 <u>37</u></div><div>已存 <u>12</u></div><div>仅封面 <u>25</u></div></div>
+      <div class="grid3 d">
+        <div class="th g14"><span class="tag ok">已存</span><span class="dur">1:24</span></div>
+        <div class="th g15 gray"><span class="tag cv">仅封面</span><div class="cover-ic"><svg class="i"><use href="#i-image"/></svg></div><span class="cover-txt">今天的穿搭分享，评论区说说</span></div>
+        <div class="th g16"><span class="tag ok">已存</span><span class="dur">0:47</span></div>
+        <div class="th g11 gray"><span class="tag cv">仅封面</span><div class="cover-ic"><svg class="i"><use href="#i-image"/></svg></div><span class="cover-txt">第一次去大理，住进洱海边</span></div>
+        <div class="th g1"><span class="tag ok">已存</span><span class="dur">2:02</span></div>
+        <div class="th g9 gray"><span class="tag cv">仅封面</span><div class="cover-ic"><svg class="i"><use href="#i-image"/></svg></div><span class="cover-txt">冬天的第一场雪</span></div>
+      </div>
+      <div class="tabbar">
+        <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+        <div class="on"><svg class="i"><use href="#i-grid"/></svg>作品</div>
+        <div><span class="bd"><svg class="i"><use href="#i-down"/></svg></span>下载</div>
+      </div>
+      <div class="home-ind"></div>
+    </div></div>
+  </div>
+
+  <!-- E 下载页 -->
+  <div>
+    <div class="ph-cap"><b>E</b><h3>下载</h3><span>总进度 · 进行中 · 失败 · 存储</span></div>
+    <div class="phone"><div class="scr">
+      <div class="island"></div>
+      <div class="sbar"><span>9:41</span><span class="ic"><svg width="18" height="12"><use href="#sig"/></svg><svg width="16" height="12"><use href="#wifi"/></svg><svg width="27" height="13"><use href="#batt"/></svg></span></div>
+      <div class="e-head"><h4>下载</h4><div class="glass-btn"><svg class="i" style="width:18px;height:18px"><use href="#i-gear"/></svg></div></div>
+      <div class="e-total">
+        <div class="t"><span class="lv"><span class="pulse"></span>正在下载</span>「全部保存」<span class="pause"><svg class="i"><use href="#i-pause"/></svg>暂停</span></div>
+        <div class="big"><b class="num">1,203</b><span class="num">/ 13,892</span><em class="num">8.7%</em></div>
+        <div class="bar"><i style="width:8.7%"></i></div>
+        <div class="meta"><span>每分钟 <b class="num">11</b> 个</span><span>预计 <b>20 小时</b></span><span><b class="num">12.4 MB/s</b></span></div>
+        <div class="e-store"><svg class="i"><use href="#i-nas"/></svg>NAS 已用<div class="bar"><i></i></div><span><b class="num">82.0 GB</b> / <span class="num">102 TB</span></span></div>
+      </div>
+      <div class="e-lbl"><b>正在下载</b>3 个</div>
+      <div class="dl">
+        <div class="th g7"></div>
+        <div class="b"><div class="nm"><span>三拓展房车野外避暑.mp4</span><em>72%</em></div><div class="bar"><i style="width:72%"></i></div><div class="sm"><span>48.2 / 66.9 MB</span><span>5.1 MB/s</span></div></div>
+      </div>
+      <div class="dl">
+        <div class="th g6"></div>
+        <div class="b"><div class="nm"><span>法师篇·海克斯大乱斗.mp4</span><em>41%</em></div><div class="bar"><i style="width:41%"></i></div><div class="sm"><span>87.5 / 213.4 MB</span><span>4.6 MB/s</span></div></div>
+      </div>
+      <div class="dl">
+        <div class="th g8"></div>
+        <div class="b"><div class="nm"><span>无意闯入纽约最贵的街区.mp4</span><em>9%</em></div><div class="bar"><i style="width:9%"></i></div><div class="sm"><span>3.1 / 34.8 MB</span><span>2.7 MB/s</span></div></div>
+      </div>
+      <div class="e-lbl"><b>失败</b>5 个<span class="act">全部重试</span></div>
+      <div class="fl-list">
+        <div class="fl"><div class="th g9"></div><div class="b"><b>老毛子光顾打仗了.mp4</b><small>抖音暂时拿不到下载链接</small></div><span class="rt"><svg class="i"><use href="#i-retry"/></svg>重试</span></div>
+        <div class="fl"><div class="th g5"></div><div class="b"><b>周末做饭记录.mp4</b><small>抖音暂时拿不到下载链接</small></div><span class="rt"><svg class="i"><use href="#i-retry"/></svg>重试</span></div>
+        <div class="fl"><div class="th g13"></div><div class="b"><b>夏夜钓鱼一整晚.mp4</b><small>抖音暂时拿不到下载链接</small></div><span class="rt"><svg class="i"><use href="#i-retry"/></svg>重试</span></div>
+        <div class="fl"><div class="th g3"></div><div class="b"><b>城市夜景航拍.mp4</b><small>抖音暂时拿不到下载链接</small></div><span class="rt"><svg class="i"><use href="#i-retry"/></svg>重试</span></div>
+        <div class="fl"><div class="th g14"></div><div class="b"><b>猫咪第一次见雪.mp4</b><small>抖音暂时拿不到下载链接</small></div><span class="rt"><svg class="i"><use href="#i-retry"/></svg>重试</span></div>
+      </div>
+      <div class="tabbar">
+        <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+        <div><svg class="i"><use href="#i-grid"/></svg>作品</div>
+        <div class="on"><span class="bd"><svg class="i"><use href="#i-down"/></svg></span>下载</div>
+      </div>
+      <div class="home-ind"></div>
+    </div></div>
+  </div>
+
+</div>
+</body>
+</html>

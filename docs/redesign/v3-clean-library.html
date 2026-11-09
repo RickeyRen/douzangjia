@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1800">
+<title>抖藏家 · V3 Clean Library 干净片库</title>
+<style>
+:root{
+  --bg:#F7F8F8; --card:#FFFFFF; --line:#E6E8EB; --line2:#EFF1F3;
+  --ink:#0A0B0D; --ink2:#2E3238; --mut:#6B7079; --mut2:#9AA0A8;
+  --navy:#122256; --blue:#3D63F2; --blue-soft:#EDF1FE;
+  --coral:#FF4064; --red:#E5484D; --red-soft:#FDEEEE;
+  --green:#14A05A; --green-soft:#E7F6EE; --amber:#D27A1F; --amber-soft:#FDF2E4;
+  --violet:#7A57F0; --violet-soft:#F1EDFE; --pink:#E0457B; --pink-soft:#FDECF2;
+  --slate:#4B5565; --slate-soft:#EEF0F3;
+  --num:"Inter","SF Pro Display",-apple-system,"PingFang SC",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#ECEEEF}
+body{width:1800px;padding:48px 36px 72px;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.45}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 页头 ===== */
+.doc-head{display:flex;justify-content:space-between;align-items:flex-end;gap:40px;margin-bottom:36px}
+.doc-title{display:flex;gap:18px;align-items:center}
+.doc-title .appicon{width:64px;height:64px;border-radius:15px;box-shadow:0 6px 18px rgba(10,11,13,.18)}
+.doc-kicker{font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+.doc-title h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:2px 0 4px}
+.doc-title p{color:var(--mut);font-size:14px}
+.palette{display:flex;gap:10px}
+.sw{width:104px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 6px 8px}
+.sw i{display:block;height:44px;border-radius:7px;border:1px solid rgba(10,11,13,.06)}
+.sw b{display:block;font-size:12px;font-weight:600;margin:7px 2px 0}
+.sw span{display:block;font-family:var(--num);font-size:11px;color:var(--mut);margin:0 2px}
+
+.sec-label{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--ink2);margin:0 0 14px}
+.sec-label em{font-style:normal;width:22px;height:22px;border-radius:6px;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--num);font-size:12px}
+.sec-label span{color:var(--mut2);font-weight:400}
+
+.row-a{display:flex;gap:24px;align-items:flex-start;margin-bottom:56px}
+.notes{width:264px;flex:none;display:flex;flex-direction:column;gap:12px;padding-top:36px}
+.note{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+.note h4{font-size:13px;font-weight:600;margin-bottom:10px}
+.note p,.note li{font-size:12px;color:var(--mut);line-height:1.6}
+.note ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.note li{display:flex;justify-content:space-between;gap:8px}
+.note li b{color:var(--ink2);font-weight:500}
+.type-s{display:flex;flex-direction:column;gap:6px}
+.type-s div{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.type-s div:last-child{border:0;padding:0}
+.type-s span{font-size:11px;color:var(--mut2);font-family:var(--num)}
+
+/* ===== 通用组件 ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:8px}
+.btn.icon{width:34px;padding:0}
+.chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:6px;font-size:11px;font-weight:500;white-space:nowrap}
+.c-blue{background:var(--blue-soft);color:var(--blue)} .c-green{background:var(--green-soft);color:var(--green)}
+.c-amber{background:var(--amber-soft);color:var(--amber)} .c-violet{background:var(--violet-soft);color:var(--violet)}
+.c-pink{background:var(--pink-soft);color:var(--pink)} .c-slate{background:var(--slate-soft);color:var(--slate)}
+.c-red{background:var(--red-soft);color:var(--red)} .c-navy{background:#E8EBF5;color:var(--navy)}
+.bar{height:6px;border-radius:6px;background:#EBEEF2;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--navy),var(--blue))}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+.a1{background:#F08A5D}.a2{background:#3D63F2}.a3{background:#14A05A}.a4{background:#7A57F0}.a5{background:#E0457B}.a6{background:#0F9FB0}.a7{background:#D27A1F}.a8{background:#4B5565}
+.gone{filter:grayscale(1);opacity:.75}
+
+/* 缩略图（CSS 模拟画面） */
+.th{position:relative;overflow:hidden;background-color:#ccc}
+.g1{background:radial-gradient(circle at 50% 60%,#FFF6E8 0 17%,transparent 18%),radial-gradient(circle at 50% 60%,#EADBC6 0 26%,transparent 27%),radial-gradient(circle at 22% 24%,#FFD27A 0 7%,transparent 8%),linear-gradient(160deg,#EBA764,#B5512A)}
+.g2{background:radial-gradient(circle at 50% 50%,#FFE7B0 0 10%,transparent 11%),linear-gradient(180deg,#FF8E6E 0%,#FFC38A 49%,#2F4F94 50%,#17264F 100%)}
+.g3{background:linear-gradient(#F4F2EC,#F4F2EC) 30% 64%/34% 14% no-repeat,linear-gradient(#2B2F36,#2B2F36) 30% 72%/36% 3% no-repeat,radial-gradient(ellipse 80% 40% at 25% 100%,#2D6A47 0 60%,transparent 61%),radial-gradient(ellipse 70% 34% at 85% 100%,#3F8A5C 0 60%,transparent 61%),linear-gradient(180deg,#9FD2E6,#E5F2EA)}
+.g4{background:radial-gradient(circle at 68% 34%,#C6A4FF 0 12%,transparent 13%),radial-gradient(circle at 68% 34%,rgba(198,164,255,.35) 0 24%,transparent 25%),linear-gradient(135deg,#1F1550,#5A2EB6 60%,#A35BFF)}
+.g5{background:linear-gradient(#0B1022,#0B1022) 8% 100%/16% 52% no-repeat,linear-gradient(#141B36,#141B36) 32% 100%/14% 70% no-repeat,linear-gradient(#0B1022,#0B1022) 56% 100%/18% 44% no-repeat,linear-gradient(#141B36,#141B36) 86% 100%/20% 62% no-repeat,linear-gradient(180deg,#1A2550,#34477E 55%,#E6A25C)}
+.g6{background:linear-gradient(#3A4148,#3A4148) 20% 78%/40% 10% no-repeat,linear-gradient(#3A4148,#3A4148) 46% 70%/6% 12% no-repeat,linear-gradient(180deg,#D5DCE1,#9AA6AE 70%,#6F7B83)}
+.g7{background:radial-gradient(circle at 70% 70%,rgba(255,255,255,.35) 0 18%,transparent 19%),linear-gradient(150deg,#FFB7C9,#FF6F91)}
+.g8{background:radial-gradient(ellipse 90% 30% at 50% 100%,#1F6E6E 0 60%,transparent 61%),linear-gradient(160deg,#8EE0CE,#2B8C8C)}
+.g9{background:radial-gradient(circle at 30% 30%,#FFF 0 6%,transparent 7%),linear-gradient(160deg,#C9D0DA,#8893A3)}
+.dur{position:absolute;left:8px;bottom:8px;height:20px;padding:0 6px;border-radius:6px;background:rgba(10,11,13,.72);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;font-family:var(--num)}
+.st{position:absolute;right:8px;top:8px;height:20px;padding:0 7px 0 5px;border-radius:6px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.st svg{width:12px;height:12px;stroke-width:2.2}
+.st.ok{background:#fff;color:var(--green)}
+.st.cv{background:rgba(255,255,255,.88);color:var(--slate)}
+
+/* ===== A. 网页版 ===== */
+.web{width:1440px;flex:none;background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 24px 60px -24px rgba(16,24,40,.22);display:flex}
+.side{width:248px;flex:none;border-right:1px solid var(--line);padding:18px 14px 16px;display:flex;flex-direction:column;background:#fff}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 6px 18px}
+.brand svg.logo{width:30px;height:30px;border-radius:8px}
+.brand b{font-size:16px;font-weight:700;letter-spacing:-.01em;flex:1}
+.brand .collapse{color:var(--mut2)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-g{font-size:11px;color:var(--mut2);font-weight:500;padding:14px 10px 6px}
+.nav a{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:9px;color:var(--ink2);font-size:13.5px;text-decoration:none}
+.nav a svg{color:var(--mut)}
+.nav a .cnt{margin-left:auto;font-size:11.5px;color:var(--mut2);font-family:var(--num)}
+.fd{width:10px;height:10px;border-radius:3px;margin:0 3px;flex:none}
+.nav a.on{background:#F2F3F5;color:var(--ink);font-weight:600}
+.nav a.on svg{color:var(--ink)}
+.nav a .badge{margin-left:auto;min-width:22px;height:18px;padding:0 6px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:600;display:grid;place-items:center;font-family:var(--num)}
+.nav a .live{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--blue);font-weight:600}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 3px rgba(61,99,242,.18)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.nas-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:linear-gradient(180deg,#fff,#FAFBFB)}
+.nas-card .t{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.nas-card .ok{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.nas-card p{font-size:12px;color:var(--mut);margin:4px 0 12px}
+.store{padding:0 4px}
+.store .h{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:8px}
+.store .h a{color:var(--blue);text-decoration:none;font-weight:600}
+.store .bar i{min-width:6px}
+.store small{display:block;font-size:11.5px;color:var(--mut);margin-top:7px}
+.me{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.me .av{width:32px;height:32px;border-radius:9px;font-size:13px;background:var(--ink)}
+.me .who{flex:1;min-width:0}
+.me b{display:block;font-size:13px;font-weight:600}
+.me span{display:block;font-size:11.5px;color:var(--mut)}
+
+.main{flex:1;min-width:0;background:var(--bg)}
+.top{height:60px;border-bottom:1px solid var(--line);background:#fff;display:flex;align-items:center;gap:10px;padding:0 28px}
+.search{display:flex;align-items:center;gap:8px;height:36px;width:380px;border:1px solid var(--line);border-radius:10px;padding:0 10px 0 12px;color:var(--mut2);font-size:13px;background:#fff}
+.search span{flex:1}
+.kbd{font-family:var(--num);font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:#FAFAFB}
+.top .sp{flex:1}
+.sel{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--ink2);background:#fff;white-space:nowrap}
+.sel svg.cd{width:14px;height:14px;color:var(--mut)}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;height:34px}
+.seg span{width:34px;display:grid;place-items:center;color:var(--mut)}
+.seg span.on{background:#F2F3F5;color:var(--ink)}
+
+.content{padding:26px 28px 32px}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.ph h2{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.ph p{color:var(--mut);font-size:13.5px;margin-top:3px}
+.ph .acts{display:flex;gap:8px}
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tabs span{padding:0 2px 10px;font-size:13.5px;color:var(--mut);position:relative}
+.tabs span.on{color:var(--ink);font-weight:600}
+.tabs span.on:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);border-radius:2px}
+.tabs span i{font-style:normal;font-family:var(--num);font-size:11.5px;color:var(--mut2);margin-left:4px}
+.filters{display:flex;align-items:center;gap:8px;margin-bottom:22px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;color:var(--ink2);white-space:nowrap}
+.pill svg{width:13px;height:13px;color:var(--mut)}
+.pill.act{border-color:#C9D3FB;background:var(--blue-soft);color:var(--navy);font-weight:500}
+.pill.act svg{color:var(--blue)}
+.filters .sp{flex:1}
+.filters .reset{display:flex;align-items:center;gap:5px;color:var(--mut);font-size:12.5px}
+.filters .clear{font-size:12.5px;font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.stat .l{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut)}
+.stat .l .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center}
+.stat .v{font-size:28px;font-weight:700;margin:10px 0 4px;letter-spacing:-.02em;line-height:1.1}
+.stat .v small{font-size:14px;font-weight:600;color:var(--mut);margin-left:4px;font-family:-apple-system,"PingFang SC"}
+.stat .s{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:8px}
+.stat .s .bar{flex:1;height:4px}
+
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sh h3{font-size:15px;font-weight:650;font-weight:600;display:flex;align-items:center;gap:6px}
+.sh h3 svg{width:14px;height:14px;color:var(--mut)}
+.sh a{font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:none}
+.sh .meta{font-size:12px;color:var(--mut);font-weight:400;margin-left:4px}
+
+.dl{display:grid;grid-template-columns:1.5fr 1fr 1.12fr;gap:14px;margin-bottom:26px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px}
+.dl .card{padding:16px 18px;display:flex;flex-direction:column}
+.dl .hd{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut)}
+.dl .hd .live{display:flex;align-items:center;gap:6px;color:var(--blue);font-weight:600}
+.dl .big{display:flex;align-items:baseline;gap:8px;margin:10px 0 10px}
+.dl .big b{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.dl .big span{font-size:13px;color:var(--mut)}
+.dl .big .ttl{margin-left:auto;font-size:13px;color:var(--ink2);font-weight:600}
+.dl .meta{display:flex;align-items:center;gap:14px;margin-top:12px;font-size:12px;color:var(--mut)}
+.dl .meta span{display:flex;align-items:center;gap:5px}
+.dl .meta svg{width:13px;height:13px}
+.dl .meta .btn{margin-left:auto}
+.fail .ic,.act .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none}
+.fail .ic{background:var(--red-soft);color:var(--red)}
+.act .ic{background:#E8EBF5;color:var(--navy)}
+.dl .t2{font-size:14px;font-weight:600;margin-top:12px;line-height:1.4}
+.dl .t3{font-size:12.5px;color:var(--mut);margin-top:3px}
+.dl .foot{margin-top:auto;padding-top:14px;display:flex;align-items:center;gap:8px}
+.fail .files{display:flex;margin-right:auto}
+.fail .files i{width:24px;height:24px;border-radius:6px;border:2px solid #fff;margin-left:-6px}
+.fail .files i:first-child{margin-left:0}
+.act .foot small{margin-right:auto;font-size:11.5px;color:var(--mut)}
+
+.duo{display:grid;grid-template-columns:1.62fr 1fr;gap:14px;margin-bottom:26px}
+.duo>div{display:flex;flex-direction:column}.duo>div>.card{flex:1}
+.cw{padding:14px;display:flex;gap:20px;align-items:stretch}
+.cw .th{width:340px;min-height:190px;border-radius:10px;flex:none}
+.cw .th .play{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink)}
+.cw .th .play svg{width:18px;height:18px;fill:var(--ink);stroke:none;margin-left:3px}
+.cw .info{flex:1;min-width:0;display:flex;flex-direction:column;padding:6px 6px 4px 0}
+.cw .r1{display:flex;align-items:flex-start;gap:10px}
+.cw h4{font-size:18px;font-weight:700;letter-spacing:-.01em;flex:1}
+.cw .more{color:var(--mut)}
+.by{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);margin-top:8px}
+.by .av{width:20px;height:20px;font-size:10px}
+.by .sep{width:3px;height:3px;border-radius:50%;background:var(--mut2)}
+.by .t{color:var(--mut)}
+.tags{display:flex;gap:6px;margin-top:10px}
+.cw .desc{font-size:12.5px;color:var(--mut);margin-top:12px;line-height:1.6}
+.cw .fmeta{display:flex;gap:14px;font-size:11.5px;color:var(--mut2);margin-top:6px}
+.cw .pg{margin-top:auto}
+.cw .pg .lb{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);margin-bottom:8px}
+.cw .pg .lb b{color:var(--ink);font-weight:600}
+.cw .pg .row{display:flex;align-items:center;gap:12px}
+.cw .pg .bar{flex:1;height:6px}
+
+.gone-list{padding:14px 16px 8px}
+.gone-list .sh{margin-bottom:6px}
+.gl{display:flex;align-items:center;gap:12px;padding:7px 0;border-top:1px solid var(--line2)}
+.gl:first-of-type{border-top:0}
+.gl .av{width:30px;height:30px;font-size:12px}
+.gl .nm{flex:1;min-width:0}
+.gl .nm b{display:block;font-size:13px;font-weight:600}
+.gl .nm span{display:block;font-size:11.5px;color:var(--mut)}
+
+.recent{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.vc{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
+.vc .th{height:212px}
+.vc .bd{padding:10px 12px 12px}
+.vc h5{font-size:13px;font-weight:600}
+.vc .by{margin-top:6px;font-size:12px}
+.vc .by .av{width:18px;height:18px;font-size:9px}
+.vc .tags{margin-top:9px}
+.vc .ft{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line2);margin-top:11px;padding-top:9px;font-size:11.5px;color:var(--mut)}
+.vc .ft span{display:flex;align-items:center;gap:4px}
+.vc .ft svg{width:13px;height:13px}
+.vc .ft .r{margin-left:auto;display:flex;gap:10px}
+
+/* ===== 手机 ===== */
+.phones{display:flex;gap:24px}
+.ph-col{width:414px;flex:none}
+.phone{width:414px;height:868px;border-radius:64px;background:#111214;padding:12px;box-shadow:0 30px 60px -28px rgba(16,24,40,.45),inset 0 0 0 2px #2A2C30}
+.scr{position:relative;width:390px;height:844px;border-radius:52px;overflow:hidden;background:var(--bg)}
+.island{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:30}
+.sb{height:54px;display:flex;align-items:center;justify-content:space-between;padding:4px 30px 0 40px;font-family:var(--num);font-weight:600;font-size:16px;position:relative;z-index:20}
+.sb .ri{display:flex;gap:6px;align-items:center}
+.sb svg{height:12px}
+.pbody{padding:0 16px}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 30px 0;z-index:20}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--mut2);width:72px;font-weight:500}
+.tabbar div svg{width:24px;height:24px;stroke-width:1.6}
+.tabbar div.on{color:var(--ink);font-weight:600}
+.tabbar:after{content:"";position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink)}
+
+.m-head{display:flex;align-items:center;gap:10px;padding:2px 0 10px}
+.m-head svg.logo{width:30px;height:30px;border-radius:8px}
+.m-head h2{font-size:22px;font-weight:700;letter-spacing:-.02em;flex:1}
+.m-head .ib{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--ink2)}
+.m-head .ib svg{width:17px;height:17px}
+.m-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.m-stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.m-stat .l{font-size:11.5px;color:var(--mut)}
+.m-stat .v{font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-top:2px}
+.m-stat .v small{font-size:12px;color:var(--mut);font-weight:600;margin-left:2px;font-family:-apple-system,"PingFang SC"}
+.m-stat .s{font-size:10.5px;color:var(--mut2);margin-top:1px}
+.m-sh{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px}
+.m-sh h3{font-size:15px;font-weight:600}
+.m-sh a{font-size:12px;color:var(--mut);text-decoration:none}
+.m-dl{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.m-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+.m-prog .r1{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mut)}
+.m-prog .r1 .live{display:flex;align-items:center;gap:5px;color:var(--blue);font-weight:600}
+.m-prog .r1 .sp2{margin-left:auto;color:var(--ink2);font-weight:600}
+.m-prog .r2{display:flex;align-items:baseline;gap:6px;margin:5px 0 7px}
+.m-prog .r2 b{font-size:18px;font-weight:700}
+.m-prog .r2 span{font-size:12px;color:var(--mut)}
+.m-prog .r3{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:7px}
+.m-row{display:flex;align-items:center;gap:10px}
+.m-row .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+.m-row .ic svg{width:15px;height:15px}
+.m-row .tx{flex:1;min-width:0}
+.m-row .tx b{display:block;font-size:13px;font-weight:600}
+.m-row .tx span{display:block;font-size:11px;color:var(--mut)}
+.m-act .btn{width:100%;margin-top:9px;height:36px}
+.m-gone{display:flex;gap:10px;margin-bottom:10px}
+.m-gone div{width:62px;flex:none;text-align:center}
+.m-gone .av{width:48px;height:48px;margin:0 auto 5px;font-size:17px;position:relative}
+.m-gone b{display:block;font-size:11.5px;font-weight:600}
+.m-gone span:not(.av){display:block;font-size:10px;margin-top:1px}
+.m-rec{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.m-rec .vc .th{height:130px}
+.m-rec .vc .bd{padding:8px 10px}
+
+.m-title{display:flex;align-items:center;justify-content:space-between;padding:6px 0 10px}
+.m-title h2{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.m-search{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.m-search .f{flex:1;height:38px;border-radius:11px;background:#fff;border:1.5px solid var(--ink);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:15px}
+.m-search .f .caret{width:1.5px;height:18px;background:var(--blue);margin-left:-6px}
+.m-search .f .x{margin-left:auto;width:18px;height:18px;border-radius:50%;background:#C5CAD1;display:grid;place-items:center;color:#fff}
+.m-search .f .x svg{width:10px;height:10px;stroke-width:2.6}
+.m-search .cancel{font-size:15px;color:var(--ink2)}
+.m-pills{display:flex;gap:6px;margin-bottom:14px;overflow:hidden}
+.m-pills span{height:30px;padding:0 12px;border-radius:15px;border:1px solid var(--line);background:#fff;font-size:12.5px;display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--ink2)}
+.m-pills span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.m-pills span svg{width:12px;height:12px}
+.m-cr{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.m-cr div{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.m-cr .av{width:38px;height:38px;font-size:14px}
+.m-cr p{flex:1;min-width:0}
+.m-cr b{display:block;font-size:13px;font-weight:600}
+.m-cr b mark{background:none;color:var(--blue)}
+.m-cr p span{display:block;font-size:11px;color:var(--mut)}
+.m-cr svg{width:14px;height:14px;color:var(--mut2)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.g3c{min-width:0}
+.g3c .th{height:150px;border-radius:9px}
+.g3c .th .dur{left:6px;bottom:6px;height:18px;font-size:10px;padding:0 5px}
+.g3c .th .st{right:6px;top:6px;height:18px;font-size:10px;padding:0 5px 0 4px}
+.g3c .th .st svg{width:10px;height:10px}
+.g3c p{font-size:11.5px;font-weight:500;margin-top:5px;color:var(--ink2)}
+.g3c p mark{background:none;color:var(--blue);font-weight:600}
+.g3c small{display:block;font-size:10.5px;color:var(--mut2);margin-top:1px}
+
+.nb{display:flex;align-items:center;justify-content:space-between;height:44px;margin-bottom:4px}
+.nb .bk{display:flex;align-items:center;gap:2px;font-size:15px;color:var(--ink2)}
+.nb .bk svg{width:20px;height:20px}
+.nb .ib{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;display:grid;place-items:center}
+.prof{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
+.prof .r1{display:flex;gap:14px;align-items:center}
+.prof .av{width:64px;height:64px;font-size:24px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--red)}
+.prof h3{font-size:19px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.prof .id{font-size:12px;color:var(--mut);margin-top:3px}
+.prof .ban{background:var(--red);color:#fff;font-weight:600}
+.prof .note2{margin-top:14px;background:#FAFAFB;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;color:var(--ink2);display:flex;gap:8px}
+.prof .note2 svg{color:var(--mut);margin-top:2px;width:14px;height:14px}
+.prof .nums{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid var(--line2);padding-top:12px}
+.prof .nums div{text-align:center;border-left:1px solid var(--line2)}
+.prof .nums div:first-child{border:0}
+.prof .nums b{display:block;font-size:18px;font-weight:700}
+.prof .nums span{font-size:11px;color:var(--mut)}
+.keep{display:flex;align-items:center;gap:10px;margin:12px 0}
+.keep .tx{flex:1;font-size:12px;color:var(--mut)}
+.keep .tx b{color:var(--ink);font-weight:600}
+.keep .bar{height:5px;margin-top:6px}
+.keep .bar i{background:var(--green)}
+.mseg{display:grid;grid-template-columns:repeat(3,1fr);background:#ECEEF1;border-radius:10px;padding:3px;margin-bottom:10px}
+.mseg span{height:30px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;color:var(--mut);border-radius:8px}
+.mseg span.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.mseg span i{font-style:normal;font-family:var(--num);font-size:11.5px}
+
+.m-total{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+.m-total .r1{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+.m-total .r1 .live{display:flex;align-items:center;gap:6px;color:var(--blue);font-weight:600}
+.m-total .r1 .btn{margin-left:auto}
+.m-total .r2{display:flex;align-items:baseline;gap:6px;margin:6px 0 9px}
+.m-total .r2 b{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.m-total .r2 span{font-size:13px;color:var(--mut)}
+.m-total .r2 em{margin-left:auto;font-style:normal;font-size:13px;font-weight:600;color:var(--navy)}
+.m-total .bar{height:8px}
+.m-total .r3{display:flex;justify-content:space-between;margin-top:10px;font-size:11.5px;color:var(--mut)}
+.m-total .r3 span{display:flex;align-items:center;gap:4px}.m-total .r3 svg{width:13px;height:13px}
+.m-total .r3 div{background:#F7F8F8;border-radius:9px;padding:6px 9px}
+.m-total .r3 b{display:block;font-size:13.5px;font-weight:700}
+.m-total .r3 span{font-size:10.5px;color:var(--mut)}
+.m-list{background:#fff;border:1px solid var(--line);border-radius:14px;padding:2px 12px}
+.m-li{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line2)}
+.m-li:first-child{border:0}
+.m-li .th{width:30px;height:40px;border-radius:6px;flex:none}
+.m-li .tx{flex:1;min-width:0}
+.m-li .tx b{display:block;font-size:12.5px;font-weight:600}
+.m-li .tx .bar{height:4px;margin:6px 0 4px}
+.m-li .tx small{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut)}
+.m-li.f{padding:5px 0}
+.m-li.f .btn{height:24px;padding:0 9px;font-size:11.5px}
+.m-li.f .th{width:26px;height:34px}
+.m-li.f .tx span{display:block;font-size:10.5px;color:var(--red);margin-top:1px}
+.m-store{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:6px 10px 6px 6px}
+.m-store .ic{width:28px;height:28px;border-radius:8px;background:#E8EBF5;color:var(--navy);display:grid;place-items:center;flex:none}
+.m-store .ic svg{width:15px;height:15px}
+.m-store .tx{width:96px}
+.m-store .v{font-size:11px;color:var(--mut);white-space:nowrap}
+.m-store .v b{font-size:12px;color:var(--ink);font-weight:700}
+.m-store .bar{height:4px;margin-top:4px}
+.m-store .bar i{min-width:4px}
+</style>
+</head>
+<body>
+
+<!-- 共享渐变（只定义一次，不能 display:none） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="ibg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#1C1C21"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
+    <linearGradient id="imk" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="724" y2="790"><stop offset="0" stop-color="#FF5470"/><stop offset="1" stop-color="#EE1248"/></linearGradient>
+    <symbol id="appicon" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="url(#ibg)"/>
+      <path fill="url(#imk)" stroke="url(#imk)" stroke-width="28" stroke-linejoin="round" d="M 356 264 H 668 Q 698 264 698 294 V 768 L 512 652 L 326 768 V 294 Q 326 264 356 264 Z"/>
+      <path fill="url(#ibg)" stroke="url(#ibg)" stroke-width="30" stroke-linejoin="round" d="M 478 396 L 478 532 L 588 464 Z"/>
+    </symbol>
+    <!-- 线性图标 -->
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.4 3.5 5.2"/></symbol>
+    <symbol id="i-userx" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.8"/><path d="M3 20.5c.7-3.8 3.6-5.8 7-5.8 1.5 0 2.9.4 4 1.1"/><path d="m16.5 15.5 4.5 4.5M21 15.5 16.5 20"/></symbol>
+    <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 8.5 4.5 9.5 7a13 13 0 0 1-2.6 3.8M6.6 6.6C4.5 8 3.1 10.1 2.5 12c1 2.5 4.5 7 9.5 7 1.9 0 3.6-.6 5-1.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/></symbol>
+    <symbol id="i-cd" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-cr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-cl" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></symbol>
+    <symbol id="i-hdd" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a9 9 0 1 1 16 0"/><path d="m12 13 4-4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5h.01"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M20 21v-5h-5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+    <symbol id="i-sig" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor" stroke="none"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor" stroke="none"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.4 6.8a6.5 6.5 0 0 1 9.2 0l-1.4 1.4a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.4 1.4a7.9 7.9 0 0 0-11.2 0z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bat" viewBox="0 0 27 12"><rect x=".5" y=".5" width="23" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="20" height="8" rx="2" fill="currentColor" stroke="none"/><path d="M25 4v4a2 2 0 0 0 0-4z" fill="currentColor" stroke="none" opacity=".45"/></symbol>
+  </defs>
+</svg>
+
+<!-- ===== 页头 ===== -->
+<header class="doc-head">
+  <div class="doc-title">
+    <svg class="appicon"><use href="#appicon"/></svg>
+    <div>
+      <div class="doc-kicker">抖藏家 · 设计稿 V3</div>
+      <h1>Clean Library · 干净片库</h1>
+      <p>参考 Dribbble「Screen Recording Dashboard」（Recorda / Cansaas）：浅灰底 + 白卡细描边、近黑主按钮、深蓝到亮蓝的进度条点缀，像一件成熟的生产力工具。</p>
+    </div>
+  </div>
+  <div class="palette">
+    <div class="sw"><i style="background:#F7F8F8"></i><b>底色</b><span>#F7F8F8</span></div>
+    <div class="sw"><i style="background:#FFFFFF"></i><b>卡片</b><span>#FFFFFF</span></div>
+    <div class="sw"><i style="background:#E6E8EB"></i><b>描边</b><span>#E6E8EB</span></div>
+    <div class="sw"><i style="background:#0A0B0D"></i><b>主按钮</b><span>#0A0B0D</span></div>
+    <div class="sw"><i style="background:#122256"></i><b>深蓝</b><span>#122256</span></div>
+    <div class="sw"><i style="background:#3D63F2"></i><b>进度亮蓝</b><span>#3D63F2</span></div>
+    <div class="sw"><i style="background:linear-gradient(135deg,#FF5470,#EE1248)"></i><b>品牌珊瑚</b><span>#FF4064</span></div>
+    <div class="sw"><i style="background:#14A05A"></i><b>已存</b><span>#14A05A</span></div>
+    <div class="sw"><i style="background:#E5484D"></i><b>消失 / 失败</b><span>#E5484D</span></div>
+  </div>
+</header>
+
+<!-- ===== A. 网页版首页 ===== -->
+<div class="sec-label"><em>A</em>网页版首页 <span>1440 宽 · 原尺寸</span></div>
+<div class="row-a">
+<div class="web">
+  <aside class="side">
+    <div class="brand"><svg class="logo"><use href="#appicon"/></svg><b>抖藏家</b><svg class="i collapse"><use href="#i-side"/></svg></div>
+    <nav class="nav">
+      <a class="on"><svg class="i"><use href="#i-home"/></svg>首页</a>
+      <a><svg class="i"><use href="#i-grid"/></svg>全部作品<span class="cnt">18,402</span></a>
+      <a><svg class="i"><use href="#i-star"/></svg>精选<span class="cnt">326</span></a>
+      <a><svg class="i"><use href="#i-users"/></svg>博主<span class="cnt">13,229</span></a>
+      <div class="nav-g">存档守护</div>
+      <a><svg class="i"><use href="#i-userx"/></svg>消失的博主<span class="badge">14</span></a>
+      <a><svg class="i"><use href="#i-eyeoff"/></svg>已在抖音消失<span class="cnt">209</span></a>
+      <a><svg class="i"><use href="#i-down"/></svg>下载<span class="live"><i class="dot"></i>下载中</span></a>
+      <a><svg class="i"><use href="#i-gear"/></svg>设置</a>
+      <div class="nav-g">我的收藏夹</div>
+      <a><i class="fd" style="background:#3D63F2"></i>旅行灵感<span class="cnt">312</span></a>
+      <a><i class="fd" style="background:#D27A1F"></i>下饭菜谱<span class="cnt">128</span></a>
+      <a><i class="fd" style="background:#7A57F0"></i>游戏高光<span class="cnt">96</span></a>
+      <a><i class="fd" style="background:#14A05A"></i>房车露营<span class="cnt">74</span></a>
+      <a style="color:var(--mut)"><svg class="i"><use href="#i-plus"/></svg>新建收藏夹</a>
+    </nav>
+    <div class="side-foot">
+      <div class="nas-card">
+        <div class="t"><i class="ok"></i>NAS 已连接</div>
+        <p>群晖 DS923+ · /volume1/抖藏家<br>上次同步收藏：2 分钟前</p>
+        <span class="btn sm" style="width:100%"><svg class="i" style="width:14px;height:14px"><use href="#i-sync"/></svg>立即同步收藏</span>
+      </div>
+      <div class="store">
+        <div class="h"><span>存储用量</span><a>管理</a></div>
+        <div class="bar"><i style="width:1%"></i></div>
+        <small><b class="num" style="color:var(--ink);font-weight:600">82.0 GB</b> / 102 TB 已用</small>
+      </div>
+      <div class="me"><div class="av">任</div><div class="who"><b class="ell">我的抖音账号</b><span class="ell">收藏已同步 · 18,402 个</span></div><svg class="i" style="color:var(--mut2)"><use href="#i-cd"/></svg></div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <div class="top">
+      <div class="search"><svg class="i"><use href="#i-search"/></svg><span>搜索作品、博主、标签…</span><b class="kbd">⌘K</b></div>
+      <div class="sp"></div>
+      <span class="btn icon"><svg class="i"><use href="#i-bell"/></svg></span>
+      <span class="sel"><svg class="i"><use href="#i-filter"/></svg>筛选</span>
+      <span class="sel">排序：最近收藏<svg class="i cd"><use href="#i-cd"/></svg></span>
+      <div class="seg"><span class="on"><svg class="i"><use href="#i-grid"/></svg></span><span><svg class="i"><use href="#i-list"/></svg></span></div>
+    </div>
+
+    <div class="content">
+      <div class="ph">
+        <div><h2>首页</h2><p>你在抖音收藏的一切，都在这里安全存档。</p></div>
+        <div class="acts"><span class="btn"><svg class="i"><use href="#i-sync"/></svg>同步收藏</span><span class="btn dark"><svg class="i"><use href="#i-down"/></svg>全部存到 NAS</span></div>
+      </div>
+      <div class="tabs"><span class="on">全部<i>18,402</i></span><span>视频<i>14,246</i></span><span>图集<i>4,156</i></span><span>已存<i>4,695</i></span><span>仅封面<i>13,707</i></span></div>
+      <div class="filters">
+        <span class="pill">时长<svg class="i"><use href="#i-cd"/></svg></span>
+        <span class="pill">状态<svg class="i"><use href="#i-cd"/></svg></span>
+        <span class="pill act">已存 / 仅封面：全部<svg class="i"><use href="#i-cd"/></svg></span>
+        <span class="pill">标签<svg class="i"><use href="#i-cd"/></svg></span>
+        <span class="sp"></span>
+        <span class="reset"><svg class="i" style="width:13px;height:13px"><use href="#i-retry"/></svg>重置</span>
+        <span class="clear">清除全部</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="l"><span class="ic c-navy"><svg class="i" style="width:14px;height:14px"><use href="#i-book"/></svg></span>收藏作品</div><div class="v num">18,402</div><div class="s">视频 14,246 · 图集 4,156</div></div>
+        <div class="stat"><div class="l"><span class="ic c-green"><svg class="i" style="width:14px;height:14px"><use href="#i-hdd"/></svg></span>已存到 NAS</div><div class="v num">4,695</div><div class="s">占用 82.0 GB<div class="bar"><i style="width:25.5%;background:var(--green)"></i></div><span class="num">25.5%</span></div></div>
+        <div class="stat"><div class="l"><span class="ic c-violet"><svg class="i" style="width:14px;height:14px"><use href="#i-users"/></svg></span>博主</div><div class="v num">13,229</div><div class="s">本周新增 46 位</div></div>
+        <div class="stat"><div class="l"><span class="ic c-red"><svg class="i" style="width:14px;height:14px"><use href="#i-userx"/></svg></span>已在抖音消失</div><div class="v num" style="color:var(--red)">14<small>位</small></div><div class="s">原资料和作品仍完整保留</div></div>
+      </div>
+
+      <div class="sh"><h3>下载</h3><a>打开下载页</a></div>
+      <div class="dl">
+        <div class="card prog">
+          <div class="hd"><span class="live"><i class="dot"></i>正在下载</span><span>·</span><span>任务“全部保存”</span></div>
+          <div class="big"><b class="num">1,203</b><span class="num">/ 13,892</span><span class="ttl num">8.7%</span></div>
+          <div class="bar" style="height:8px"><i style="width:8.7%"></i></div>
+          <div class="meta">
+            <span><svg class="i"><use href="#i-bolt"/></svg>每分钟 11 个</span>
+            <span><svg class="i"><use href="#i-clock"/></svg>预计 20 小时</span>
+            <span class="num"><svg class="i"><use href="#i-gauge"/></svg>12.4 MB/s</span>
+            <span class="btn sm"><svg class="i" style="width:13px;height:13px"><use href="#i-pause"/></svg>暂停</span>
+          </div>
+        </div>
+        <div class="card fail">
+          <div class="hd"><span class="ic"><svg class="i"><use href="#i-alert"/></svg></span></div>
+          <div class="t2">5 个作品没能存到 NAS</div>
+          <div class="t3">抖音暂时拿不到下载链接</div>
+          <div class="foot"><span class="files"><i class="th g4"></i><i class="th g6"></i><i class="th g2"></i><i class="th g8"></i><i class="th g7"></i></span><span class="btn sm"><svg class="i" style="width:13px;height:13px"><use href="#i-retry"/></svg>全部重试</span></div>
+        </div>
+        <div class="card act">
+          <div class="hd"><span class="ic"><svg class="i"><use href="#i-hdd"/></svg></span></div>
+          <div class="t2">还有 13,892 个收藏作品没有存到 NAS</div>
+          <div class="t3">约 225 GB · NAS 剩余空间充足</div>
+          <div class="foot"><small>现在只存了封面和文字</small><span class="btn dark sm" style="height:32px;padding:0 14px"><svg class="i" style="width:14px;height:14px"><use href="#i-down"/></svg>全部存到 NAS</span></div>
+        </div>
+      </div>
+
+      <div class="duo">
+        <div>
+          <div class="sh"><h3>继续观看<svg class="i"><use href="#i-cd"/></svg></h3></div>
+          <div class="card cw">
+            <div class="th g4"><span class="play"><svg><use href="#i-play"/></svg></span><span class="dur">8:31</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div>
+            <div class="info">
+              <div class="r1"><h4 class="ell">法师篇·海克斯大乱斗</h4><svg class="i more"><use href="#i-more"/></svg></div>
+              <div class="by"><span class="av a4">乱</span>@乱斗螃蟹<i class="sep"></i><span class="t">昨天看过</span></div>
+              <div class="tags"><span class="chip c-violet">游戏</span><span class="chip c-blue">攻略</span></div>
+              <p class="desc">法师英雄的海克斯符文怎么选、什么时候换装，一局打完讲透。</p>
+              <div class="fmeta"><span>1080p</span><span>186 MB</span><span>2026 年 11 月 2 日存到 NAS</span></div>
+              <div class="pg">
+                <div class="lb">已看 60%<i class="sep" style="width:3px;height:3px;border-radius:50%;background:var(--mut2)"></i><b class="num">剩余 3:24</b></div>
+                <div class="row"><div class="bar"><i style="width:60%"></i></div><span class="btn icon sm" style="width:30px"><svg class="i" style="width:14px;height:14px"><use href="#i-link"/></svg></span><span class="btn dark sm" style="height:30px;padding:0 14px"><svg class="i" style="width:13px;height:13px;fill:#fff;stroke:none"><use href="#i-play"/></svg>继续播放</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="sh"><h3>消失的博主<span class="meta">原来的样子都还在</span></h3><a>查看全部 14 位</a></div>
+          <div class="card gone-list">
+            <div class="gl"><span class="av a5 gone">是</span><div class="nm"><b class="ell">是小周ya</b><span>37 个作品 · 12 个已存</span></div><span class="chip c-red">已封禁</span></div>
+            <div class="gl"><span class="av a1 gone">乐</span><div class="nm"><b class="ell">乐酷</b><span>58 个作品 · 41 个已存</span></div><span class="chip c-amber">资料被重置</span></div>
+            <div class="gl"><span class="av a3 gone">山</span><div class="nm"><b class="ell">山野日记</b><span>122 个作品 · 96 个已存</span></div><span class="chip c-slate">已注销</span></div>
+            <div class="gl"><span class="av a6 gone">阿</span><div class="nm"><b class="ell">阿木</b><span>19 个作品 · 7 个已存</span></div><span class="chip c-violet">作品已清空</span></div>
+            <div class="gl"><span class="av a7 gone">橘</span><div class="nm"><b class="ell">橘子汽水</b><span>44 个作品 · 30 个已存</span></div><span class="chip c-red">已封禁</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sh"><h3>最近收藏<span class="meta">今天新增 18 个</span></h3><a>查看全部</a></div>
+      <div class="recent">
+        <div class="vc"><div class="th g1"><span class="dur">2:13</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">周末做饭记录</h5><div class="by"><span class="av a3">野</span><span class="ell">@野生阿翔和CC</span></div><div class="tags"><span class="chip c-amber">美食</span><span class="chip c-slate">日常</span></div><div class="ft"><span><svg class="i"><use href="#i-eye"/></svg>3 次</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+        <div class="vc"><div class="th g2"><span class="dur">0:48</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">海边日落延时</h5><div class="by"><span class="av a1">床</span><span class="ell">@床车流浪者</span></div><div class="tags"><span class="chip c-blue">旅行</span><span class="chip c-pink">延时</span></div><div class="ft"><span><svg class="i"><use href="#i-eye"/></svg>1 次</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+        <div class="vc"><div class="th g3"><span class="dur">12:06</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><div class="bd"><h5 class="ell">三拓展房车野外避暑</h5><div class="by"><span class="av a1">床</span><span class="ell">@床车流浪者</span></div><div class="tags"><span class="chip c-green">房车</span><span class="chip c-blue">露营</span></div><div class="ft"><span><svg class="i"><use href="#i-down"/></svg>存到 NAS</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+        <div class="vc"><div class="th g4"><span class="dur">8:31</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">法师篇·海克斯大乱斗</h5><div class="by"><span class="av a4">乱</span><span class="ell">@乱斗螃蟹</span></div><div class="tags"><span class="chip c-violet">游戏</span><span class="chip c-blue">攻略</span></div><div class="ft"><span><svg class="i"><use href="#i-eye"/></svg>5 次</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+        <div class="vc"><div class="th g5"><span class="dur">5:42</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><div class="bd"><h5 class="ell">无意闯入纽约最贵的街区</h5><div class="by"><span class="av a3">野</span><span class="ell">@野生阿翔和CC</span></div><div class="tags"><span class="chip c-navy">城市</span><span class="chip c-blue">旅行</span></div><div class="ft"><span><svg class="i"><use href="#i-down"/></svg>存到 NAS</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+        <div class="vc"><div class="th g6"><span class="dur">3:17</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">老毛子光顾打仗了</h5><div class="by"><span class="av a4">乱</span><span class="ell">@乱斗螃蟹</span></div><div class="tags"><span class="chip c-violet">游戏</span><span class="chip c-pink">搞笑</span></div><div class="ft"><span><svg class="i"><use href="#i-eye"/></svg>2 次</span><span class="r"><svg class="i"><use href="#i-link"/></svg><svg class="i"><use href="#i-book"/></svg></span></div></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<aside class="notes">
+  <div class="note"><h4>设计要点</h4><p>白卡片 + 1px #E6E8EB 细描边，几乎不用阴影；只有主操作是近黑按钮，进度一律用深蓝→亮蓝渐变，状态色只出现在小角标和标签上。</p></div>
+  <div class="note"><h4>字号层级</h4>
+    <div class="type-s"><div><b style="font-size:20px">页面标题</b><span>24 / 700</span></div><div><b style="font-size:15px">区块标题</b><span>15 / 600</span></div><div><span style="font-size:13px;color:var(--ink2);font-family:inherit">正文、卡片标题</span><span>13 / 500</span></div><div><span style="font-size:11.5px;color:var(--mut);font-family:inherit">辅助说明</span><span>11.5 / 400</span></div></div>
+  </div>
+  <div class="note"><h4>状态角标</h4>
+    <ul>
+      <li><b>已存到 NAS</b><span class="chip c-green"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg>已存</span></li>
+      <li><b>只有封面和文字</b><span class="chip c-slate"><svg class="i" style="width:11px;height:11px"><use href="#i-image"/></svg>仅封面</span></li>
+      <li><b>博主被封禁</b><span class="chip c-red">已封禁</span></li>
+      <li><b>资料被重置</b><span class="chip c-amber">资料被重置</span></li>
+      <li><b>账号注销</b><span class="chip c-slate">已注销</span></li>
+      <li><b>作品被清空</b><span class="chip c-violet">作品已清空</span></li>
+    </ul>
+  </div>
+  <div class="note"><h4>圆角与间距</h4>
+    <ul><li><b>卡片</b><span class="num">14px</span></li><li><b>按钮 / 输入框</b><span class="num">9–10px</span></li><li><b>标签</b><span class="num">6px</span></li><li><b>栅格间距</b><span class="num">14px</span></li><li><b>页面边距</b><span class="num">28px</span></li></ul>
+  </div>
+</aside>
+</div>
+
+<!-- ===== 手机 ===== -->
+<div class="phones">
+
+<!-- B. 首页 -->
+<div class="ph-col">
+<div class="sec-label"><em>B</em>iPhone 首页 <span>390 × 844</span></div>
+<div class="phone"><div class="scr">
+  <div class="island"></div>
+  <div class="sb"><span>9:41</span><span class="ri"><svg viewBox="0 0 18 12" width="18"><use href="#i-sig"/></svg><svg viewBox="0 0 16 12" width="16"><use href="#i-wifi"/></svg><svg viewBox="0 0 27 12" width="27"><use href="#i-bat"/></svg></span></div>
+  <div class="pbody">
+    <div class="m-head"><svg class="logo"><use href="#appicon"/></svg><h2>抖藏家</h2><span class="ib"><svg class="i"><use href="#i-search"/></svg></span><span class="ib"><svg class="i"><use href="#i-bell"/></svg></span></div>
+    <div class="m-stats">
+      <div class="m-stat"><div class="l">收藏作品</div><div class="v num">18,402</div><div class="s">视频 14,246 · 图集 4,156</div></div>
+      <div class="m-stat"><div class="l">已存到 NAS</div><div class="v num">4,695</div><div class="s">占用 82.0 GB</div></div>
+      <div class="m-stat"><div class="l">博主</div><div class="v num">13,229</div><div class="s">本周新增 46 位</div></div>
+      <div class="m-stat"><div class="l">已在抖音消失</div><div class="v num" style="color:var(--red)">14<small>位</small></div><div class="s">原资料仍保留</div></div>
+    </div>
+    <div class="m-sh"><h3>下载</h3><a>全部 ›</a></div>
+    <div class="m-dl">
+      <div class="m-card m-prog">
+        <div class="r1"><span class="live"><i class="dot"></i>正在下载</span>“全部保存”<span class="sp2 num">12.4 MB/s</span></div>
+        <div class="r2"><b class="num">1,203</b><span class="num">/ 13,892</span></div>
+        <div class="bar"><i style="width:8.7%"></i></div>
+        <div class="r3"><span>每分钟 11 个</span><span>预计 20 小时</span></div>
+      </div>
+      <div class="m-card m-row">
+        <span class="ic c-red"><svg class="i"><use href="#i-alert"/></svg></span>
+        <div class="tx"><b class="ell">5 个作品没能存到 NAS</b><span class="ell">抖音暂时拿不到下载链接</span></div>
+        <span class="btn sm">全部重试</span>
+      </div>
+      <div class="m-card m-act">
+        <div class="m-row"><span class="ic c-navy"><svg class="i"><use href="#i-hdd"/></svg></span><div class="tx"><b>还有 13,892 个收藏作品没有存到 NAS</b><span>约 225 GB</span></div></div>
+        <span class="btn dark"><svg class="i"><use href="#i-down"/></svg>全部存到 NAS</span>
+      </div>
+    </div>
+    <div class="m-sh"><h3>消失的博主</h3><a>14 位 ›</a></div>
+    <div class="m-gone">
+      <div><span class="av a5 gone">是</span><b class="ell">是小周ya</b><span style="color:var(--red)">已封禁</span></div>
+      <div><span class="av a1 gone">乐</span><b class="ell">乐酷</b><span style="color:var(--amber)">资料被重置</span></div>
+      <div><span class="av a3 gone">山</span><b class="ell">山野日记</b><span style="color:var(--slate)">已注销</span></div>
+      <div><span class="av a6 gone">阿</span><b class="ell">阿木</b><span style="color:var(--violet)">作品已清空</span></div>
+      <div><span class="av a7 gone">橘</span><b class="ell">橘子汽水</b><span style="color:var(--red)">已封禁</span></div>
+    </div>
+    <div class="m-sh"><h3>最近收藏</h3><a>查看全部 ›</a></div>
+    <div class="m-rec">
+      <div class="vc"><div class="th g1"><span class="dur">2:13</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">周末做饭记录</h5></div></div>
+      <div class="vc"><div class="th g2"><span class="dur">0:48</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><div class="bd"><h5 class="ell">海边日落延时</h5></div></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div class="on"><svg class="i"><use href="#i-home"/></svg>首页</div>
+    <div><svg class="i"><use href="#i-grid"/></svg>作品</div>
+    <div><svg class="i"><use href="#i-down"/></svg>下载</div>
+  </div>
+</div></div>
+</div>
+
+<!-- C. 作品页 -->
+<div class="ph-col">
+<div class="sec-label"><em>C</em>iPhone 作品页 · 搜索 <span>390 × 844</span></div>
+<div class="phone"><div class="scr">
+  <div class="island"></div>
+  <div class="sb"><span>9:41</span><span class="ri"><svg viewBox="0 0 18 12" width="18"><use href="#i-sig"/></svg><svg viewBox="0 0 16 12" width="16"><use href="#i-wifi"/></svg><svg viewBox="0 0 27 12" width="27"><use href="#i-bat"/></svg></span></div>
+  <div class="pbody">
+    <div class="m-title"><h2>作品</h2></div>
+    <div class="m-search"><div class="f"><svg class="i" style="color:var(--mut)"><use href="#i-search"/></svg>小缘<i class="caret"></i><span class="x"><svg class="i"><use href="#i-x"/></svg></span></div><span class="cancel">取消</span></div>
+    <div class="m-pills"><span class="on">全部</span><span>视频</span><span>图集</span><span>已存</span><span>仅封面</span><span>时长<svg class="i"><use href="#i-cd"/></svg></span></div>
+    <div class="m-sh"><h3>博主 · 2</h3></div>
+    <div class="m-cr">
+      <div><span class="av a5">缘</span><p><b class="ell"><mark>小缘</mark>大王</b><span>3 个作品</span></p><svg class="i"><use href="#i-cr"/></svg></div>
+      <div><span class="av a2">兔</span><p><b class="ell"><mark>小缘</mark>兔</b><span>3 个作品</span></p><svg class="i"><use href="#i-cr"/></svg></div>
+    </div>
+    <div class="m-sh"><h3>作品 · 9</h3><a>最近收藏 ▾</a></div>
+    <div class="grid3">
+      <div class="g3c"><div class="th g7"><span class="dur">1:24</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell"><mark>小缘</mark>的一日穿搭</p><small class="ell">@小缘大王</small></div>
+      <div class="g3c"><div class="th g1"><span class="dur">3:05</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell">深夜食堂第 12 期</p><small class="ell">@小缘大王</small></div>
+      <div class="g3c"><div class="th g8"><span class="dur">0:36</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">海岛浮潜 vlog</p><small class="ell">@小缘大王</small></div>
+      <div class="g3c"><div class="th g9"><span class="dur">0:58</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">兔兔第一次见雪</p><small class="ell">@小缘兔</small></div>
+      <div class="g3c"><div class="th g2"><span class="dur">2:40</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell">日落时分的海边</p><small class="ell">@小缘兔</small></div>
+      <div class="g3c"><div class="th g3"><span class="dur">6:12</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">带兔兔去露营</p><small class="ell">@小缘兔</small></div>
+      <div class="g3c"><div class="th g4"><span class="dur">4:18</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell"><mark>小缘</mark>教你玩大乱斗</p><small class="ell">@乱斗螃蟹</small></div>
+      <div class="g3c"><div class="th g5"><span class="dur">1:52</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">和<mark>小缘</mark>逛夜市</p><small class="ell">@野生阿翔和CC</small></div>
+      <div class="g3c"><div class="th g6"><span class="dur">0:45</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell"><mark>小缘</mark>的冬日日常</p><small class="ell">@床车流浪者</small></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+    <div class="on"><svg class="i"><use href="#i-grid"/></svg>作品</div>
+    <div><svg class="i"><use href="#i-down"/></svg>下载</div>
+  </div>
+</div></div>
+</div>
+
+<!-- D. 博主存档页 -->
+<div class="ph-col">
+<div class="sec-label"><em>D</em>iPhone 博主存档页 · 已消失 <span>390 × 844</span></div>
+<div class="phone"><div class="scr">
+  <div class="island"></div>
+  <div class="sb"><span>9:41</span><span class="ri"><svg viewBox="0 0 18 12" width="18"><use href="#i-sig"/></svg><svg viewBox="0 0 16 12" width="16"><use href="#i-wifi"/></svg><svg viewBox="0 0 27 12" width="27"><use href="#i-bat"/></svg></span></div>
+  <div class="pbody">
+    <div class="nb"><span class="bk"><svg class="i"><use href="#i-cl"/></svg>消失的博主</span><span class="ib"><svg class="i"><use href="#i-dots"/></svg></span></div>
+    <div class="prof">
+      <div class="r1">
+        <span class="av a5 gone">是</span>
+        <div style="min-width:0">
+          <h3>是小周ya<span class="chip ban">已封禁</span></h3>
+          <div class="id num">抖音号 44989116000</div>
+        </div>
+      </div>
+      <div class="note2"><svg class="i"><use href="#i-info"/></svg><span>这里显示的是 Ta 原来的资料，最后一次见到是 2026 年 11 月 7 日。现在抖音上显示为「44989116000」。</span></div>
+      <div class="nums">
+        <div><b class="num">37</b><span>记录的作品</span></div>
+        <div><b class="num" style="color:var(--green)">12</b><span>视频已存</span></div>
+        <div><b class="num">12.3 万</b><span>粉丝</span></div>
+      </div>
+    </div>
+    <div class="keep">
+      <div class="tx">记录了 <b>37</b> 个作品，其中 <b>12</b> 个视频已存到 NAS，其余只有封面和文字<div class="bar"><i style="width:32.4%"></i></div></div>
+    </div>
+    <div class="mseg"><span class="on">全部 <i>37</i></span><span>已存 <i>12</i></span><span>仅封面 <i>25</i></span></div>
+    <div class="grid3">
+      <div class="g3c"><div class="th g7"><span class="dur">0:52</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">春天的第一杯奶茶</p></div>
+      <div class="g3c"><div class="th g2 gone" style="opacity:.9"><span class="dur">1:15</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell">跟我去看海</p></div>
+      <div class="g3c"><div class="th g1"><span class="dur">2:03</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">一人食 · 番茄面</p></div>
+      <div class="g3c"><div class="th g9 gone" style="opacity:.9"><span class="dur">0:31</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell">宿舍改造计划</p></div>
+      <div class="g3c"><div class="th g8"><span class="dur">3:40</span><span class="st ok"><svg class="i"><use href="#i-check"/></svg>已存</span></div><p class="ell">周末去爬山</p></div>
+      <div class="g3c"><div class="th g5 gone" style="opacity:.9"><span class="dur">1:08</span><span class="st cv"><svg class="i"><use href="#i-image"/></svg>仅封面</span></div><p class="ell">城市夜景散步</p></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+    <div class="on"><svg class="i"><use href="#i-grid"/></svg>作品</div>
+    <div><svg class="i"><use href="#i-down"/></svg>下载</div>
+  </div>
+</div></div>
+</div>
+
+<!-- E. 下载页 -->
+<div class="ph-col">
+<div class="sec-label"><em>E</em>iPhone 下载页 <span>390 × 844</span></div>
+<div class="phone"><div class="scr">
+  <div class="island"></div>
+  <div class="sb"><span>9:41</span><span class="ri"><svg viewBox="0 0 18 12" width="18"><use href="#i-sig"/></svg><svg viewBox="0 0 16 12" width="16"><use href="#i-wifi"/></svg><svg viewBox="0 0 27 12" width="27"><use href="#i-bat"/></svg></span></div>
+  <div class="pbody">
+    <div class="m-title" style="padding:2px 0 8px"><h2>下载</h2>
+      <div class="m-store"><span class="ic"><svg class="i"><use href="#i-hdd"/></svg></span><div class="tx"><div class="v"><b class="num">82.0 GB</b> / 102 TB</div><div class="bar"><i style="width:1%"></i></div></div></div>
+    </div>
+    <div class="m-total">
+      <div class="r1"><span class="live"><i class="dot"></i>正在下载</span>·“全部保存”<span class="btn sm"><svg class="i" style="width:13px;height:13px"><use href="#i-pause"/></svg>暂停</span></div>
+      <div class="r2"><b class="num">1,203</b><span class="num">/ 13,892</span><em class="num">8.7%</em></div>
+      <div class="bar"><i style="width:8.7%"></i></div>
+      <div class="r3"><span><svg class="i"><use href="#i-bolt"/></svg>每分钟 11 个</span><span><svg class="i"><use href="#i-clock"/></svg>预计 20 小时</span><span class="num"><svg class="i"><use href="#i-gauge"/></svg>12.4 MB/s</span></div>
+    </div>
+    <div class="m-sh" style="margin-top:10px"><h3>正在下载 · 3</h3></div>
+    <div class="m-list">
+      <div class="m-li"><span class="th g3"></span><div class="tx"><b class="ell">三拓展房车野外避暑.mp4</b><div class="bar"><i style="width:64%"></i></div><small><span class="num">186 / 291 MB</span><span class="num">5.1 MB/s</span></small></div></div>
+      <div class="m-li"><span class="th g5"></span><div class="tx"><b class="ell">无意闯入纽约最贵的街区.mp4</b><div class="bar"><i style="width:31%"></i></div><small><span class="num">42 / 136 MB</span><span class="num">4.6 MB/s</span></small></div></div>
+      <div class="m-li"><span class="th g8"></span><div class="tx"><b class="ell">海岛浮潜 vlog.mp4</b><div class="bar"><i style="width:12%"></i></div><small><span class="num">9 / 74 MB</span><span class="num">2.7 MB/s</span></small></div></div>
+    </div>
+    <div class="m-sh" style="margin-top:10px"><h3>没能存下 · 5</h3><span class="btn sm"><svg class="i" style="width:13px;height:13px"><use href="#i-retry"/></svg>全部重试</span></div>
+    <div class="m-list">
+      <div class="m-li f"><span class="th g4"></span><div class="tx"><b class="ell">法师篇·海克斯大乱斗 2</b><span class="ell">抖音暂时拿不到下载链接</span></div><span class="btn sm">重试</span></div>
+      <div class="m-li f"><span class="th g6"></span><div class="tx"><b class="ell">老毛子光顾打仗了（下）</b><span class="ell">抖音暂时拿不到下载链接</span></div><span class="btn sm">重试</span></div>
+      <div class="m-li f"><span class="th g2"></span><div class="tx"><b class="ell">海边日落延时 · 第二天</b><span class="ell">抖音暂时拿不到下载链接</span></div><span class="btn sm">重试</span></div>
+      <div class="m-li f"><span class="th g7"></span><div class="tx"><b class="ell">春天的第一杯奶茶</b><span class="ell">抖音暂时拿不到下载链接</span></div><span class="btn sm">重试</span></div>
+      <div class="m-li f"><span class="th g1"></span><div class="tx"><b class="ell">周末做饭记录 · 早餐篇</b><span class="ell">抖音暂时拿不到下载链接</span></div><span class="btn sm">重试</span></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <div><svg class="i"><use href="#i-home"/></svg>首页</div>
+    <div><svg class="i"><use href="#i-grid"/></svg>作品</div>
+    <div class="on"><svg class="i"><use href="#i-down"/></svg>下载</div>
+  </div>
+</div></div>
+</div>
+
+</div>
+</body>
+</html>

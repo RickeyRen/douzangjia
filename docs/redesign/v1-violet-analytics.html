@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=1720">
+<title>抖藏家 · V1 紫电数据 Violet Analytics</title>
+<style>:root{--bg:#030203;--panel:#0E0D12;--panel2:#141219;--panel3:#1C1A24;--line:rgba(233,228,248,.075);--line2:rgba(233,228,248,.13);--v:#3717F4;--v2:#5B3BFF;--v3:#8C76FF;--v4:#C9BEFF;--lav:#E9E4F8;--gray:#464657;--mut:#8E8BA0;--dim:#615F72;--olive:#778313;--lime:#C8F25A;--red:#FF4E64;--amber:#FF9F45}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000}
+body{color:var(--lav);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.4}
+a{cursor:pointer}
+.num{font-family:"SF Pro Display",-apple-system,"Helvetica Neue",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.sp{flex:1}
+.ic{display:block;flex:none}
+.appicon{display:block;flex:none}
+
+/* page */
+.page{width:1720px;padding:56px 40px 64px;margin:0 auto;background:radial-gradient(1200px 600px at 78% -5%,rgba(55,23,244,.22),transparent 60%),radial-gradient(900px 500px at 0% 55%,rgba(55,23,244,.10),transparent 60%),#000}
+.doc{display:flex;justify-content:space-between;align-items:flex-end;gap:48px;padding-bottom:36px;border-bottom:1px solid var(--line)}
+.doc-l{max-width:720px}
+.doc-brand{display:flex;align-items:center;gap:18px}
+.doc-brand .appicon{box-shadow:0 0 0 1px rgba(255,255,255,.08),0 10px 30px rgba(255,84,112,.18)}
+.vtag{display:inline-block;font-size:12px;color:var(--v4);border:1px solid rgba(140,118,255,.35);border-radius:99px;padding:2px 10px;margin-bottom:8px;letter-spacing:.04em}
+.doc h1{font-size:34px;font-weight:600;letter-spacing:-.01em;line-height:1.1}
+.doc h1 em{font-style:normal;color:var(--v3);font-weight:500;margin-left:6px}
+.doc p{margin-top:18px;color:var(--mut);font-size:14px;line-height:1.7}
+.pal{display:grid;grid-template-columns:repeat(9,84px);gap:10px}
+.sw{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px 8px 10px}
+.sw i{display:block;height:44px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.sw b{display:block;font-size:12px;font-weight:500;margin-top:8px}
+.sw span{display:block;font-size:11px;color:var(--mut);margin-top:1px}
+.slabel{display:flex;justify-content:space-between;align-items:center;margin:44px 0 18px}
+.slabel b{font-size:17px;font-weight:600}
+.slabel span{color:var(--mut);font-size:13px;margin-left:12px}
+.zoom{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px}
+.zoom span{margin:0 8px 0 10px !important;font-size:12px !important}
+.zoom a{font-size:12px;padding:5px 12px;border-radius:99px;color:var(--mut)}
+.zoom a.on{background:var(--lav);color:#0B0A10;font-weight:600}
+.webwrap{width:1640px;display:flex;justify-content:center;overflow:visible}
+.foot{margin-top:56px;padding-top:24px;border-top:1px solid var(--line);color:var(--dim);font-size:12px;text-align:center}
+
+/* generic */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px}
+.row-h{display:flex;align-items:center;gap:8px}
+.row-h.top{align-items:flex-start}
+.pill{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap;font-family:"SF Pro Display",-apple-system,sans-serif}
+.pill.up{background:var(--lime);color:#1A2300}
+.pill.olive{background:var(--olive);color:#F4F8D2}
+.pill.down{background:rgba(255,78,100,.16);color:#FF7B8C;box-shadow:inset 0 0 0 1px rgba(255,78,100,.28)}
+.pill.xs{height:16px;font-size:10px;padding:0 5px;font-style:normal}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%}
+.dot.ok{background:var(--lime);box-shadow:0 0 0 3px rgba(200,242,90,.15)}
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-weight:600;flex:none;position:relative}
+.av.gone{filter:saturate(.35) brightness(.78)}
+.ibtn{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;color:var(--lav);position:relative;flex:none}
+.ibtn .badge{position:absolute;top:9px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--v2);box-shadow:0 0 0 2px var(--panel)}
+.circ{width:30px;height:30px;border-radius:50%;border:1px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;color:var(--mut);flex:none;margin-left:auto}
+.chip-ic{width:28px;height:28px;border-radius:9px;background:var(--panel3);display:inline-flex;align-items:center;justify-content:center;color:var(--v4);flex:none}
+.ghost{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:99px;border:1px solid var(--line2);background:var(--panel);font-size:13px;color:var(--lav);white-space:nowrap}
+.ghost.sm{height:30px;padding:0 12px;font-size:12px;gap:6px;color:var(--mut)}
+.btn-v{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:99px;background:var(--v);color:#fff;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(55,23,244,.45),inset 0 1px 0 rgba(255,255,255,.18);white-space:nowrap}
+.btn-w{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;padding:0 22px;border-radius:99px;background:var(--lav);color:#120C33;font-size:14px;font-weight:650;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.btn-w.sm{height:36px;padding:0 16px;font-size:13px;gap:6px}
+.btn-o{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:99px;border:1px solid rgba(255,78,100,.45);color:#FF8A98;font-size:12.5px;font-weight:600;white-space:nowrap;background:rgba(255,78,100,.06);flex:none}
+.btn-o.sm{height:30px;padding:0 12px;font-size:12px}
+.btn-o.xs{height:24px;padding:0 10px;font-size:11px;border-color:var(--line2);color:var(--lav);background:var(--panel3)}
+.pbar{height:8px;border-radius:99px;background:var(--panel3);overflow:hidden;position:relative}
+.pbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#3717F4,#8C76FF);box-shadow:0 0 12px rgba(91,59,255,.8)}
+.pbar.thin{height:4px}
+.live{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--lav);white-space:nowrap}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--v2);box-shadow:0 0 0 4px rgba(91,59,255,.22),0 0 12px var(--v2)}
+.tag{font-size:12px;color:var(--v4);background:rgba(55,23,244,.18);border:1px solid rgba(140,118,255,.25);padding:3px 9px;border-radius:99px;white-space:nowrap}
+.warn{width:32px;height:32px;border-radius:10px;background:rgba(255,78,100,.13);color:#FF7B8C;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;font-weight:500}
+.st-red{background:rgba(255,78,100,.14);color:#FF7B8C}
+.st-amber{background:rgba(255,159,69,.13);color:#FFB36E}
+.st-gray{background:rgba(142,139,160,.14);color:#B3B0C4}
+.st-olive{background:rgba(119,131,19,.22);color:#C9D46A}
+.st.lg{font-size:12px;padding:4px 10px}
+.mini-seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:3px}
+.mini-seg a{font-size:12px;padding:5px 12px;border-radius:99px;color:var(--mut);white-space:nowrap}
+.mini-seg a.on{background:var(--lav);color:#0B0A10;font-weight:600}
+h4{font-size:15px;font-weight:600}
+.cap{font-size:12px;color:var(--mut);margin-top:3px}
+
+/* thumbnails */
+.th{position:relative;border-radius:16px;overflow:hidden;background:#1a1822;flex:none}
+.th .art{position:absolute;inset:0;display:block}
+.th.iscover .art{filter:grayscale(.75) brightness(.55)}
+.th::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.55));pointer-events:none}
+.bdg{position:absolute;top:7px;left:7px;z-index:2;display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;border-radius:99px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.bdg.saved{background:rgba(55,23,244,.92);color:#fff;box-shadow:0 2px 8px rgba(55,23,244,.5)}
+.bdg.cover{background:rgba(10,9,14,.72);color:#C9C5D8;box-shadow:inset 0 0 0 1px rgba(233,228,248,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.dur{position:absolute;right:7px;bottom:7px;z-index:2;font-size:10.5px;font-weight:600;color:#fff;background:rgba(0,0,0,.45);padding:1px 6px;border-radius:6px}
+.tt{position:absolute;left:8px;right:8px;bottom:24px;z-index:2;font-size:11px;font-weight:600;color:#fff;line-height:1.3;text-shadow:0 1px 4px rgba(0,0,0,.6);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tt em{font-style:normal;color:#D9D0FF;background:rgba(55,23,244,.55);border-radius:3px;padding:0 2px}
+.t-cook{background:radial-gradient(circle at 42% 60%,#1E140F 0 19%,#3C2A1E 20% 24%,transparent 25%),radial-gradient(circle at 44% 58%,#F2B649 0 5%,transparent 6%),radial-gradient(circle at 36% 64%,#7FB04A 0 4%,transparent 5%),linear-gradient(160deg,#D98A3A,#7A3A16 60%,#2B150A)}
+.t-sun{background:radial-gradient(circle at 50% 58%,#FFE8B8 0 8%,#FFB36B 9%,rgba(255,140,90,.0) 24%),linear-gradient(180deg,#1C1250 0%,#5B2A8C 32%,#D9567A 54%,#FF9D5C 60%,#140C2A 60.5%,#24164A 78%,#0D0920 100%)}
+.t-rv{background:linear-gradient(168deg,transparent 58%,#0C241D 58.5%),linear-gradient(196deg,transparent 50%,#1D4B3B 50.5%),radial-gradient(circle at 75% 22%,#FFF6D8 0 6%,transparent 7%),linear-gradient(180deg,#A8DCE6,#4A8EA8 62%)}
+.t-game{background:radial-gradient(circle at 50% 44%,#E3DAFF 0 4%,#9B7BFF 9%,transparent 26%),conic-gradient(from 45deg at 50% 44%,#2A0F8A,#3717F4,#0E0638,#5B3BFF,#2A0F8A),#120840}
+.t-city{background:linear-gradient(180deg,transparent 0 34%,transparent 34%),repeating-linear-gradient(90deg,#1B2246 0 13px,#0F1430 13px 16px,#262E5C 16px 27px,#0B0F26 27px 30px,#1F2750 30px 38px,#0F1430 38px 41px) bottom/100% 64% no-repeat,radial-gradient(circle at 30% 18%,#FFD3A8 0 5%,transparent 6%),linear-gradient(180deg,#3B2F7A,#B67A9A 66%)}
+.t-war{background:radial-gradient(ellipse at 70% 30%,rgba(255,190,110,.55) 0 10%,transparent 30%),linear-gradient(176deg,transparent 62%,#22241A 62.5%),linear-gradient(180deg,#6E6F4A,#3A3C28 60%,#1A1B12)}
+.t-snow{background:linear-gradient(160deg,transparent 55%,#F2F5FF 55.5%),linear-gradient(205deg,transparent 48%,#CBD6F2 48.5%),linear-gradient(180deg,#2D4A8E,#7FA0D8 70%)}
+.t-cat{background:radial-gradient(circle at 50% 58%,#F4C79C 0 20%,transparent 21%),radial-gradient(circle at 38% 40%,#F4C79C 0 8%,transparent 9%),radial-gradient(circle at 62% 40%,#F4C79C 0 8%,transparent 9%),linear-gradient(170deg,#F7A5A0,#B2557A)}
+.t-neon{background:radial-gradient(circle at 25% 75%,rgba(255,64,160,.75) 0 14%,transparent 34%),radial-gradient(circle at 80% 25%,rgba(64,220,255,.7) 0 10%,transparent 32%),linear-gradient(160deg,#1A0B3C,#0A0618)}
+.t-tea{background:radial-gradient(ellipse at 50% 72%,#E9F0D0 0 16%,#B8C88A 17% 20%,transparent 21%),linear-gradient(185deg,transparent 52%,#3C5A2A 52.5%),linear-gradient(180deg,#B9D4A0,#6C8F52)}
+.t-pink{background:radial-gradient(circle at 70% 32%,#FFF0F4 0 9%,transparent 10%),linear-gradient(200deg,#FFB8CC,#C04E8A 55%,#5A1E5C)}
+.t-sea{background:repeating-linear-gradient(176deg,rgba(255,255,255,.08) 0 2px,transparent 2px 12px) bottom/100% 45% no-repeat,linear-gradient(180deg,#8FD0F0 0,#3E8CC8 52%,#0E3A6E 55%,#082648 100%)}
+
+/* =========== WEB =========== */
+.web{width:1440px;flex:none;background:var(--bg);border:1px solid var(--line2);border-radius:30px;padding:0 32px 32px;transform-origin:top center;box-shadow:0 40px 120px rgba(55,23,244,.18),0 0 0 8px rgba(233,228,248,.025)}
+.w-top{height:84px;display:flex;align-items:center;justify-content:space-between;position:relative}
+.brand{display:flex;align-items:center;gap:12px;width:360px}
+.brand .appicon{box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.brand b{font-size:18px;font-weight:650;letter-spacing:.02em}
+.ver{font-size:11px;color:var(--mut);border:1px solid var(--line2);padding:1px 8px;border-radius:99px}
+.seg{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px}
+.seg a{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:99px;font-size:13px;color:var(--mut)}
+.seg a.on{background:var(--lav);color:#0B0A10;font-weight:600}
+.w-right{display:flex;align-items:center;gap:10px;justify-content:flex-end;width:360px}
+.nas{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+.nas em{font-style:normal;color:var(--mut);padding-left:8px;border-left:1px solid var(--line2)}
+.nas.sm{height:28px;padding:0 10px;font-size:11.5px;gap:6px}
+.w-title{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 0 24px}
+.w-title h1{font-size:28px;font-weight:600;letter-spacing:-.01em}
+.w-title p{font-size:13px;color:var(--mut);margin-top:6px}
+.w-actions{display:flex;gap:10px}
+.g12{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:16px}
+.g12.last{margin-bottom:0}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c8{grid-column:span 8}
+.c3>.card{height:100%}
+.kpi{padding:18px 20px 20px;display:flex;flex-direction:column}
+.kpi-h{display:flex;align-items:center;gap:10px}
+.kpi-l{font-size:13px;color:var(--mut);white-space:nowrap}
+.kpi-n{display:flex;align-items:center;gap:10px;margin-top:20px}
+.big{font-size:46px;font-weight:500;line-height:1;letter-spacing:-.03em}
+.kpi-u{font-size:16px;color:var(--mut);margin-left:-4px;align-self:flex-end;padding-bottom:4px}
+.kpi-s{font-size:12px;color:var(--mut);margin-top:12px}
+.split{display:flex;gap:3px;height:6px;margin-top:14px}
+.split i{display:block;height:100%;border-radius:99px;background:var(--v)}
+.split i+i{background:var(--v4)}
+.kpi .bar{height:6px;border-radius:99px;background:var(--panel3);margin-top:14px;overflow:hidden}
+.kpi .bar i{display:block;height:100%;background:linear-gradient(90deg,#3717F4,#8C76FF);border-radius:99px}
+.ticks{display:flex;align-items:flex-end;gap:4px;height:20px;margin-top:auto;padding-top:0}
+.ticks i{flex:1;background:var(--gray);border-radius:2px}
+.ticks i:nth-last-child(-n+3){background:var(--olive)}
+.ticks i:last-child{background:var(--lime)}
+.kpi .split,.kpi .bar,.kpi .avs{margin-top:auto}
+.kpi-s{margin-bottom:14px}
+.avs{display:flex;align-items:center}
+.avs .av{box-shadow:0 0 0 2px var(--panel);margin-right:-5px}
+.avs .more{font-size:11px;color:var(--mut);margin-left:12px}
+
+.dl-prog{padding:20px 22px}
+.dl-n{display:flex;align-items:baseline;gap:8px;margin:18px 0 14px}
+.dl-n .of{font-size:18px;color:var(--mut)}
+.dl-n .pct{font-size:22px;color:var(--v4);font-weight:500}
+.meta3{display:grid;grid-template-columns:repeat(3,1fr);margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.meta3 div{display:flex;flex-direction:column;gap:3px}
+.meta3 div+div{padding-left:18px;border-left:1px solid var(--line)}
+.meta3 span{font-size:11.5px;color:var(--mut)}
+.meta3 b{font-size:16px;font-weight:600}
+.dl-fail{padding:20px 22px;display:flex;flex-direction:column}
+.dl-fail .cnt{font-size:13px;color:#FF7B8C;background:rgba(255,78,100,.13);padding:2px 9px;border-radius:99px}
+.dl-fail h3{font-size:16px;font-weight:600;margin-top:16px}
+.dl-fail p{font-size:12.5px;color:var(--mut);margin-top:6px;line-height:1.55}
+.dl-fail .end{margin-top:auto;padding-top:14px}
+.stack{display:flex}
+.stack .th{box-shadow:0 0 0 2px var(--panel);margin-right:-8px}
+.dl-act{padding:20px 22px;display:flex;flex-direction:column;align-items:flex-start;background:radial-gradient(420px 220px at 100% 0%,rgba(140,118,255,.55),transparent 60%),linear-gradient(150deg,#4A2BFF,#3717F4 45%,#24109E);border-color:rgba(201,190,255,.25);position:relative;overflow:hidden}
+.dl-act::after{content:"";position:absolute;right:-30px;bottom:-60px;width:220px;height:220px;border-radius:50%;border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 30px rgba(255,255,255,.03),0 0 0 60px rgba(255,255,255,.02)}
+.act-l{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#E9E4F8;background:rgba(255,255,255,.12);padding:4px 10px;border-radius:99px}
+.dl-act h3{font-size:20px;font-weight:600;line-height:1.35;margin-top:14px;color:#fff;max-width:340px}
+.dl-act h3 b{font-weight:600;color:var(--lime)}
+.dl-act p{font-size:12.5px;color:rgba(233,228,248,.75);margin-top:6px}
+.dl-act .btn-w{margin-top:auto;position:relative;z-index:1}
+
+.ch{padding:20px 22px 18px}
+.ch-n{display:flex;align-items:center;gap:10px;margin-top:10px}
+.ch-n .big{font-size:40px}
+.cap2{font-size:12px;color:var(--mut)}
+.ch-wrap{position:relative;margin-top:14px}
+.chart{display:block;overflow:visible}
+.ax{font-size:10.5px;fill:#615F72;font-family:"SF Pro Display",-apple-system,sans-serif}
+.tip{position:absolute;transform:translateX(-50%);background:var(--lav);color:#0B0A10;border-radius:12px;padding:5px 10px;text-align:center;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.tip b{display:block;font-size:13px;font-weight:650}
+.tip span{display:block;font-size:10.5px;color:#4B4860}
+.tip::after{content:"";position:absolute;left:50%;bottom:-4px;width:8px;height:8px;background:var(--lav);transform:translateX(-50%) rotate(45deg)}
+.hmc{padding:20px 22px 18px}
+.legend{display:flex;gap:12px;margin:14px 0 12px;font-size:11px;color:var(--mut)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.hm{display:flex;flex-direction:column;gap:5px}
+.hm-row{display:grid;grid-template-columns:34px repeat(10,1fr);gap:5px;align-items:center}
+.hm-row i{height:22px;border-radius:5px;display:block}
+.hm-l{font-size:10.5px;color:var(--dim)}
+.hm-x span{font-size:10.5px;color:var(--dim)}
+.l0{background:#17151E}.l1{background:#2A2266}.l2{background:#3717F4}.l3{background:#7258FF}.l4{background:#C9BEFF}
+.lf{background:transparent;box-shadow:inset 0 0 0 1px var(--line2)}
+.hm-stats{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.hm-stats div{display:flex;flex-direction:column;gap:2px}
+.hm-stats div+div{padding-left:14px;border-left:1px solid var(--line)}
+.hm-stats b{font-size:20px;font-weight:500}
+.hm-stats span{font-size:11px;color:var(--mut)}
+
+.gonec{padding:20px 22px 12px}
+.glist{list-style:none;margin-top:12px}
+.glist li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.glist li:first-child{border-top:0}
+.glist li div{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.glist li b{font-size:14px;font-weight:600}
+.glist li div span{font-size:11.5px;color:var(--mut)}
+.recc{padding:20px 22px 20px}
+.rec{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:16px}
+.rc .th{width:100%;aspect-ratio:3/4}
+.rc>b{display:block;font-size:13px;font-weight:600;margin-top:10px;line-height:1.35;height:35px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.rc>span{display:block;font-size:11.5px;color:var(--mut);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* =========== PHONES =========== */
+.prow{display:flex;gap:26px;width:1640px}
+.pcol{width:390px;flex:none}
+.plabel{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;padding:0 4px}
+.plabel b{font-size:14px;font-weight:600}
+.plabel span{font-size:12px;color:var(--mut)}
+.phone{width:390px;height:844px;border-radius:56px;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 0 0 10px #16141C,0 0 0 11px #2C2A36,0 30px 80px rgba(55,23,244,.22)}
+.sb{height:54px;display:flex;justify-content:space-between;align-items:center;padding:4px 30px 0 44px}
+.sb-t{font-size:16px;font-weight:600}
+.sb-r{display:flex;align-items:center;gap:6px}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.04)}
+.scr{padding:0 18px}
+.fade{position:absolute;left:0;right:0;bottom:0;height:140px;background:linear-gradient(180deg,rgba(3,2,3,0),rgba(3,2,3,.92) 60%,#030203);pointer-events:none}
+.tb{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);width:276px;height:60px;border-radius:30px;background:rgba(24,22,31,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:inset 0 0 0 1px var(--line2),0 12px 30px rgba(0,0,0,.5);display:flex;padding:5px;gap:4px}
+.tb a{flex:1;border-radius:25px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--mut);font-size:10.5px}
+.tb a.on{background:var(--lav);color:#120C33;font-weight:600}
+.hbar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:99px;background:var(--lav)}
+.sec{display:flex;justify-content:space-between;align-items:center;margin:16px 2px 9px}
+.sec b{font-size:15px;font-weight:600}
+.sec b em{font-style:normal;color:var(--mut);font-weight:500;font-size:13px;margin-left:4px}
+.sec b em.r{color:#FF7B8C}
+.sec>span{font-size:12px;color:var(--mut);display:inline-flex;align-items:center;gap:4px}
+
+/* B */
+.ph-h{display:flex;align-items:center;gap:10px;height:48px}
+.ph-h b{font-size:20px;font-weight:650}
+.ph-h .appicon{box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.m-hero{padding:14px 16px 14px}
+.m-hero-n .num{font-size:36px;font-weight:500;letter-spacing:-.03em;line-height:1.15}
+.m-hero .split{margin-top:8px}
+.lg2{display:flex;gap:16px;margin-top:9px;font-size:11.5px;color:var(--mut)}
+.lg2 span{display:inline-flex;align-items:center;gap:6px}
+.sw.a,.sw.b{width:8px;height:8px;border-radius:3px;padding:0;border:0;display:inline-block;background:var(--v)}
+.sw.b{background:var(--v4)}
+.m-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.mk{padding:12px 12px 11px;border-radius:18px;display:flex;flex-direction:column;gap:4px}
+.mk .kpi-l{font-size:11px}
+.mk b{font-size:22px;font-weight:500;letter-spacing:-.02em;line-height:1.15}
+.mk b small{font-size:12px;color:var(--mut);margin-left:2px;font-weight:400}
+.mk b.v{color:var(--v4)}
+.mk-s{font-size:10.5px;color:var(--mut);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.mk-s.red{color:#FF7B8C}
+.m-prog{padding:14px 16px}
+.m-prog .live{font-size:12.5px}
+.pct{font-size:15px;color:var(--v4);font-weight:600}
+.dl-n.sm{margin:8px 0 10px}
+.dl-n.sm .num:first-child{font-size:26px;font-weight:500;letter-spacing:-.02em}
+.dl-n.sm .of{font-size:14px}
+.m-meta{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--mut);white-space:nowrap}
+.m-meta i{width:3px;height:3px;border-radius:50%;background:var(--gray)}
+.m-fail{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;margin-top:8px}
+.m-fail div{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.m-fail b{font-size:13.5px;font-weight:600}
+.m-fail div span{font-size:11.5px;color:var(--mut)}
+.m-act{margin-top:8px;padding:14px 16px;background:radial-gradient(260px 140px at 100% 0%,rgba(140,118,255,.55),transparent 60%),linear-gradient(150deg,#4A2BFF,#3717F4 45%,#24109E);border-color:rgba(201,190,255,.25)}
+.m-act h3{font-size:15px;font-weight:600;color:#fff;line-height:1.4}
+.m-act h3 b{color:var(--lime);font-weight:600}
+.m-act .row-h{margin-top:10px}
+.m-act-s{font-size:12px;color:rgba(233,228,248,.78)}
+.m-gone{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.m-gone div{display:flex;flex-direction:column;align-items:center;gap:5px}
+.m-gone b{font-size:11.5px;font-weight:600;white-space:nowrap}
+.m-gone .st{font-size:9.5px;padding:1px 6px}
+
+/* C */
+.ph-t{display:flex;align-items:center;gap:10px;height:50px}
+.ph-t h2{font-size:28px;font-weight:650;letter-spacing:-.01em}
+.cnt2{font-size:13px;color:var(--mut);margin-top:8px}
+.srch-row{display:flex;align-items:center;gap:12px;margin-top:4px}
+.srch{flex:1;height:44px;border-radius:22px;background:var(--panel);display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;color:var(--mut);box-shadow:inset 0 0 0 1.5px var(--v2),0 0 0 4px rgba(55,23,244,.18)}
+.srch .q{color:var(--lav);font-size:15px}
+.caret{width:2px;height:20px;background:var(--v3);border-radius:1px;margin-left:-6px}
+.clr{width:20px;height:20px;border-radius:50%;background:var(--gray);color:var(--lav);display:inline-flex;align-items:center;justify-content:center}
+.cancel{font-size:14px;color:var(--v4)}
+.chips{display:flex;gap:6px;margin-top:12px}
+.chips a{height:30px;padding:0 13px;border-radius:99px;font-size:12.5px;display:inline-flex;align-items:center;color:var(--mut);background:var(--panel);border:1px solid var(--line)}
+.chips a.on{background:var(--lav);color:#0B0A10;font-weight:600;border-color:transparent}
+.cre{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cr{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 10px;border-radius:18px;color:var(--mut)}
+.cr div{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.cr b{font-size:13.5px;font-weight:600;color:var(--lav);white-space:nowrap}
+.cr b em,.sec b em.hl{font-style:normal;color:var(--v4)}
+.cr span{font-size:11.5px}
+.srt{color:var(--mut)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.g3 .th{width:100%;aspect-ratio:3/4;border-radius:14px}
+
+/* D */
+.nav{display:flex;align-items:center;justify-content:space-between;height:52px}
+.nav b{font-size:15px;font-weight:600}
+.nav .ibtn{width:36px;height:36px}
+.prof{display:flex;align-items:center;gap:16px;margin-top:6px}
+.pav{position:relative}
+.pav .av{box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px rgba(255,78,100,.6)}
+.banb{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#FF4E64;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--bg)}
+.pinfo{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.pinfo h2{font-size:22px;font-weight:650}
+.pid{font-size:12.5px;color:var(--mut)}
+.pinfo .st{margin-top:2px}
+.note{display:flex;gap:10px;padding:12px 14px;margin-top:16px;border-radius:18px;background:linear-gradient(180deg,rgba(55,23,244,.10),rgba(55,23,244,.04)),var(--panel);border-color:rgba(140,118,255,.2)}
+.note-ic{width:24px;height:24px;border-radius:8px;background:rgba(55,23,244,.25);color:var(--v4);display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+.note p{font-size:12.5px;line-height:1.65;color:#CFCAE0}
+.note p b{color:var(--lav);font-weight:600}
+.m-kpis.d .mk{padding:11px 12px}
+.savebar{margin-top:12px;padding:0 2px}
+.savebar span{font-size:12px;color:var(--mut)}
+.savebar b{font-size:13px;color:var(--v4)}
+.savebar .pbar{margin-top:8px}
+.seg2{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px;margin:14px 0 10px}
+.seg2 a{flex:1;text-align:center;font-size:12.5px;padding:6px 0;border-radius:99px;color:var(--mut)}
+.seg2 a.on{background:var(--lav);color:#0B0A10;font-weight:600}
+
+/* E */
+.ph-t .ibtn{width:36px;height:36px}
+.stor{display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:16px;color:var(--v4)}
+.stor-l{font-size:12px;color:var(--mut);white-space:nowrap}
+.stor .pbar{flex:1}
+.stor .pbar i{min-width:6px}
+.stor-v{font-size:12px;color:var(--mut);white-space:nowrap}
+.stor-v b{color:var(--lav);font-weight:600}
+.tot{padding:14px 16px;margin-top:8px}
+.tot3{display:grid;grid-template-columns:repeat(3,1fr);margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.tot3 div{display:flex;flex-direction:column;gap:1px}
+.tot3 div+div{padding-left:14px;border-left:1px solid var(--line)}
+.tot3 b{font-size:14px;font-weight:600}
+.tot3 span{font-size:10.5px;color:var(--mut)}
+.runl{padding:4px 12px;border-radius:18px}
+.ri{display:flex;align-items:center;gap:10px;padding:8px 0}
+.ri+.ri{border-top:1px solid var(--line)}
+.ri-m{flex:1;min-width:0}
+.ri-m b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ri-m .spd{font-size:11px;color:var(--v4);white-space:nowrap}
+.ri-m .pbar{margin:6px 0 4px}
+.ri-s{font-size:10.5px;color:var(--mut)}
+.retry-all{color:#FF8A98 !important}
+.faill{padding:2px 12px;border-radius:18px}
+.fi{display:flex;align-items:center;gap:10px;padding:7px 0}
+.fi+.fi{border-top:1px solid var(--line)}
+.fdot{width:24px;height:24px;border-radius:8px;background:rgba(255,78,100,.13);color:#FF7B8C;display:flex;align-items:center;justify-content:center;flex:none}
+.fi div{flex:1;display:flex;flex-direction:column;min-width:0}
+.fi b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi div span{font-size:10.5px;color:var(--mut)}
+
+/* ---- fixes round 2 ---- */
+.th{isolation:isolate}
+.fade{z-index:5}.tb,.hbar{z-index:6}
+.sec{margin:12px 2px 8px}
+.mh2{margin-top:4px;align-items:flex-end}
+.mh-n{font-size:34px;font-weight:500;letter-spacing:-.03em;line-height:1.1}
+.m-hero .lg2{flex-direction:column;gap:3px;margin:0 0 4px;align-items:flex-start}
+.m-hero .lg2 b{color:var(--lav);font-weight:500;margin-left:2px}
+.m-hero .split{margin-top:10px}
+.m-hero{padding:13px 16px 14px}
+.mk{padding:10px 12px 10px;gap:3px}
+.m-prog{padding:13px 16px 12px}
+.m-prog .pbar{margin-top:12px}
+.mp-n{font-size:12px;color:var(--mut);white-space:nowrap}
+.mp-n b{font-size:16px;color:var(--lav);font-weight:600}
+.m-meta .pct{font-size:13px}
+.m-fail{padding:10px 12px 10px 14px}
+.m-act{padding:13px 16px}
+.m-act .row-h{margin-top:8px}
+.m-gone .st{font-size:9.5px}
+/* E */
+.ph-t .stor{width:170px;height:auto;padding:0;background:none;border:0;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;color:var(--mut)}
+.ph-t .stor-l{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut)}
+.ph-t .stor-v{text-align:right;font-size:11px}
+.ph-t .stor .pbar{grid-column:1 / 3;height:5px}
+.tot{margin-top:6px;padding:12px 16px 12px}
+.tot .ghost.sm{height:26px}
+.tot .dl-n.sm{margin:6px 0 10px}
+.tot3{margin-top:10px;padding-top:9px}
+.ri{padding:7px 0}
+.ri .th{width:32px !important;height:40px !important}
+.fi{padding:6px 0}
+.ri-b{margin-top:7px;gap:10px}
+.ri-b .pbar{flex:1;margin:0}
+.ri-b .ri-s{width:112px;text-align:right;white-space:nowrap}
+.ri{padding:8px 0}
+.fade{height:104px;background:linear-gradient(180deg,rgba(3,2,3,0),rgba(3,2,3,.9) 55%,#030203)}
+.ph-t{height:46px}
+.fi{padding:5px 0}
+.faill{padding:1px 12px}
+
+/* fit narrow viewports (incl. Quick Look) */
+@media (max-width:1719px){.page{zoom:0.9709}}
+@media (max-width:1669px){.page{zoom:0.9419}}
+@media (max-width:1619px){.page{zoom:0.9128}}
+@media (max-width:1569px){.page{zoom:0.8837}}
+@media (max-width:1519px){.page{zoom:0.8547}}
+@media (max-width:1469px){.page{zoom:0.8256}}
+@media (max-width:1419px){.page{zoom:0.7965}}
+@media (max-width:1369px){.page{zoom:0.7674}}
+@media (max-width:1319px){.page{zoom:0.7384}}
+@media (max-width:1269px){.page{zoom:0.7093}}
+@media (max-width:1219px){.page{zoom:0.6802}}
+@media (max-width:1169px){.page{zoom:0.6512}}
+@media (max-width:1119px){.page{zoom:0.6221}}
+@media (max-width:1069px){.page{zoom:0.5930}}
+@media (max-width:1019px){.page{zoom:0.5640}}
+@media (max-width:969px){.page{zoom:0.5349}}
+@media (max-width:919px){.page{zoom:0.5058}}
+@media (max-width:869px){.page{zoom:0.4767}}
+@media (max-width:819px){.page{zoom:0.4477}}
+@media (max-width:769px){.page{zoom:0.4186}}
+@media (max-width:719px){.page{zoom:0.3895}}
+@media (max-width:669px){.page{zoom:0.3605}}
+@media (max-width:619px){.page{zoom:0.3314}}
+</style></head>
+<body>
+<div class="page">
+  <header class="doc">
+    <div class="doc-l">
+      <div class="doc-brand"><svg class="appicon" width="56" height="56" viewBox="0 0 1024 1024" style="border-radius:13px"><defs><linearGradient id="ib3" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#1C1C21"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient><linearGradient id="im3" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="724" y2="790"><stop offset="0" stop-color="#FF5470"/><stop offset="1" stop-color="#EE1248"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#ib3)"/><path fill="url(#im3)" stroke="url(#im3)" stroke-width="28" stroke-linejoin="round" d="M 356 264 H 668 Q 698 264 698 294 V 768 L 512 652 L 326 768 V 294 Q 326 264 356 264 Z"/><path fill="url(#ib3)" stroke="url(#ib3)" stroke-width="30" stroke-linejoin="round" d="M 478 396 L 478 532 L 588 464 Z"/></svg><div><span class="vtag">V1 · 设计稿</span><h1>紫电数据 <em>Violet Analytics</em></h1></div></div>
+      <p>参考：Dribbble「AI Analytics Dashboard」by Outcrowd —— 借它的近黑底、电光紫、胶囊分段导航、便当盒 KPI 卡与方块热力图节奏，套用在抖藏家的存档场景上。</p>
+    </div>
+    <div class="pal"><div class="sw"><i style="background:#030203"></i><b>近黑底</b><span class="num">#030203</span></div><div class="sw"><i style="background:#0E0D12"></i><b>面板</b><span class="num">#0E0D12</span></div><div class="sw"><i style="background:#3717F4"></i><b>电光紫</b><span class="num">#3717F4</span></div><div class="sw"><i style="background:#E9E4F8"></i><b>淡紫</b><span class="num">#E9E4F8</span></div><div class="sw"><i style="background:#464657"></i><b>石墨灰</b><span class="num">#464657</span></div><div class="sw"><i style="background:#778313"></i><b>橄榄绿</b><span class="num">#778313</span></div><div class="sw"><i style="background:#C8F25A"></i><b>亮绿</b><span class="num">#C8F25A</span></div><div class="sw"><i style="background:#FF4E64"></i><b>警示红</b><span class="num">#FF4E64</span></div><div class="sw"><i style="background:linear-gradient(140deg,#FF5470,#EE1248)"></i><b>书签珊瑚</b><span class="num">#FF5470</span></div></div>
+  </header>
+
+  <div class="slabel"><div><b>A · 网页版首页</b><span>1440 画框</span></div>
+    <div class="zoom"><span>缩放</span><a data-z="1" class="on">100%</a><a data-z=".75">75%</a><a data-z=".5">50%</a></div></div>
+  <div class="webwrap" id="webwrap">
+<div class="web" id="web">
+  <header class="w-top">
+    <div class="brand"><svg class="appicon" width="34" height="34" viewBox="0 0 1024 1024" style="border-radius:7px"><defs><linearGradient id="ib1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#1C1C21"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient><linearGradient id="im1" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="724" y2="790"><stop offset="0" stop-color="#FF5470"/><stop offset="1" stop-color="#EE1248"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#ib1)"/><path fill="url(#im1)" stroke="url(#im1)" stroke-width="28" stroke-linejoin="round" d="M 356 264 H 668 Q 698 264 698 294 V 768 L 512 652 L 326 768 V 294 Q 326 264 356 264 Z"/><path fill="url(#ib1)" stroke="url(#ib1)" stroke-width="30" stroke-linejoin="round" d="M 478 396 L 478 532 L 588 464 Z"/></svg><b>抖藏家</b><span class="ver">存档</span></div>
+    <nav class="seg">
+      <a class="on"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg>首页</a><a><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>作品</a><a><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></svg>博主</a><a><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>下载</a><a><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg>设置</a>
+    </nav>
+    <div class="w-right">
+      <span class="nas"><i class="dot ok"></i>NAS 在线<em>群晖 DS923+</em></span>
+      <span class="ibtn"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span><span class="ibtn"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><i class="badge"></i></span>
+      <span class="av " style="width:38px;height:38px;font-size:15px;background:linear-gradient(140deg,#E9E4F8,#B5A8EE);color:#1A1530">我</span>
+    </div>
+  </header>
+
+  <div class="w-title">
+    <div><h1>存档总览</h1><p>最后同步 今天 14:32 · 抖音账号已连接 · 自动同步每 30 分钟一次</p></div>
+    <div class="w-actions"><span class="ghost"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>11月2日 – 11月8日<svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></span><span class="btn-v"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5V9H15"/></svg>立即同步</span></div>
+  </div>
+
+  <section class="g12">
+    <div class="c3"><div class="card kpi"><div class="kpi-h"><span class="chip-ic"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="m10.5 9.5 4 2.5-4 2.5z"/></svg></span><span class="kpi-l">收藏作品</span><span class="circ"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div>
+<div class="kpi-n"><span class="num big">18,402</span><span class="pill up">+128</span></div><div class="kpi-s">视频 14,246 · 图集 4,156</div><div class="split"><i style="width:77.4%"></i><i style="width:22.6%"></i></div></div></div>
+    <div class="c3"><div class="card kpi"><div class="kpi-h"><span class="chip-ic"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4.5" width="16" height="6.5" rx="2"/><rect x="4" y="13" width="16" height="6.5" rx="2"/><path d="M7.5 7.8h.1M7.5 16.3h.1"/></svg></span><span class="kpi-l">已存到 NAS</span><span class="circ"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div>
+<div class="kpi-n"><span class="num big">4,695</span><span class="pill up">+312</span></div><div class="kpi-s">占用 82.0 GB · 占收藏 25.5%</div><div class="bar"><i style="width:25.5%"></i></div></div></div>
+    <div class="c3"><div class="card kpi"><div class="kpi-h"><span class="chip-ic"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></svg></span><span class="kpi-l">博主</span><span class="circ"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div>
+<div class="kpi-n"><span class="num big">13,229</span><span class="pill olive">+41</span></div><div class="kpi-s">本周新关注 41 位 · 资料每日快照</div><div class="ticks"><i style="height:8px"></i><i style="height:12px"></i><i style="height:7px"></i><i style="height:14px"></i><i style="height:10px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:18px"></i><i style="height:11px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:12px"></i><i style="height:17px"></i></div></div></div>
+    <div class="c3"><div class="card kpi"><div class="kpi-h"><span class="chip-ic"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5z"/><path d="M10 11h.1M14 11h.1"/></svg></span><span class="kpi-l">已在抖音消失</span><span class="circ"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div>
+<div class="kpi-n"><span class="num big">14</span><span class="kpi-u">位</span><span class="pill down">+2</span></div><div class="kpi-s">原来的头像、昵称和作品都已留档</div><div class="avs"><span class="av gone " style="width:26px;height:26px;font-size:10px;background:linear-gradient(140deg,#FF8FA3,#C2335B);color:#fff">是</span><span class="av gone " style="width:26px;height:26px;font-size:10px;background:linear-gradient(140deg,#FFC170,#C76A1C);color:#fff">乐</span><span class="av gone " style="width:26px;height:26px;font-size:10px;background:linear-gradient(140deg,#5FD4C4,#1F7A70);color:#fff">山</span><span class="av gone " style="width:26px;height:26px;font-size:10px;background:linear-gradient(140deg,#A6B32A,#5E680E);color:#fff">阿</span><span class="av gone " style="width:26px;height:26px;font-size:10px;background:linear-gradient(140deg,#6F55FF,#3717F4);color:#fff">橘</span><span class="more">+9</span></div></div></div>
+  </section>
+
+  <section class="g12">
+    <div class="c5 card dl-prog">
+      <div class="row-h"><span class="live"><i></i>正在下载</span><span class="tag">“全部保存”</span><span class="sp"></span><span class="ghost sm"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5v11M15 6.5v11"/></svg>暂停</span></div>
+      <div class="dl-n"><span class="num big">1,203</span><span class="num of">/ 13,892</span><span class="sp"></span><span class="num pct">8.7%</span></div>
+      <div class="pbar"><i style="width:8.7%"></i></div>
+      <div class="meta3"><div><span>速度</span><b class="num">12.4 MB/s</b></div><div><span>每分钟</span><b>11 个</b></div><div><span>预计剩余</span><b>20 小时</b></div></div>
+    </div>
+    <div class="c3 card dl-fail">
+      <div class="row-h"><span class="warn"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><span class="sp"></span><span class="num cnt">5</span></div>
+      <h3>5 个作品没能存到 NAS</h3>
+      <p>抖音暂时拿不到下载链接<br>稍后重试通常就能恢复</p>
+      <div class="row-h end"><div class="stack"><div class="th " style="width:26px;height:34px;border-radius:7px"><i class="art t-neon"></i></div><div class="th " style="width:26px;height:34px;border-radius:7px"><i class="art t-tea"></i></div><div class="th " style="width:26px;height:34px;border-radius:7px"><i class="art t-pink"></i></div><div class="th " style="width:26px;height:34px;border-radius:7px"><i class="art t-snow"></i></div><div class="th " style="width:26px;height:34px;border-radius:7px"><i class="art t-cat"></i></div></div><span class="sp"></span><span class="btn-o"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5V9H15"/></svg>全部重试</span></div>
+    </div>
+    <div class="c4 card dl-act">
+      <span class="act-l"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 10.2 20.5 12 13.8 13.8 12 20.5 10.2 13.8 3.5 12 10.2 10.2z"/></svg>待存档</span>
+      <h3>还有 <b class="num">13,892</b> 个收藏作品没有存到 NAS</h3>
+      <p>约 225 GB · NAS 剩余 101.9 TB，空间足够</p>
+      <span class="btn-w">全部存到 NAS<svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span>
+    </div>
+  </section>
+
+  <section class="g12">
+    <div class="c8 card ch">
+      <div class="row-h top"><div><h4>下载速度</h4><p class="cap">今天 · 每 10 分钟采样 · 虚线为平均 11.2 MB/s</p></div><span class="sp"></span>
+        <div class="mini-seg"><a>1 小时</a><a class="on">今天</a><a>7 天</a></div></div>
+      <div class="ch-n"><span class="num big">12.4</span><span class="kpi-u">MB/s</span><span class="pill up">+18%</span><span class="cap2">比昨天同时段</span></div>
+      <div class="ch-wrap"><svg class="chart" viewBox="0 0 872 262" width="872" height="262" preserveAspectRatio="none"><defs><linearGradient id="agw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5B3BFF" stop-opacity=".55"/><stop offset="1" stop-color="#3717F4" stop-opacity="0"/></linearGradient><pattern id="dpw" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="#8C76FF" fill-opacity=".55"/></pattern><clipPath id="cpw"><path d="M44.0,168.6 C53.1,165.6 80.4,156.6 98.7,150.6 C116.9,144.7 135.1,134.2 153.3,132.7 C171.6,131.2 189.8,144.3 208.0,141.7 C226.2,139.1 244.4,123.8 262.7,117.0 C280.9,110.3 299.1,101.7 317.3,101.4 C335.6,101.0 353.8,117.4 372.0,114.8 C390.2,112.2 408.4,94.6 426.7,85.7 C444.9,76.7 463.1,62.0 481.3,61.0 C499.6,60.1 517.8,72.2 536.0,80.1 C554.2,87.9 572.4,101.2 590.7,108.1 C608.9,115.0 627.1,123.9 645.3,121.5 C663.6,119.1 681.8,99.9 700.0,93.5 C718.2,87.2 736.4,81.9 754.7,83.4 C772.9,84.9 791.1,99.9 809.3,102.5 C827.6,105.1 854.9,99.7 864.0,99.1 L864.0,238 L44.0,238 Z"/></clipPath><linearGradient id="lgw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6F55FF"/><stop offset="1" stop-color="#C9BEFF"/></linearGradient><linearGradient id="hbw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E9E4F8" stop-opacity=".22"/><stop offset="1" stop-color="#E9E4F8" stop-opacity="0"/></linearGradient></defs><line x1="44" x2="864" y1="238.0" y2="238.0" stroke="#E9E4F8" stroke-opacity=".06"/><text x="0" y="242.0" class="ax">0 MB</text><line x1="44" x2="864" y1="182.0" y2="182.0" stroke="#E9E4F8" stroke-opacity=".06"/><text x="0" y="186.0" class="ax">5 MB</text><line x1="44" x2="864" y1="126.0" y2="126.0" stroke="#E9E4F8" stroke-opacity=".06"/><text x="0" y="130.0" class="ax">10 MB</text><line x1="44" x2="864" y1="70.0" y2="70.0" stroke="#E9E4F8" stroke-opacity=".06"/><text x="0" y="74.0" class="ax">15 MB</text><line x1="44" x2="864" y1="14.0" y2="14.0" stroke="#E9E4F8" stroke-opacity=".06"/><text x="0" y="18.0" class="ax">20 MB</text><text x="44.0" y="258" class="ax" text-anchor="start">08:00</text><text x="170.2" y="258" class="ax" text-anchor="middle">09:00</text><text x="296.3" y="258" class="ax" text-anchor="middle">10:00</text><text x="422.5" y="258" class="ax" text-anchor="middle">11:00</text><text x="548.6" y="258" class="ax" text-anchor="middle">12:00</text><text x="674.8" y="258" class="ax" text-anchor="middle">13:00</text><text x="800.9" y="258" class="ax" text-anchor="middle">14:00</text><text x="864.0" y="258" class="ax" text-anchor="end">14:30</text><path d="M44.0,168.6 C53.1,165.6 80.4,156.6 98.7,150.6 C116.9,144.7 135.1,134.2 153.3,132.7 C171.6,131.2 189.8,144.3 208.0,141.7 C226.2,139.1 244.4,123.8 262.7,117.0 C280.9,110.3 299.1,101.7 317.3,101.4 C335.6,101.0 353.8,117.4 372.0,114.8 C390.2,112.2 408.4,94.6 426.7,85.7 C444.9,76.7 463.1,62.0 481.3,61.0 C499.6,60.1 517.8,72.2 536.0,80.1 C554.2,87.9 572.4,101.2 590.7,108.1 C608.9,115.0 627.1,123.9 645.3,121.5 C663.6,119.1 681.8,99.9 700.0,93.5 C718.2,87.2 736.4,81.9 754.7,83.4 C772.9,84.9 791.1,99.9 809.3,102.5 C827.6,105.1 854.9,99.7 864.0,99.1 L864.0,238 L44.0,238 Z" fill="url(#agw)"/><rect x="0" y="0" width="872" height="262" fill="url(#dpw)" clip-path="url(#cpw)" opacity=".5"/><line x1="44" x2="864" y1="112.6" y2="112.6" stroke="#C8F25A" stroke-opacity=".55" stroke-dasharray="3 5"/><rect x="466.3" y="14.0" width="30" height="224.0" rx="15" fill="url(#hbw)" stroke="#E9E4F8" stroke-opacity=".14"/><path d="M44.0,168.6 C53.1,165.6 80.4,156.6 98.7,150.6 C116.9,144.7 135.1,134.2 153.3,132.7 C171.6,131.2 189.8,144.3 208.0,141.7 C226.2,139.1 244.4,123.8 262.7,117.0 C280.9,110.3 299.1,101.7 317.3,101.4 C335.6,101.0 353.8,117.4 372.0,114.8 C390.2,112.2 408.4,94.6 426.7,85.7 C444.9,76.7 463.1,62.0 481.3,61.0 C499.6,60.1 517.8,72.2 536.0,80.1 C554.2,87.9 572.4,101.2 590.7,108.1 C608.9,115.0 627.1,123.9 645.3,121.5 C663.6,119.1 681.8,99.9 700.0,93.5 C718.2,87.2 736.4,81.9 754.7,83.4 C772.9,84.9 791.1,99.9 809.3,102.5 C827.6,105.1 854.9,99.7 864.0,99.1" fill="none" stroke="url(#lgw)" stroke-width="2.4" stroke-linecap="round"/><circle cx="481.3" cy="61.0" r="5.5" fill="#030203" stroke="#E9E4F8" stroke-width="2.2"/><circle cx="864.0" cy="99.1" r="4" fill="#C9BEFF"/><circle cx="864.0" cy="99.1" r="10" fill="#C9BEFF" fill-opacity=".15"/></svg><div class="tip" style="left:481px;top:11px"><b class="num">15.8 MB/s</b><span>11:28 峰值</span></div></div>
+    </div>
+    <div class="c4 card hmc">
+      <div class="row-h top"><div><h4>每天存下的作品数</h4><p class="cap">最近 10 周</p></div><span class="sp"></span><span class="circ"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div>
+      <div class="legend"><span><i class="l1"></i>&lt; 40</span><span><i class="l2"></i>40–120</span><span><i class="l3"></i>120–250</span><span><i class="l4"></i>&gt; 250</span></div>
+      <div class="hm"><div class="hm-row"><span class="hm-l">周一</span><i class="l0"></i><i class="l0"></i><i class="l2"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l1"></i><i class="l2"></i><i class="l1"></i><i class="l3"></i></div><div class="hm-row"><span class="hm-l">周二</span><i class="l0"></i><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l4"></i><i class="l3"></i><i class="l2"></i></div><div class="hm-row"><span class="hm-l">周三</span><i class="l2"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l1"></i><i class="l1"></i><i class="l4"></i><i class="l1"></i><i class="l3"></i></div><div class="hm-row"><span class="hm-l">周四</span><i class="l1"></i><i class="l0"></i><i class="l1"></i><i class="l0"></i><i class="l0"></i><i class="l1"></i><i class="l3"></i><i class="l2"></i><i class="l2"></i><i class="l3"></i></div><div class="hm-row"><span class="hm-l">周五</span><i class="l0"></i><i class="l0"></i><i class="l2"></i><i class="l2"></i><i class="l1"></i><i class="l2"></i><i class="l2"></i><i class="l4"></i><i class="l4"></i><i class="l2"></i></div><div class="hm-row"><span class="hm-l">周六</span><i class="l3"></i><i class="l0"></i><i class="l2"></i><i class="l3"></i><i class="l1"></i><i class="l3"></i><i class="l1"></i><i class="l4"></i><i class="l4"></i><i class="l4"></i></div><div class="hm-row"><span class="hm-l">周日</span><i class="l3"></i><i class="l1"></i><i class="l3"></i><i class="l2"></i><i class="l3"></i><i class="l2"></i><i class="l4"></i><i class="l4"></i><i class="l3"></i><i class="lf"></i></div><div class="hm-row hm-x"><span class="hm-l"></span><span></span><span>9月</span><span></span><span></span><span></span><span>10月</span><span></span><span></span><span></span><span>11月</span></div></div>
+      <div class="hm-stats"><div><b class="num">67</b><span>日均存下</span></div><div><b class="num">312</b><span>单日最多</span></div><div><b class="num">18 天</b><span>连续不间断</span></div></div>
+    </div>
+  </section>
+
+  <section class="g12 last">
+    <div class="c4 card gonec">
+      <div class="row-h top"><div><h4>已在抖音消失的博主</h4><p class="cap">Ta 原来的样子，这里还留着</p></div><span class="sp"></span><span class="pill down">14 位</span></div>
+      <ul class="glist">
+        <li><span class="av gone " style="width:36px;height:36px;font-size:15px;background:linear-gradient(140deg,#FF8FA3,#C2335B);color:#fff">是</span><div><b>是小周ya</b><span>留档 37 个作品</span></div><span class="st st-red">已封禁</span></li><li><span class="av gone " style="width:36px;height:36px;font-size:15px;background:linear-gradient(140deg,#FFC170,#C76A1C);color:#fff">乐</span><div><b>乐酷</b><span>留档 21 个作品</span></div><span class="st st-amber">资料被重置</span></li><li><span class="av gone " style="width:36px;height:36px;font-size:15px;background:linear-gradient(140deg,#5FD4C4,#1F7A70);color:#fff">山</span><div><b>山野日记</b><span>留档 58 个作品</span></div><span class="st st-gray">已注销</span></li><li><span class="av gone " style="width:36px;height:36px;font-size:15px;background:linear-gradient(140deg,#A6B32A,#5E680E);color:#fff">阿</span><div><b>阿木</b><span>留档 9 个作品</span></div><span class="st st-olive">作品已清空</span></li><li><span class="av gone " style="width:36px;height:36px;font-size:15px;background:linear-gradient(140deg,#6F55FF,#3717F4);color:#fff">橘</span><div><b>橘子汽水</b><span>留档 16 个作品</span></div><span class="st st-red">已封禁</span></li>
+      </ul>
+    </div>
+    <div class="c8 card recc">
+      <div class="row-h top"><div><h4>最近收藏</h4><p class="cap">今天新增 23 个 · 19 个已自动存到 NAS</p></div><span class="sp"></span>
+        <div class="mini-seg"><a class="on">全部</a><a>视频</a><a>图集</a></div></div>
+      <div class="rec">
+        <div class="rc"><div class="th " style=""><i class="art t-cook"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">2:13</span></div><b>周末做饭记录</b><span>@野生阿翔和CC</span></div><div class="rc"><div class="th " style=""><i class="art t-sun"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">0:48</span></div><b>海边日落延时</b><span>@床车流浪者</span></div><div class="rc"><div class="th " style=""><i class="art t-rv"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">6:21</span></div><b>三拓展房车野外避暑</b><span>@床车流浪者</span></div><div class="rc"><div class="th  iscover" style=""><i class="art t-game"></i><span class="bdg cover">仅封面</span><span class="dur num">12:05</span></div><b>法师篇·海克斯大乱斗</b><span>@乱斗螃蟹</span></div><div class="rc"><div class="th " style=""><i class="art t-city"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">4:37</span></div><b>无意闯入纽约最贵的街区</b><span>@野生阿翔和CC</span></div><div class="rc"><div class="th  iscover" style=""><i class="art t-war"></i><span class="bdg cover">仅封面</span><span class="dur num">3:02</span></div><b>老毛子光顾打仗了</b><span>@乱斗螃蟹</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+</div>
+
+  <div class="slabel"><div><b>B – E · iPhone</b><span>390 × 844 · 底部 Tab：首页 / 作品 / 下载</span></div></div>
+  <div class="prow"><div class="pcol"><div class="plabel"><b>B · iPhone 首页</b><span>390 × 844</span></div>
+<div class="phone"><div class="sb"><span class="sb-t num">9:41</span><span class="sb-r">
+<svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#E9E4F8"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#E9E4F8"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#E9E4F8"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#E9E4F8"/></svg>
+<svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.4 6.8a6.5 6.5 0 0 1 9.2 0l-1.4 1.4a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.4 1.4a7.9 7.9 0 0 0-11.2 0z" fill="#E9E4F8"/></svg>
+<svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="#E9E4F8" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="17" height="8.6" rx="2.4" fill="#E9E4F8"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#E9E4F8" fill-opacity=".45"/></svg>
+</span></div><div class="island"></div><div class="scr">
+<div class="ph-h"><svg class="appicon" width="30" height="30" viewBox="0 0 1024 1024" style="border-radius:7px"><defs><linearGradient id="ib2" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#1C1C21"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient><linearGradient id="im2" gradientUnits="userSpaceOnUse" x1="300" y1="250" x2="724" y2="790"><stop offset="0" stop-color="#FF5470"/><stop offset="1" stop-color="#EE1248"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#ib2)"/><path fill="url(#im2)" stroke="url(#im2)" stroke-width="28" stroke-linejoin="round" d="M 356 264 H 668 Q 698 264 698 294 V 768 L 512 652 L 326 768 V 294 Q 326 264 356 264 Z"/><path fill="url(#ib2)" stroke="url(#ib2)" stroke-width="30" stroke-linejoin="round" d="M 478 396 L 478 532 L 588 464 Z"/></svg><b>抖藏家</b><span class="sp"></span><span class="nas sm"><i class="dot ok"></i>NAS 在线</span><span class="av " style="width:32px;height:32px;font-size:13px;background:linear-gradient(140deg,#E9E4F8,#B5A8EE);color:#1A1530">我</span></div>
+<div class="m-hero card">
+  <div class="row-h"><span class="kpi-l">收藏作品</span><span class="pill up">+128 本周</span></div>
+  <div class="row-h mh2"><span class="num mh-n">18,402</span><span class="sp"></span><div class="lg2"><span><i class="sw a"></i>视频 <b class="num">14,246</b></span><span><i class="sw b"></i>图集 <b class="num">4,156</b></span></div></div>
+  <div class="split"><i style="width:77.4%"></i><i style="width:22.6%"></i></div>
+</div>
+<div class="m-kpis">
+  <div class="card mk"><span class="kpi-l">已存到 NAS</span><b class="num">4,695</b><span class="mk-s">占用 82.0 GB</span></div>
+  <div class="card mk"><span class="kpi-l">博主</span><b class="num">13,229</b><span class="mk-s"><em class="pill olive xs">+41</em> 本周</span></div>
+  <div class="card mk"><span class="kpi-l">已在抖音消失</span><b class="num">14<small>位</small></b><span class="mk-s red">+2 本周</span></div>
+</div>
+<div class="sec"><b>下载</b><span>全部 ›</span></div>
+<div class="card m-prog">
+  <div class="row-h"><span class="live"><i></i>正在下载 “全部保存”</span><span class="sp"></span><span class="mp-n"><b class="num">1,203</b> / 13,892</span></div>
+  <div class="pbar"><i style="width:8.7%"></i></div>
+  <div class="m-meta"><span>每分钟 11 个</span><i></i><span>预计 20 小时</span><i></i><span class="num">12.4 MB/s</span><span class="sp"></span><b class="num pct">8.7%</b></div>
+</div>
+<div class="card m-fail"><span class="warn"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>5 个作品没能存到 NAS</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o sm">全部重试</span></div>
+<div class="card m-act"><h3>还有 <b class="num">13,892</b> 个收藏作品没有存到 NAS</h3><div class="row-h"><span class="m-act-s">约 225 GB</span><span class="sp"></span><span class="btn-w sm">全部存到 NAS<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8m0 0H9.5M16 8v6.5"/></svg></span></div></div>
+<div class="sec"><b>已在抖音消失 <em>14 位</em></b><span>全部 ›</span></div>
+<div class="m-gone"><div><span class="av gone " style="width:46px;height:46px;font-size:19px;background:linear-gradient(140deg,#FF8FA3,#C2335B);color:#fff">是</span><b>是小周ya</b><span class="st st-red">已封禁</span></div><div><span class="av gone " style="width:46px;height:46px;font-size:19px;background:linear-gradient(140deg,#FFC170,#C76A1C);color:#fff">乐</span><b>乐酷</b><span class="st st-amber">资料被重置</span></div><div><span class="av gone " style="width:46px;height:46px;font-size:19px;background:linear-gradient(140deg,#5FD4C4,#1F7A70);color:#fff">山</span><b>山野日记</b><span class="st st-gray">已注销</span></div><div><span class="av gone " style="width:46px;height:46px;font-size:19px;background:linear-gradient(140deg,#A6B32A,#5E680E);color:#fff">阿</span><b>阿木</b><span class="st st-olive">作品已清空</span></div><div><span class="av gone " style="width:46px;height:46px;font-size:19px;background:linear-gradient(140deg,#6F55FF,#3717F4);color:#fff">橘</span><b>橘子汽水</b><span class="st st-red">已封禁</span></div></div>
+</div><div class="fade"></div><nav class="tb"><a class="on"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg><span>首页</span></a><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>作品</span></a><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg><span>下载</span></a></nav><div class="hbar"></div></div></div><div class="pcol"><div class="plabel"><b>C · 作品 · 搜索</b><span>已输入「小缘」</span></div>
+<div class="phone"><div class="sb"><span class="sb-t num">9:41</span><span class="sb-r">
+<svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#E9E4F8"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#E9E4F8"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#E9E4F8"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#E9E4F8"/></svg>
+<svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.4 6.8a6.5 6.5 0 0 1 9.2 0l-1.4 1.4a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.4 1.4a7.9 7.9 0 0 0-11.2 0z" fill="#E9E4F8"/></svg>
+<svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="#E9E4F8" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="17" height="8.6" rx="2.4" fill="#E9E4F8"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#E9E4F8" fill-opacity=".45"/></svg>
+</span></div><div class="island"></div><div class="scr">
+<div class="ph-t"><h2>作品</h2><span class="num cnt2">18,402</span></div>
+<div class="srch-row"><div class="srch"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="q">小缘</span><i class="caret"></i><span class="sp"></span><span class="clr"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10M17 7 7 17"/></svg></span></div><span class="cancel">取消</span></div>
+<div class="chips"><a class="on">全部</a><a>视频</a><a>图集</a><a>已存</a><a>仅封面</a></div>
+<div class="sec"><b>博主 <em>2</em></b><span>全部 ›</span></div>
+<div class="cre">
+  <div class="card cr"><span class="av " style="width:42px;height:42px;font-size:17px;background:linear-gradient(140deg,#6F55FF,#3717F4);color:#fff">缘</span><div><b><em>小缘</em>大王</b><span>3 个作品</span></div><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></div>
+  <div class="card cr"><span class="av " style="width:42px;height:42px;font-size:17px;background:linear-gradient(140deg,#FF8FA3,#C2335B);color:#fff">兔</span><div><b><em>小缘</em>兔</b><span>3 个作品</span></div><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></svg></div>
+</div>
+<div class="sec"><b>作品 <em>9</em></b><span class="srt"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5v14m0 0-3-3m3 3 3-3M17 19V5m0 0-3 3m3-3 3 3"/></svg>最近收藏</span></div>
+<div class="g3"><div class="th " style="border-radius:14px"><i class="art t-pink"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">1:42</span><span class="tt"><em>小缘</em>的周末 vlog</span></div><div class="th " style="border-radius:14px"><i class="art t-tea"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">3:15</span><span class="tt">跟<em>小缘</em>去山里喝茶</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-cat"></i><span class="bdg cover">仅封面</span><span class="dur num">0:58</span><span class="tt"><em>小缘兔</em>的早餐日记</span></div><div class="th " style="border-radius:14px"><i class="art t-neon"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">2:26</span><span class="tt"><em>小缘大王</em>·城市夜跑</span></div><div class="th " style="border-radius:14px"><i class="art t-snow"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">4:03</span><span class="tt"><em>小缘兔</em>第一次滑雪</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-sea"></i><span class="bdg cover">仅封面</span><span class="dur num">5:47</span><span class="tt"><em>小缘大王</em>出海记</span></div><div class="th " style="border-radius:14px"><i class="art t-sun"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">0:31</span><span class="tt"><em>小缘</em>拍的晚霞</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-cook"></i><span class="bdg cover">仅封面</span><span class="dur num">2:09</span><span class="tt"><em>小缘兔</em>煮火锅</span></div><div class="th " style="border-radius:14px"><i class="art t-game"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">8:12</span><span class="tt"><em>小缘大王</em>开黑实录</span></div></div>
+</div><div class="fade"></div><nav class="tb"><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg><span>首页</span></a><a class="on"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>作品</span></a><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg><span>下载</span></a></nav><div class="hbar"></div></div></div><div class="pcol"><div class="plabel"><b>D · 博主存档</b><span>已消失的博主</span></div>
+<div class="phone"><div class="sb"><span class="sb-t num">9:41</span><span class="sb-r">
+<svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#E9E4F8"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#E9E4F8"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#E9E4F8"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#E9E4F8"/></svg>
+<svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.4 6.8a6.5 6.5 0 0 1 9.2 0l-1.4 1.4a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.4 1.4a7.9 7.9 0 0 0-11.2 0z" fill="#E9E4F8"/></svg>
+<svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="#E9E4F8" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="17" height="8.6" rx="2.4" fill="#E9E4F8"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#E9E4F8" fill-opacity=".45"/></svg>
+</span></div><div class="island"></div><div class="scr">
+<div class="nav"><span class="ibtn"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></span><b>博主存档</b><span class="ibtn"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r=".9"/><circle cx="12" cy="12" r=".9"/><circle cx="18" cy="12" r=".9"/></svg></span></div>
+<div class="prof">
+  <div class="pav"><span class="av gone " style="width:76px;height:76px;font-size:31px;background:linear-gradient(140deg,#FF8FA3,#C2335B);color:#fff">是</span><span class="banb"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></svg></span></div>
+  <div class="pinfo"><h2>是小周ya</h2><span class="num pid">抖音号 44989116000</span><span class="st st-red lg"><svg class="ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></svg>已封禁</span></div>
+</div>
+<div class="note card"><span class="note-ic"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></span><p>这里显示的是 Ta 原来的资料，最后一次见到是 2026 年 11 月 7 日。现在抖音上显示为「<b class="num">44989116000</b>」。</p></div>
+<div class="m-kpis d">
+  <div class="card mk"><span class="kpi-l">记录作品</span><b class="num">37</b></div>
+  <div class="card mk"><span class="kpi-l">已存视频</span><b class="num v">12</b></div>
+  <div class="card mk"><span class="kpi-l">粉丝</span><b class="num">12.3<small>万</small></b></div>
+</div>
+<div class="savebar"><div class="row-h"><span>12 个视频已存到 NAS，其余只有封面和文字</span><span class="sp"></span><b class="num">32%</b></div><div class="pbar thin"><i style="width:32.4%"></i></div></div>
+<div class="seg2"><a class="on">全部 37</a><a>已存 12</a><a>仅封面 25</a></div>
+<div class="g3"><div class="th " style="border-radius:14px"><i class="art t-sea"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">2:41</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-cat"></i><span class="bdg cover">仅封面</span></div><div class="th " style="border-radius:14px"><i class="art t-snow"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">1:12</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-tea"></i><span class="bdg cover">仅封面</span></div><div class="th " style="border-radius:14px"><i class="art t-pink"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">0:46</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-rv"></i><span class="bdg cover">仅封面</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-neon"></i><span class="bdg cover">仅封面</span></div><div class="th " style="border-radius:14px"><i class="art t-sun"></i><span class="bdg saved"><svg class="ic" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9"/></svg>已存</span><span class="dur num">3:20</span></div><div class="th  iscover" style="border-radius:14px"><i class="art t-cook"></i><span class="bdg cover">仅封面</span></div></div>
+</div><div class="fade"></div><nav class="tb"><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg><span>首页</span></a><a class="on"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>作品</span></a><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg><span>下载</span></a></nav><div class="hbar"></div></div></div><div class="pcol"><div class="plabel"><b>E · 下载</b><span>进度 · 失败 · 存储</span></div>
+<div class="phone"><div class="sb"><span class="sb-t num">9:41</span><span class="sb-r">
+<svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#E9E4F8"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#E9E4F8"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#E9E4F8"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#E9E4F8"/></svg>
+<svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.4 6.8a6.5 6.5 0 0 1 9.2 0l-1.4 1.4a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.4 1.4a7.9 7.9 0 0 0-11.2 0z" fill="#E9E4F8"/></svg>
+<svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.8" fill="none" stroke="#E9E4F8" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="17" height="8.6" rx="2.4" fill="#E9E4F8"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#E9E4F8" fill-opacity=".45"/></svg>
+</span></div><div class="island"></div><div class="scr">
+<div class="ph-t"><h2>下载</h2><span class="sp"></span><div class="stor"><span class="stor-l"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4.5" width="16" height="6.5" rx="2"/><rect x="4" y="13" width="16" height="6.5" rx="2"/><path d="M7.5 7.8h.1M7.5 16.3h.1"/></svg>NAS 存储</span><span class="num stor-v"><b>82.0 GB</b> / 102 TB</span><div class="pbar thin"><i style="width:6%"></i></div></div></div>
+<div class="card tot">
+  <div class="row-h"><span class="live"><i></i>全部保存</span><span class="sp"></span><span class="ghost sm"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5v11M15 6.5v11"/></svg>暂停</span></div>
+  <div class="dl-n sm"><span class="num">1,203</span><span class="num of">/ 13,892</span><span class="sp"></span><span class="num pct">8.7%</span></div>
+  <div class="pbar"><i style="width:8.7%"></i></div>
+  <div class="tot3"><div><b class="num">12.4 MB/s</b><span>速度</span></div><div><b>11 个</b><span>每分钟</span></div><div><b>20 小时</b><span>预计剩余</span></div></div>
+</div>
+<div class="sec"><b>正在下载 <em>3</em></b><span>队列 12,689</span></div>
+<div class="card runl"><div class="ri"><div class="th " style="width:36px;height:46px;border-radius:9px"><i class="art t-sun"></i></div><div class="ri-m"><div class="row-h"><b>海边日落延时.mp4</b><span class="sp"></span><span class="num spd">4.6 MB/s</span></div><div class="row-h ri-b"><div class="pbar thin"><i style="width:64%"></i></div><span class="num ri-s">64% · 18.2 / 28.4 MB</span></div></div></div><div class="ri"><div class="th " style="width:36px;height:46px;border-radius:9px"><i class="art t-rv"></i></div><div class="ri-m"><div class="row-h"><b>三拓展房车野外避暑.mp4</b><span class="sp"></span><span class="num spd">5.1 MB/s</span></div><div class="row-h ri-b"><div class="pbar thin"><i style="width:31%"></i></div><span class="num ri-s">31% · 40.7 / 131 MB</span></div></div></div><div class="ri"><div class="th " style="width:36px;height:46px;border-radius:9px"><i class="art t-cook"></i></div><div class="ri-m"><div class="row-h"><b>周末做饭记录.mp4</b><span class="sp"></span><span class="num spd">2.7 MB/s</span></div><div class="row-h ri-b"><div class="pbar thin"><i style="width:12%"></i></div><span class="num ri-s">12% · 6.3 / 52.5 MB</span></div></div></div></div>
+<div class="sec"><b>失败 <em class="r">5</em></b><span class="retry-all"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5V9H15"/></svg>全部重试</span></div>
+<div class="card faill"><div class="fi"><span class="fdot"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>法师篇·海克斯大乱斗.mp4</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o xs">重试</span></div><div class="fi"><span class="fdot"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>老毛子光顾打仗了.mp4</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o xs">重试</span></div><div class="fi"><span class="fdot"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>城市夜跑第 3 天.mp4</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o xs">重试</span></div><div class="fi"><span class="fdot"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>山里的第一场雪.mp4</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o xs">重试</span></div><div class="fi"><span class="fdot"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.2M12 16.8v.1"/></svg></span><div><b>猫咪的早餐日记.mp4</b><span>抖音暂时拿不到下载链接</span></div><span class="btn-o xs">重试</span></div></div>
+</div><div class="fade"></div><nav class="tb"><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg><span>首页</span></a><a class=""><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>作品</span></a><a class="on"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg><span>下载</span></a></nav><div class="hbar"></div></div></div></div>
+  <footer class="foot">抖藏家 · 把抖音收藏存到自家 NAS · 所有数据均为示意</footer>
+</div>
+<script>
+(function(){var w=document.getElementById('webwrap'),f=document.getElementById('web');
+document.querySelectorAll('.zoom a').forEach(function(a){a.onclick=function(){
+document.querySelectorAll('.zoom a').forEach(function(b){b.classList.remove('on')});a.classList.add('on');
+var z=parseFloat(a.dataset.z);f.style.transform='scale('+z+')';w.style.height=(f.offsetHeight*z)+'px';}});})();
+</script>
+</body></html>
