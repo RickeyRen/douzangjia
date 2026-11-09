@@ -108,11 +108,11 @@ struct DownloadProgressCard: View {
         }
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .confirmationDialog(
+        .alert(
             "停止下载剩下的 \(Format.integer(active.totalItems - active.completedItems - active.failedItems)) 个作品？",
-            isPresented: $confirmStop,
-            titleVisibility: .visible
+            isPresented: $confirmStop
         ) {
+            Button("继续下载", role: .cancel) {}
             Button("停止下载", role: .destructive) { Task { await control("cancel") } }
         } message: {
             Text("已经存好的会保留。")

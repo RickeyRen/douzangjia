@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var loadError: String?
     @State private var confirmSaveAll = false
     @State private var queueing = false
+    @State private var saveAllNotice: String?
     @State private var showSettings = false
     @State private var player: PlayerSelection?
 
@@ -58,11 +59,19 @@ struct HomeView: View {
             .fullScreenCover(item: $player) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
             }
-            .confirmationDialog(
+            .alert(saveAllNotice ?? "", isPresented: Binding(
+                get: { saveAllNotice != nil },
+                set: { if !$0 { saveAllNotice = nil } }
+            )) {
+                Button("好") {}
+            }
+            // An alert, not a confirmation dialog: on iOS 26 a dialog attached to the
+            // whole stack pops up as a bubble at the top of the screen, far from the button.
+            .alert(
                 "把 \(Format.integer(missing?.unqueued ?? 0)) 个收藏作品全部存到 NAS？",
-                isPresented: $confirmSaveAll,
-                titleVisibility: .visible
+                isPresented: $confirmSaveAll
             ) {
+                Button("取消", role: .cancel) {}
                 Button("开始下载") { Task { await saveAll() } }
             } message: {
                 if let bytes = missing?.estimatedBytes {
@@ -199,12 +208,19 @@ struct HomeView: View {
         queueing = true
         defer { queueing = false }
         do {
-            try await model.client.archiveMissing()
+            let result = try await model.client.archiveMissing()
             await poller.refresh(client: model.client)
             missing = try? await model.client.missingSummary()
+            if result.queueing == true {
+                saveAllNotice = "正在把作品加入下载队列，作品多时要几分钟，进度会出现在首页上方。"
+            } else if result.batch.totalItems == 0, result.skipped > 0 {
+                saveAllNotice = "这 \(Format.integer(result.skipped)) 个作品还缺少下载信息，等下次同步补上后再试。"
+            } else {
+                saveAllNotice = "已加入下载队列，进度会出现在首页上方。"
+            }
         } catch {
             model.handle(error)
-            loadError = error.localizedDescription
+            saveAllNotice = error.localizedDescription
         }
     }
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 from dataclasses import asdict
 
@@ -17,6 +19,10 @@ from ..archive_service import (
 from ..repositories import JobRepository
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
+# Queueing ten thousand items takes minutes; answer the request once the batch
+# exists and keep adding items in the background.
+MISSING_QUEUE_WAIT_SECONDS = 5
 
 
 class SelectionRequest(BaseModel):
@@ -133,8 +139,24 @@ async def missing_summary(request: Request):
 
 @router.post("/archive/missing", status_code=202)
 async def archive_missing(request: Request):
-    batch, skipped = await _service(request).archive_missing()
-    return {"batch": _serialize_batch(batch), "skipped": skipped}
+    state = request.app.state
+    service = _service(request)
+    task = getattr(state, "missing_archive_task", None)
+    if task is None or task.done():
+        task = asyncio.create_task(service.archive_missing())
+        task.add_done_callback(_log_queue_failure)
+        state.missing_archive_task = task
+    try:
+        batch, skipped = await asyncio.wait_for(asyncio.shield(task), MISSING_QUEUE_WAIT_SECONDS)
+    except TimeoutError:
+        batch = await service.batches.create_batch("missing", "all")
+        return {"batch": _serialize_batch(batch), "skipped": 0, "queueing": True}
+    return {"batch": _serialize_batch(batch), "skipped": skipped, "queueing": False}
+
+
+def _log_queue_failure(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("queueing missing items failed", exc_info=task.exception())
 
 
 @router.get("/archive/progress")

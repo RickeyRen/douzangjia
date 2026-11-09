@@ -114,3 +114,36 @@ def test_bulk_star_round_trip(tmp_path: Path, master_key: str) -> None:
     assert starred.json() == {"starred": ["901", "903"]}
     assert sorted(item["awemeId"] for item in listed) == ["901", "903"]
     assert unstarred.json() == {"starred": []}
+
+
+def test_save_everything_answers_quickly_and_keeps_queueing_in_the_background(
+    tmp_path: Path, master_key: str, monkeypatch
+) -> None:
+    """Catches the phone giving up on a "save everything" that queues ten thousand items."""
+    import asyncio
+
+    from douyin_archive.archive_service import ArchiveService
+    from douyin_archive.routes import archive as archive_routes
+
+    original = ArchiveService.archive_missing
+
+    async def slow(self):
+        await asyncio.sleep(0.5)
+        return await original(self)
+
+    monkeypatch.setattr(ArchiveService, "archive_missing", slow)
+    monkeypatch.setattr(archive_routes, "MISSING_QUEUE_WAIT_SECONDS", 0.05)
+    client = client_for(tmp_path, master_key)
+    try:
+        started = client.post("/api/archive/missing")
+        import time as _time
+
+        _time.sleep(1.0)
+        jobs = client.get("/api/jobs").json()["items"]
+    finally:
+        client.__exit__(None, None, None)
+
+    assert started.status_code == 202
+    assert started.json()["queueing"] is True
+    assert started.json()["batch"]["kind"] == "missing"
+    assert sorted(job["remoteId"] for job in jobs) == ["902", "903"]

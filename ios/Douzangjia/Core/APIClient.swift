@@ -110,8 +110,15 @@ final class APIClient {
 
     func missingSummary() async throws -> MissingSummary { try await get("/api/archive/missing") }
 
-    func archiveMissing() async throws {
-        let _: EmptyBody = try await send("POST", "/api/archive/missing")
+    struct MissingQueued: Decodable {
+        struct Batch: Decodable { let totalItems: Int }
+        let batch: Batch
+        let skipped: Int
+        let queueing: Bool?
+    }
+
+    func archiveMissing() async throws -> MissingQueued {
+        try await send("POST", "/api/archive/missing")
     }
 
     func progress() async throws -> ArchiveProgress { try await get("/api/archive/progress") }
