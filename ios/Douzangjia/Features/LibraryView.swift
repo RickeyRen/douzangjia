@@ -62,65 +62,74 @@ struct LibraryView: View {
     @State private var feed = LibraryFeed()
     @State private var player: PlayerSelection?
     @State private var search = ""
+    @FocusState private var searchFocused: Bool
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    private let columns = [GridItem(.adaptive(minimum: 110), spacing: 3)]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                if !feed.creators.isEmpty {
-                    creatorResults
-                }
-                LazyVGrid(columns: columns, spacing: 3) {
-                    ForEach(Array(feed.items.enumerated()), id: \.element.id) { index, item in
-                        Button {
-                            player = PlayerSelection(items: feed.items, index: index)
-                        } label: {
-                            MediaTile(item: item)
-                                .aspectRatio(3 / 4, contentMode: .fit)
+                VStack(alignment: .leading, spacing: 8) {
+                    PageTitle(text: "作品").frame(height: 46)
+                    searchRow
+                    chips
+                    if !feed.creators.isEmpty {
+                        creatorResults
+                    }
+                    if !feed.items.isEmpty {
+                        SectionHeader(title: "作品", count: query.isEmpty ? nil : "\(feed.items.count)\(feed.loading ? "+" : "")") {
+                            Label(filter == .starred ? "精选" : "最近收藏", systemImage: "arrow.up.arrow.down")
+                                .labelStyle(.titleAndIcon)
                         }
-                        .buttonStyle(.plain)
-                        .onAppear {
-                            if index >= feed.items.count - 9 {
-                                Task { await feed.loadMore(client: model.client, filter: filter, onError: model.handle) }
+                    }
+                    LazyVGrid(columns: columns, spacing: 6) {
+                        ForEach(Array(feed.items.enumerated()), id: \.element.id) { index, item in
+                            Button {
+                                player = PlayerSelection(items: feed.items, index: index)
+                            } label: {
+                                Color.clear
+                                    .aspectRatio(3 / 4, contentMode: .fit)
+                                    .overlay { MediaTile(item: item) }
+                            }
+                            .buttonStyle(.plain)
+                            .onAppear {
+                                if index >= feed.items.count - 9 {
+                                    Task { await feed.loadMore(client: model.client, filter: filter, onError: model.handle) }
+                                }
                             }
                         }
                     }
-                }
-                .padding(.horizontal, 3)
 
-                if feed.loading {
-                    ProgressView().padding(24)
-                } else if let error = feed.error, feed.items.isEmpty {
-                    ContentUnavailableView {
-                        Label("读取失败", systemImage: "wifi.exclamationmark")
-                    } description: {
-                        Text(error)
-                    } actions: {
-                        Button("重试") { Task { await reload() } }
+                    if feed.loading {
+                        ProgressView().frame(maxWidth: .infinity).padding(24)
+                    } else if let error = feed.error, feed.items.isEmpty {
+                        ContentUnavailableView {
+                            Label("读取失败", systemImage: "wifi.exclamationmark")
+                        } description: {
+                            Text(error)
+                        } actions: {
+                            Button("重试") { Task { await reload() } }
+                                .buttonStyle(PrimaryButtonStyle(compact: true))
+                        }
+                    } else if feed.items.isEmpty && !query.isEmpty {
+                        if feed.creators.isEmpty {
+                            ContentUnavailableView.search(text: query)
+                        }
+                    } else if feed.items.isEmpty {
+                        ContentUnavailableView(emptyTitle, systemImage: "tray")
                     }
-                } else if feed.items.isEmpty && !query.isEmpty {
-                    if feed.creators.isEmpty {
-                        ContentUnavailableView.search(text: query)
-                    }
-                } else if feed.items.isEmpty {
-                    ContentUnavailableView(emptyTitle, systemImage: "tray")
                 }
+                .padding(.horizontal, Theme.pageInset)
+                .padding(.bottom, 12)
             }
-            .navigationTitle("作品")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("筛选", selection: $filter) {
-                        ForEach(LibraryFilter.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 320)
-                }
-            }
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品描述、博主名或抖音号")
+            .scrollIndicators(.hidden)
+            .tabBarClearance()
+            .statusBarScrim()
+            .scrollDismissesKeyboard(.immediately)
+            .screenBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .refreshable { await reload() }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .task(id: "\(filter.rawValue)|\(query)") {
@@ -139,6 +148,77 @@ struct LibraryView: View {
                 PlayerView(items: selection.items, startIndex: selection.index) { feed.update($0) }
             }
         }
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                TextField("", text: $search, prompt: Text("作品描述、博主名或抖音号").foregroundStyle(Theme.dim))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.text)
+                    .tint(Theme.violet3)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !search.isEmpty {
+                    Button { search = "" } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.text)
+                            .frame(width: 20, height: 20)
+                            .background(Theme.gray, in: Circle())
+                    }
+                    .accessibilityLabel("清除")
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
+            .frame(height: 44)
+            .background(Theme.panel, in: Capsule())
+            .overlay(
+                Capsule().strokeBorder(searchFocused ? Theme.violet2 : Theme.line2, lineWidth: searchFocused ? 1.5 : 1)
+            )
+            .background(
+                Capsule().stroke(Theme.violet.opacity(searchFocused ? 0.18 : 0), lineWidth: 8)
+            )
+            .animation(.easeOut(duration: 0.15), value: searchFocused)
+            if searchFocused || !search.isEmpty {
+                Button("取消") {
+                    search = ""
+                    searchFocused = false
+                }
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.violet4)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: searchFocused || !search.isEmpty)
+        .padding(.top, 4)
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(LibraryFilter.allCases) { option in
+                let on = option == filter
+                Button { filter = option } label: {
+                    Text(option.title)
+                        .font(.system(size: 12.5, weight: on ? .semibold : .regular))
+                        .foregroundStyle(on ? .white : Theme.muted)
+                        .lineLimit(1)
+                        .padding(.horizontal, 13)
+                        .frame(height: 30)
+                        .background(on ? Theme.violet : Theme.panel, in: Capsule())
+                        .overlay(Capsule().strokeBorder(on ? .clear : Theme.line, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 6)
     }
 
     private static var initialFilter: LibraryFilter {
@@ -163,25 +243,41 @@ struct LibraryView: View {
 
     private var creatorResults: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("博主").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(feed.creators) { creator in
-                        NavigationLink(value: CreatorRoute(id: creator.id)) {
-                            VStack(spacing: 6) {
-                                CreatorAvatar(path: creator.avatarUrl, size: 56)
-                                Text(creator.nickname).font(.caption).lineLimit(1)
-                                Text("\(creator.knownItemCount) 个作品").font(.caption2).foregroundStyle(.secondary)
+            SectionHeader(title: "博主", count: "\(feed.creators.count)")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(feed.creators) { creator in
+                    NavigationLink(value: CreatorRoute(id: creator.id)) {
+                        HStack(spacing: 10) {
+                            CreatorAvatar(path: creator.avatarUrl, size: 42)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(highlighted(creator.nickname))
+                                    .font(.system(size: 13.5, weight: .semibold))
+                                    .foregroundStyle(Theme.text)
+                                    .lineLimit(1)
+                                Text("\(Format.integer(creator.knownItemCount)) 个作品")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(Theme.muted)
+                                    .lineLimit(1)
                             }
-                            .frame(width: 76)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.dim)
                         }
-                        .buttonStyle(.plain)
+                        .card(radius: Theme.radiusInner, padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10))
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, 10)
+    }
+
+    /// Paints the searched text violet inside a creator name.
+    private func highlighted(_ name: String) -> AttributedString {
+        var text = AttributedString(name)
+        if !query.isEmpty, let range = text.range(of: query, options: .caseInsensitive) {
+            text[range].foregroundColor = Theme.violet4
+        }
+        return text
     }
 }

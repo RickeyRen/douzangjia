@@ -244,6 +244,8 @@ struct ActiveDownload: Decodable {
     let downloadedBytes: Int
     let estimatedTotalBytes: Int?
     let speedBps: Double
+    /// Optional so an older server without the field still decodes.
+    let itemsPerMinute: Double?
     let etaSeconds: Int?
     let current: [ArchiveProgressItem]
 

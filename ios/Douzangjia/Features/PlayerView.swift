@@ -81,17 +81,18 @@ private struct PlayerPage: View {
         } else {
             // Not on the NAS yet: show the Douyin cover and offer to save it.
             ZStack {
-                RemoteImage(path: item.coverUrl, contentMode: .fit).opacity(0.5)
+                // No placeholder icon: it would sit right under the status text.
+                RemoteImage(path: item.coverUrl, contentMode: .fit, failureIcon: "").opacity(0.5)
                 VStack(spacing: 14) {
-                    Image(systemName: "icloud").font(.system(size: 40))
-                    Text(statusText).font(.headline)
+                    Image(systemName: "icloud").font(.system(size: 40)).foregroundStyle(Theme.violet4)
+                    Text(statusText).font(.headline).multilineTextAlignment(.center).padding(.horizontal, 24)
                     if item.local?.state != "downloading" && !item.videoIsLost {
                         Button {
                             Task { await save() }
                         } label: {
                             Label(queued ? "已加入下载" : "存到 NAS", systemImage: "icloud.and.arrow.down")
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(PrimaryButtonStyle())
                         .disabled(queued)
                     }
                     if let message { Text(message).font(.footnote).opacity(0.8) }
@@ -116,6 +117,9 @@ private struct PlayerPage: View {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("@\(item.author)").font(.headline)
+                if item.isSaved {
+                    Pill(text: "已存到 NAS", systemImage: "checkmark", style: .tag)
+                }
                 if !item.description.isEmpty {
                     Text(item.description).font(.subheadline).lineLimit(3)
                 }
@@ -126,9 +130,10 @@ private struct PlayerPage: View {
             } label: {
                 Image(systemName: item.starred == true ? "star.fill" : "star")
                     .font(.title2)
-                    .foregroundStyle(item.starred == true ? .yellow : .white)
+                    .foregroundStyle(item.starred == true ? Theme.lime : .white)
                     .frame(width: 48, height: 48)
-                    .background(.black.opacity(0.35), in: Circle())
+                    .background(item.starred == true ? Theme.violet.opacity(0.85) : .black.opacity(0.35), in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
             }
             .accessibilityLabel(item.starred == true ? "取消精选" : "加入精选")
         }
@@ -176,7 +181,7 @@ private struct VideoPage: View {
             if let player {
                 VideoPlayer(player: player)
             } else {
-                ProgressView().tint(.white)
+                ProgressView().tint(Theme.violet3)
             }
         }
         .onAppear { prepare() }

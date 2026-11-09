@@ -19,9 +19,10 @@ struct LoginView: View {
                         Image("AppIconPreview")
                             .resizable()
                             .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        Text("抖藏家").font(.title2.bold())
-                        Text("连上你 NAS 上的抖音收藏库").font(.subheadline).foregroundStyle(.secondary)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1))
+                        Text("抖藏家").font(.system(size: 24, weight: .semibold)).foregroundStyle(Theme.text)
+                        Text("连上你 NAS 上的抖音收藏库").font(.subheadline).foregroundStyle(Theme.muted)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -39,8 +40,9 @@ struct LoginView: View {
                 } header: {
                     Text("NAS 地址")
                 } footer: {
-                    Text("在家里用局域网地址；在外面需要先连上能访问 NAS 的 VPN。")
+                    Text("在家里用局域网地址；在外面需要先连上能访问 NAS 的 VPN。").foregroundStyle(Theme.muted)
                 }
+                .listRowBackground(Theme.panel)
 
                 Section("本地管理员") {
                     TextField("用户名", text: $username)
@@ -56,13 +58,15 @@ struct LoginView: View {
                         .submitLabel(.go)
                         .onSubmit { Task { await submit() } }
                 }
+                .listRowBackground(Theme.panel)
 
                 if let error {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Theme.redText)
                             .font(.subheadline)
                     }
+                    .listRowBackground(Theme.red.opacity(0.1))
                 }
 
                 Section {
@@ -70,17 +74,21 @@ struct LoginView: View {
                         Task { await submit() }
                     } label: {
                         HStack {
-                            Spacer()
-                            if pending { ProgressView().padding(.trailing, 6) }
-                            Text(pending ? "正在登录…" : "登录").bold()
-                            Spacer()
+                            if pending { ProgressView().tint(.white).padding(.trailing, 6) }
+                            Text(pending ? "正在登录…" : "登录")
                         }
+                        .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(PrimaryButtonStyle())
                     .disabled(pending || username.isEmpty || password.isEmpty || server.isEmpty)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
             }
+            .darkList()
             .navigationTitle("登录")
             .navigationBarTitleDisplayMode(.inline)
+            .darkNavigationBar()
             .onAppear {
                 if server.isEmpty { server = model.serverAddress }
                 if username.isEmpty { username = model.username }

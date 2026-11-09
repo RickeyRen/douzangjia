@@ -1,9 +1,5 @@
 import SwiftUI
 
-extension Color {
-    static let brand = Color(red: 0.93, green: 0.17, blue: 0.32)
-}
-
 enum Format {
     static func bytes(_ value: Int?) -> String {
         guard let value else { return "—" }
