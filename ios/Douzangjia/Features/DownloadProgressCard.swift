@@ -68,7 +68,7 @@ struct DownloadProgressCard: View {
             }
         }
         .alert(
-            "停止下载剩下的 \(Format.integer(active.totalItems - active.completedItems - active.failedItems)) 个作品？",
+            "停止下载剩下的 \(Format.integer(active.plannedTotal - active.completedItems - active.failedItems)) 个作品？",
             isPresented: $confirmStop
         ) {
             Button("继续下载", role: .cancel) {}
@@ -94,7 +94,7 @@ struct DownloadProgressCard: View {
                 Text(Format.integer(active.completedItems))
                     .font(Theme.number(compact ? 22 : 26))
                     .foregroundStyle(Theme.text)
-                Text("/ \(Format.integer(active.totalItems))")
+                Text("/ \(Format.integer(active.plannedTotal))")
                     .font(Theme.number(compact ? 13 : 14, weight: .regular))
                     .foregroundStyle(Theme.muted)
                 Spacer(minLength: 6)
@@ -106,6 +106,12 @@ struct DownloadProgressCard: View {
             .padding(.top, compact ? 6 : 8)
             .padding(.bottom, 8)
             GlowBar(fraction: active.fraction, height: compact ? 6 : 8)
+            if active.queueing == true {
+                Text("还在加入下载队列：已加入 \(Format.integer(active.totalItems)) / \(Format.integer(active.plannedTotal)) 个")
+                    .font(.caption)
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 6)
+            }
             if compact {
                 HStack(spacing: 7) {
                     if let perMinute, !active.isPaused {

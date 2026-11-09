@@ -250,7 +250,13 @@ struct ActiveDownload: Decodable {
     let current: [ArchiveProgressItem]
 
     var isPaused: Bool { status == "paused" }
-    var fraction: Double { totalItems > 0 ? Double(completedItems) / Double(totalItems) : 0 }
+    /// Whole plan while a bulk download is still being queued in the background.
+    let plannedItems: Int?
+    let queueing: Bool?
+
+    /// Items this download will cover, counting ones still being queued.
+    var plannedTotal: Int { max(totalItems, plannedItems ?? 0) }
+    var fraction: Double { plannedTotal > 0 ? Double(completedItems) / Double(plannedTotal) : 0 }
 }
 
 struct ArchiveProgress: Decodable {
