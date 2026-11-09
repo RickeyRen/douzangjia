@@ -127,15 +127,16 @@ def test_save_everything_answers_quickly_and_keeps_queueing_in_the_background(
 
     original = ArchiveService.archive_missing
 
-    async def slow(self):
+    async def slow(self, item_ids=None):
         await asyncio.sleep(0.5)
-        return await original(self)
+        return await original(self, item_ids)
 
     monkeypatch.setattr(ArchiveService, "archive_missing", slow)
     monkeypatch.setattr(archive_routes, "MISSING_QUEUE_WAIT_SECONDS", 0.05)
     client = client_for(tmp_path, master_key)
     try:
         started = client.post("/api/archive/missing")
+        during = client.get("/api/archive/progress").json()
         import time as _time
 
         _time.sleep(1.0)
@@ -147,3 +148,6 @@ def test_save_everything_answers_quickly_and_keeps_queueing_in_the_background(
     assert started.json()["queueing"] is True
     assert started.json()["batch"]["kind"] == "missing"
     assert sorted(job["remoteId"] for job in jobs) == ["902", "903"]
+    # While queueing, progress reports the whole plan, not just what is queued so far.
+    assert during["active"]["plannedItems"] == 2
+    assert during["active"]["queueing"] is True

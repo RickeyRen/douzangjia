@@ -212,6 +212,9 @@ export type ArchiveProgress = {
     status: "running" | "paused";
     batches: ArchiveProgressBatch[];
     totalItems: number;
+    /** Whole plan while a bulk download is still being queued in the background. */
+    plannedItems?: number;
+    queueing?: boolean;
     completedItems: number;
     failedItems: number;
     runningItems: number;
@@ -779,3 +782,7 @@ export const triggerSync = (fullScan = false) =>
     method: "POST",
     body: JSON.stringify({ fullScan }),
   });
+
+/** Items the active download will cover, counting ones still being queued. */
+export const plannedTotal = (active: { totalItems: number; plannedItems?: number }) =>
+  Math.max(active.totalItems, active.plannedItems ?? 0);

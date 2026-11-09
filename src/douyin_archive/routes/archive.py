@@ -143,15 +143,31 @@ async def archive_missing(request: Request):
     service = _service(request)
     task = getattr(state, "missing_archive_task", None)
     if task is None or task.done():
-        task = asyncio.create_task(service.archive_missing())
+        item_ids = await service.missing_item_ids()
+        batch = await service.batches.create_batch("missing", "all")
+        # The progress card shows the whole plan while items are still being queued.
+        state.missing_archive_plan = {"batchId": batch.id, "planned": len(item_ids)}
+        task = asyncio.create_task(service.archive_missing(item_ids))
         task.add_done_callback(_log_queue_failure)
         state.missing_archive_task = task
     try:
         batch, skipped = await asyncio.wait_for(asyncio.shield(task), MISSING_QUEUE_WAIT_SECONDS)
     except TimeoutError:
-        batch = await service.batches.create_batch("missing", "all")
+        plan = getattr(state, "missing_archive_plan", None) or {}
+        batch = await service.batches.get_batch(int(plan["batchId"])) if plan else None
+        if batch is None:
+            batch = await service.batches.create_batch("missing", "all")
         return {"batch": _serialize_batch(batch), "skipped": 0, "queueing": True}
     return {"batch": _serialize_batch(batch), "skipped": skipped, "queueing": False}
+
+
+def queueing_plan(request: Request) -> dict[str, int] | None:
+    """The bulk download still being queued, if any."""
+    task = getattr(request.app.state, "missing_archive_task", None)
+    plan = getattr(request.app.state, "missing_archive_plan", None)
+    if task is None or task.done() or not plan:
+        return None
+    return plan
 
 
 def _log_queue_failure(task: asyncio.Task) -> None:
@@ -161,7 +177,13 @@ def _log_queue_failure(task: asyncio.Task) -> None:
 
 @router.get("/archive/progress")
 async def archive_progress(request: Request):
-    return await ArchiveProgressService(request.app.state.database).snapshot()
+    snapshot = await ArchiveProgressService(request.app.state.database).snapshot()
+    plan = queueing_plan(request)
+    active = snapshot.get("active")
+    if plan and active and any(batch["id"] == plan["batchId"] for batch in active["batches"]):
+        active["plannedItems"] = max(int(active["totalItems"]), plan["planned"])
+        active["queueing"] = True
+    return snapshot
 
 
 @router.post("/archive/retry-failed")

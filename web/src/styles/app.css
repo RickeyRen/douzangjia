@@ -4852,3 +4852,10 @@ video {
     flex-wrap: wrap;
   }
 }
+
+/* A bulk download still adding items to its queue */
+.dl-queueing {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -139,7 +139,10 @@ class Database:
         if current is None:
             raise RuntimeError("database transaction requires an asyncio task")
         if current is self._transaction_owner:
-            raise RuntimeError("nested database transactions are not supported")
+            # Joining the outer transaction lets bulk work batch many small writes
+            # into one commit; an error still rolls back the whole outer block.
+            yield
+            return
         async with self._operation_lock:
             self._transaction_owner = current
             await self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")

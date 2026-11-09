@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Iterable
+from contextlib import nullcontext
 
 from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .db import Database
@@ -17,6 +18,9 @@ class ArchiveTargetNotFound(LookupError):
 
 class ArchivePayloadUnavailable(RuntimeError):
     pass
+
+
+QUEUE_CHUNK = 200
 
 
 class ArchiveService:
@@ -106,22 +110,49 @@ class ArchiveService:
             "estimatedBytes": int(average * missing) if average else None,
         }
 
-    async def archive_missing(self) -> tuple[ArchiveBatch, int]:
-        """Queue every library item that has no ready media yet, newest first."""
+    async def missing_item_ids(self) -> list[str]:
+        """Library items with no ready media yet, newest first."""
         rows = await self.db.fetchall(
             "SELECT remote_id FROM items i WHERE NOT EXISTS "
             "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready') "
             f"AND {library_item_sql('i')} "
             "ORDER BY first_seen_at DESC, remote_id DESC"
         )
-        return await self._archive_ids(
-            "missing", "all", (str(row["remote_id"]) for row in rows), strict=False
-        )
+        return [str(row["remote_id"]) for row in rows]
+
+    async def archive_missing(self, item_ids: list[str] | None = None) -> tuple[ArchiveBatch, int]:
+        """Queue every library item that has no ready media yet, newest first."""
+        ids = item_ids if item_ids is not None else await self.missing_item_ids()
+        return await self._archive_ids("missing", "all", ids, strict=False)
 
     async def _archive_ids(
         self, kind: str, target_id: str, item_ids: Iterable[str], *, strict: bool = True
     ) -> ArchiveBatch | tuple[ArchiveBatch, int]:
         batch = await self.batches.create_batch(kind, target_id)
+        skipped = 0
+        pending = list(item_ids)
+        for start in range(0, len(pending), QUEUE_CHUNK):
+            # One commit per chunk instead of two per item: queueing ten thousand
+            # items took most of an hour behind the background writers.
+            # Strict batches record their failure before raising, so they keep
+            # committing item by item instead of rolling that record back.
+            scope = nullcontext() if strict else self.db.transaction(immediate=True)
+            async with scope:
+                skipped += await self._queue_chunk(
+                    batch, kind, target_id, pending[start : start + QUEUE_CHUNK], strict=strict
+                )
+        refreshed = await self.batches.refresh_batch(batch.id)
+        if refreshed is not None and refreshed.status == "queued" and refreshed.total_items == 0:
+            # Nothing could be queued; close the empty batch instead of leaving it open.
+            await self.batches.set_status(batch.id, "completed")
+            refreshed = await self.batches.get_batch(batch.id)
+        if refreshed is None:
+            raise RuntimeError("archive batch disappeared during expansion")
+        return (refreshed, skipped) if not strict else refreshed
+
+    async def _queue_chunk(
+        self, batch: ArchiveBatch, kind: str, target_id: str, item_ids: list[str], *, strict: bool
+    ) -> int:
         skipped = 0
         for item_id in item_ids:
             job = await self.jobs.get_by_key("download", item_id)
@@ -153,10 +184,7 @@ class ArchiveService:
                 (batch.id, job.id),
             )
             await self.batches.add_item(batch.id, item_id, job_id=job.id)
-        refreshed = await self.batches.refresh_batch(batch.id)
-        if refreshed is None:
-            raise RuntimeError("archive batch disappeared during expansion")
-        return (refreshed, skipped) if not strict else refreshed
+        return skipped
 
     async def _synced_payload(self, item_id: str) -> dict[str, object] | None:
         rows = await self.db.fetchall(

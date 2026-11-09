@@ -192,6 +192,9 @@ class ArchiveBatchRepository:
         downloaded_bytes = sum(int(row["downloaded_bytes"]) for row in rows)
         if batch.status in {"paused", "cancelled"}:
             status = batch.status
+        elif not rows and batch.status == "queued":
+            # Still being filled in the background; the filler finishes it.
+            status = "queued"
         elif not rows or completed == len(rows):
             status = "completed"
         elif failed == len(rows):

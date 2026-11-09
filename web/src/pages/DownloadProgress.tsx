@@ -1,7 +1,7 @@
 import { ArrowClockwise, CaretRight, CloudArrowDown, Pause, Play, Stop, WarningCircle } from "@phosphor-icons/react";
 import { useState } from "react";
 
-import { controlArchiveBatch, retryFailedDownloads, type ArchiveProgress, type ArchiveProgressItem } from "../app/api";
+import { controlArchiveBatch, plannedTotal, retryFailedDownloads, type ArchiveProgress, type ArchiveProgressItem } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
 import { formatBytes, formatEta, formatInteger, formatSpeed } from "../lib/format";
@@ -39,7 +39,7 @@ function useBatchControl(active: ActiveBatch) {
   const settled = active.completedItems + active.failedItems;
 
   async function control(action: "pause" | "resume" | "cancel") {
-    if (action === "cancel" && !window.confirm(t("停止下载剩下的 {n} 个作品？已经存好的会保留。", { n: formatInteger(active.totalItems - settled) }))) return;
+    if (action === "cancel" && !window.confirm(t("停止下载剩下的 {n} 个作品？已经存好的会保留。", { n: formatInteger(plannedTotal(active) - settled) }))) return;
     setBusy(true);
     try {
       const targets = active.batches.filter((batch) => (action === "resume" ? batch.status === "paused" : batch.status !== "paused" || action === "cancel"));
@@ -57,7 +57,8 @@ function useBatchControl(active: ActiveBatch) {
 function HomeActiveCard({ active }: { active: ActiveBatch }) {
   const { busy, control } = useBatchControl(active);
   const paused = active.status === "paused";
-  const percent = active.totalItems ? (active.completedItems / active.totalItems) * 100 : 0;
+  const total = plannedTotal(active);
+  const percent = total ? (active.completedItems / total) * 100 : 0;
   const labels = active.batches.map((batch) => batch.label).join("、");
   return (
     <section className={`card dl-card dl-prog${paused ? " is-paused" : ""}`} aria-label={t("下载进度")}>
@@ -82,13 +83,18 @@ function HomeActiveCard({ active }: { active: ActiveBatch }) {
       </div>
       <div className="dl-n">
         <span className="num big">{formatInteger(active.completedItems)}</span>
-        <span className="num of">/ {formatInteger(active.totalItems)}</span>
+        <span className="num of">/ {formatInteger(total)}</span>
         <span className="sp" />
         <span className="num pct">{percent >= 10 || percent === 0 ? Math.floor(percent) : percent.toFixed(1)}%</span>
       </div>
       <div className="pbar">
         <i style={{ width: `${Math.min(100, percent)}%` }} />
       </div>
+      {active.queueing ? (
+        <p className="dl-queueing">
+          {t("还在加入下载队列：已加入 {queued} / {planned} 个", { queued: formatInteger(active.totalItems), planned: formatInteger(total) })}
+        </p>
+      ) : null}
       <div className="meta3">
         <div>
           <span>{t("速度")}</span>
@@ -159,7 +165,8 @@ function ActiveDownload({ progress }: { progress: ArchiveProgress }) {
   const active = progress.active!;
   const { busy, control } = useBatchControl(active);
   const paused = active.status === "paused";
-  const percent = active.totalItems ? (active.completedItems / active.totalItems) * 100 : 0;
+  const total = plannedTotal(active);
+  const percent = total ? (active.completedItems / total) * 100 : 0;
   const labels = active.batches.map((batch) => batch.label).join("、");
 
   return (
@@ -192,8 +199,13 @@ function ActiveDownload({ progress }: { progress: ArchiveProgress }) {
       <div className="download-meter">
         <strong className="download-percent num">{Math.floor(percent)}%</strong>
         <span className="num">
-          {t("已完成 {done} / {total} 个作品", { done: formatInteger(active.completedItems), total: formatInteger(active.totalItems) })}
+          {t("已完成 {done} / {total} 个作品", { done: formatInteger(active.completedItems), total: formatInteger(total) })}
         </span>
+        {active.queueing ? (
+          <small className="dl-queueing">
+            {t("还在加入下载队列：已加入 {queued} / {planned} 个", { queued: formatInteger(active.totalItems), planned: formatInteger(total) })}
+          </small>
+        ) : null}
       </div>
       <Progress value={percent} tone={paused ? "warning" : "info"} />
 
