@@ -85,13 +85,16 @@ def test_missing_summary_and_archive_everything(tmp_path: Path, master_key: str)
     try:
         summary = client.get("/api/archive/missing").json()
         queued = client.post("/api/archive/missing")
+        after = client.get("/api/archive/missing").json()
         again = client.post("/api/archive/missing")
         jobs = client.get("/api/jobs").json()["items"]
     finally:
         client.__exit__(None, None, None)
 
     # 904 belongs to no source, so it is outside the library and never queued.
-    assert summary == {"missing": 2, "estimatedBytes": 2 * 4096}
+    assert summary == {"missing": 2, "queued": 0, "estimatedBytes": 2 * 4096}
+    # Once queued they still lack media, but nothing is left for "save everything" to add.
+    assert after["missing"] == 2 and after["queued"] == 2
     assert queued.status_code == 202 and queued.json()["skipped"] == 0
     assert queued.json()["batch"]["kind"] == "missing"
     # The active "missing" batch is reused instead of duplicated.

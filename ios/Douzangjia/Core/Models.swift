@@ -199,7 +199,11 @@ struct VanishedPage: Decodable {
 
 struct MissingSummary: Decodable {
     let missing: Int
+    let queued: Int?
     let estimatedBytes: Int?
+
+    /// Items without media that no download is waiting on yet.
+    var unqueued: Int { max(0, missing - (queued ?? 0)) }
 }
 
 struct ArchiveProgressBatch: Decodable, Identifiable {

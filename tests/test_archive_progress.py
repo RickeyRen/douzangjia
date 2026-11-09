@@ -86,7 +86,7 @@ def test_feed_leftovers_stay_out_of_counts_and_bulk_download(tmp_path: Path, mas
     # The recommend source itself is still browsable.
     assert [item["awemeId"] for item in recommend] == ["803"]
     assert [creator["id"] for creator in creators] == ["fav"]
-    assert missing == {"missing": 1, "estimatedBytes": 1000}
+    assert missing == {"missing": 1, "queued": 0, "estimatedBytes": 1000}
     assert queued["batch"]["totalItems"] == 1
 
 

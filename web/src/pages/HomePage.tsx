@@ -1,7 +1,7 @@
 import { CaretRight, CloudCheck, CloudSlash, FilmStrip, Shuffle, Star, Users } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { archiveMissing, fetchHome, fetchMissingSummary, type FeedItem, type HomeSnapshot } from "../app/api";
+import { archiveMissing, fetchHome, fetchMissingSummary, unqueuedCount, type FeedItem, type HomeSnapshot, type MissingSummary } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
 import { formatBytes, formatInteger, greeting } from "../lib/format";
@@ -19,7 +19,7 @@ import { t } from "../i18n/t";
 
 export function HomePage() {
   const { account, toast } = useAppData();
-  const [missing, setMissing] = useState<{ missing: number; estimatedBytes: number | null } | null>(null);
+  const [missing, setMissing] = useState<MissingSummary | null>(null);
   const [queueing, setQueueing] = useState(false);
   const [home, setHome] = useState<HomeSnapshot | null>(null);
   const [error, setError] = useState(false);
@@ -48,7 +48,7 @@ export function HomePage() {
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   async function downloadMissing() {
-    if (!missing || !window.confirm(t("把 {n} 个收藏作品全部存到 NAS？", { n: formatInteger(missing.missing) }) + (missing.estimatedBytes ? t("预计需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : ""))) return;
+    if (!missing || !window.confirm(t("把 {n} 个收藏作品全部存到 NAS？", { n: formatInteger(unqueuedCount(missing)) }) + (missing.estimatedBytes ? t("预计需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : ""))) return;
     setQueueing(true);
     try {
       const result = await archiveMissing();
@@ -138,10 +138,11 @@ export function HomePage() {
 
       {progress && (progress.active || progress.failedTotal > 0) ? (
         <DownloadProgress progress={progress} variant="home" />
-      ) : progress && missing && missing.missing > 0 ? (
+      ) : null}
+      {progress && missing && unqueuedCount(missing) > 0 ? (
         <section className="cta">
           <div>
-            <strong>{t("还有 {n} 个收藏作品没有存到 NAS", { n: formatInteger(missing.missing) })}</strong>
+            <strong>{t("还有 {n} 个收藏作品没有存到 NAS", { n: formatInteger(unqueuedCount(missing)) })}</strong>
             <p>{missing.estimatedBytes ? t("按已下载作品的平均大小估算，大约需要 {size}。", { size: formatBytes(missing.estimatedBytes) }) : t("它们目前只有抖音上的链接，作者删除后就看不到了。")}</p>
           </div>
           <button type="button" className="btn btn-primary btn-sm" disabled={queueing} onClick={() => void downloadMissing()}>

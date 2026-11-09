@@ -59,7 +59,7 @@ struct HomeView: View {
                 PlayerView(items: selection.items, startIndex: selection.index)
             }
             .confirmationDialog(
-                "把 \(Format.integer(missing?.missing ?? 0)) 个收藏作品全部存到 NAS？",
+                "把 \(Format.integer(missing?.unqueued ?? 0)) 个收藏作品全部存到 NAS？",
                 isPresented: $confirmSaveAll,
                 titleVisibility: .visible
             ) {
@@ -92,7 +92,9 @@ struct HomeView: View {
                 DownloadProgressCard(active: active, compact: true) { await poller.refresh(client: model.client) }
             } else if progress.failedTotal > 0 {
                 FailureSection(progress: progress) { await poller.refresh(client: model.client) }
-            } else if let missing, missing.missing > 0 {
+            }
+            // Shown alongside progress and failures, so a stuck batch never hides it.
+            if let missing, missing.unqueued > 0 {
                 saveAllBanner(missing)
             }
         }
@@ -100,7 +102,7 @@ struct HomeView: View {
 
     private func saveAllBanner(_ missing: MissingSummary) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("还有 \(Format.integer(missing.missing)) 个收藏作品没有存到 NAS")
+            Text("还有 \(Format.integer(missing.unqueued)) 个收藏作品没有存到 NAS")
                 .font(.headline)
             Text(missing.estimatedBytes.map { "按已下载作品的平均大小估算，大约需要 \(Format.bytes($0))。" }
                  ?? "它们目前只有抖音上的链接，作者删除后就看不到了。")

@@ -89,9 +89,22 @@ class ArchiveService:
             "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
             "FROM media_files WHERE status='ready'"
         )
+        # Of those, how many already have a download waiting or running; the rest are
+        # the ones a "save everything" would add.
+        queued = await self.db.fetchone(
+            "SELECT COUNT(*) AS queued FROM items i WHERE NOT EXISTS "
+            "(SELECT 1 FROM media_files mf WHERE mf.item_id=i.remote_id AND mf.status='ready') "
+            "AND EXISTS (SELECT 1 FROM download_jobs j WHERE j.kind='download' "
+            "AND j.remote_id=i.remote_id AND j.status IN ('pending', 'running', 'retry', 'paused')) "
+            f"AND {library_item_sql('i')}"
+        )
         missing = int(row["missing"]) if row else 0
         average = int(sizes["bytes"]) / int(sizes["items"]) if sizes and int(sizes["items"]) else None
-        return {"missing": missing, "estimatedBytes": int(average * missing) if average else None}
+        return {
+            "missing": missing,
+            "queued": int(queued["queued"]) if queued else 0,
+            "estimatedBytes": int(average * missing) if average else None,
+        }
 
     async def archive_missing(self) -> tuple[ArchiveBatch, int]:
         """Queue every library item that has no ready media yet, newest first."""

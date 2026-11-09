@@ -693,7 +693,12 @@ export const archiveSelection = (itemIds: string[]) =>
   request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/selection", { method: "POST", body: JSON.stringify({ itemIds }) });
 export const fetchArchiveProgress = () => request<ArchiveProgress>("/api/archive/progress");
 export const retryFailedDownloads = () => request<{ retried: number }>("/api/archive/retry-failed", { method: "POST" });
-export const fetchMissingSummary = () => request<{ missing: number; estimatedBytes: number | null }>("/api/archive/missing");
+export type MissingSummary = { missing: number; queued?: number; estimatedBytes: number | null };
+export const fetchMissingSummary = () => request<MissingSummary>("/api/archive/missing");
+
+/** Library items without media that no download is waiting on yet. */
+export const unqueuedCount = (summary: MissingSummary | null | undefined) =>
+  summary ? Math.max(0, summary.missing - (summary.queued ?? 0)) : 0;
 export const archiveMissing = () => request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/missing", { method: "POST" });
 export const bulkStar = (itemIds: string[], starred: boolean) =>
   request<{ starred: string[] }>("/api/items/bulk-star", { method: "POST", body: JSON.stringify({ itemIds, starred }) });
