@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from typing import Any
 
+from .archive_repository import ArchiveBatchRepository
 from .db import Database
 from .provider.normalizers import normalize_page
 from .worker import MEDIA_URL_EXPIRED
@@ -23,6 +24,9 @@ RUN_EVERY_SECONDS = 30
 # back off instead of deciding it is gone (remote checks decide that).
 UNAVAILABLE_BACKOFF_SECONDS = 600
 MAX_UNAVAILABLE_BACKOFF_SECONDS = 6 * 3600
+# After this many tries Douyin is not going to hand out a link; stop retrying so
+# the batch can finish and the item shows up under failures with a retry button.
+MAX_UNAVAILABLE_ATTEMPTS = 24
 
 RecordFetcher = Callable[[list[str]], Awaitable[Sequence[dict[str, Any]]]]
 
@@ -72,6 +76,13 @@ class MediaUrlRefresher:
                         (json.dumps(asdict(item), separators=(",", ":")), now, now, row["id"]),
                     )
                     refreshed += 1
+                elif int(row["attempts"]) >= MAX_UNAVAILABLE_ATTEMPTS:
+                    await self.db.execute(
+                        "UPDATE download_jobs SET status='failed', claimed_by=NULL, "
+                        "last_error_code=?, updated_at=? WHERE id=? AND status='retry'",
+                        ("MEDIA_URL_UNAVAILABLE", now, row["id"]),
+                    )
+                    await self._refresh_batch(row["id"])
                 else:
                     delay = min(
                         MAX_UNAVAILABLE_BACKOFF_SECONDS,
@@ -88,3 +99,8 @@ class MediaUrlRefresher:
         if refreshed:
             logger.info("re-signed %s expired media URLs", refreshed)
         return refreshed
+
+    async def _refresh_batch(self, job_id: int) -> None:
+        row = await self.db.fetchone("SELECT batch_id FROM download_jobs WHERE id=?", (job_id,))
+        if row is not None and row["batch_id"] is not None:
+            await ArchiveBatchRepository(self.db).refresh_batch(int(row["batch_id"]))

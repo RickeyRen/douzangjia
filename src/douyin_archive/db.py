@@ -9,7 +9,10 @@ from typing import Any
 
 import aiosqlite
 
-CACHE_SIZE = -65536  # KiB, i.e. 64 MiB per connection
+CACHE_SIZE = -65536  # KiB, i.e. 64 MiB for the writer
+# Pages read by the API stay in memory: the whole archive database is a few hundred MiB
+# and the NAS evicts its page cache under pressure, which made cold reads take seconds.
+READER_CACHE_SIZE = -262144
 
 
 def _is_plain_select(sql: str) -> bool:
@@ -53,7 +56,7 @@ class Database:
             reader.row_factory = aiosqlite.Row
             await reader.execute("PRAGMA busy_timeout=5000")
             await reader.execute("PRAGMA query_only=ON")
-            await reader.execute(f"PRAGMA cache_size={CACHE_SIZE}")
+            await reader.execute(f"PRAGMA cache_size={READER_CACHE_SIZE}")
             self._reader = reader
         return self
 

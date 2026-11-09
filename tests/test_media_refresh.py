@@ -93,3 +93,47 @@ def test_forbidden_media_is_marked_for_refresh(tmp_path: Path) -> None:
         return job.status, job.last_error_code
 
     assert asyncio.run(scenario()) == ("retry", "MEDIA_URL_EXPIRED")
+
+
+def test_a_link_douyin_never_hands_out_stops_retrying_so_the_batch_can_finish(tmp_path: Path) -> None:
+    """Catches the progress bar sitting at 99% for weeks behind a few unfetchable items."""
+    from douyin_archive.archive_repository import ArchiveBatchRepository
+
+    async def scenario() -> tuple[dict, dict, str]:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        now = int(time.time())
+        await database.execute(
+            "INSERT INTO archive_batches (id, kind, target_id, status, discovered_count, created_at, "
+            "updated_at) VALUES (7, 'missing', 'all', 'running', 1, ?, ?)",
+            (now, now),
+        )
+        await database.execute(
+            "INSERT INTO items (remote_id, author_name, description, item_type, first_seen_at, last_seen_at) "
+            "VALUES ('999', 'a', 'gone', 'video', 1, 1)"
+        )
+        await queue(database, "998", attempts=1, code="MEDIA_URL_EXPIRED")
+        await queue(database, "999", attempts=240, code="MEDIA_URL_EXPIRED")
+        await database.execute("UPDATE download_jobs SET batch_id=7 WHERE remote_id='999'")
+        job = await database.fetchone("SELECT id FROM download_jobs WHERE remote_id='999'")
+        await database.execute(
+            "INSERT INTO archive_batch_items (batch_id, item_id, job_id, created_at) VALUES (7, '999', ?, ?)",
+            (job["id"], now),
+        )
+
+        async def fetch(ids: list[str]) -> list[dict]:
+            return []
+
+        await MediaUrlRefresher(database, fetch).run_batch()
+        rows = {
+            row["remote_id"]: dict(row)
+            for row in await database.fetchall("SELECT remote_id, status, last_error_code FROM download_jobs")
+        }
+        batch = await ArchiveBatchRepository(database).get_batch(7)
+        await database.close()
+        return rows["998"], rows["999"], batch.status
+
+    young, old, batch_status = asyncio.run(scenario())
+    assert young["status"] == "retry"
+    assert (old["status"], old["last_error_code"]) == ("failed", "MEDIA_URL_UNAVAILABLE")
+    # The only item failed for good, so the batch no longer counts as running.
+    assert batch_status == "failed"

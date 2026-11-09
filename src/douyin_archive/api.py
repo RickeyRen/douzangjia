@@ -191,10 +191,17 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             if hasattr(runtime, "poster_cache"):
                 application.state.poster_cache = runtime.poster_cache
             await runtime.start()
+        warm_home = None
+        if runtime is not None:
+            from .routes.home import warm_library_counts
+
+            warm_home = asyncio.create_task(warm_library_counts(application))
         install_task_dump_signal(asyncio.get_running_loop())
         try:
             yield
         finally:
+            if warm_home is not None:
+                warm_home.cancel()
             if runtime is not None:
                 await runtime.stop()
             if owns_auth_service:

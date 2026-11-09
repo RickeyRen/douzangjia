@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -13,6 +15,9 @@ from .feed import _serialize_item, cover_store_for
 router = APIRouter(prefix="/api")
 
 HOME_SHELF_SIZE = 12
+# Library-wide counts scan every item; they barely move, so serve the last answer
+# and recount in the background at most this often.
+LIBRARY_TOTALS_TTL_SECONDS = 300
 SHELF_SOURCE_KINDS = ("favorite_collection", "favorite_video", "like", "post", "watch_later")
 
 
@@ -31,9 +36,7 @@ async def sync_health(request: Request, *, now: int | None = None) -> dict[str, 
     )
 
 
-@router.get("/home")
-async def home(request: Request) -> dict[str, Any]:
-    database = request.app.state.database
+async def _count_library(database: Any) -> dict[str, Any]:
     in_library = library_item_sql("i")
     totals = await database.fetchone(
         "SELECT COUNT(*) AS items, "
@@ -41,13 +44,59 @@ async def home(request: Request) -> dict[str, Any]:
         "COALESCE(SUM(CASE WHEN item_type='gallery' THEN 1 ELSE 0 END), 0) AS galleries "
         f"FROM items i WHERE {in_library}"
     )
-    local = await database.fetchone(
-        "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
-        "FROM media_files WHERE status='ready'"
-    )
     creators = await database.fetchone(
         "SELECT COUNT(*) AS total FROM creators c WHERE EXISTS "
         f"(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {in_library})"
+    )
+    creator_rows = await database.fetchall(
+        "SELECT c.remote_id, c.nickname, c.unique_id, c.avatar_url, COUNT(i.remote_id) AS items "
+        "FROM creators c JOIN items i ON i.creator_id=c.remote_id "
+        f"WHERE {in_library} GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
+        (HOME_SHELF_SIZE,),
+    )
+    return {
+        "items": totals["items"],
+        "videos": totals["videos"],
+        "galleries": totals["galleries"],
+        "creators": creators["total"],
+        "creator_rows": [dict(row) for row in creator_rows],
+    }
+
+
+async def warm_library_counts(app: Any) -> None:
+    """Count once at startup so the first visit after a restart is not the slow one."""
+    if getattr(app.state, "home_library_counts", None) is None:
+        app.state.home_library_counts = (time.monotonic(), await _count_library(app.state.database))
+
+
+async def library_counts(request: Request) -> dict[str, Any]:
+    """Library-wide counts, recomputed in the background once they are stale."""
+    state = request.app.state
+    database = state.database
+    cached = getattr(state, "home_library_counts", None)
+    now = time.monotonic()
+    if cached is None:
+        counts = await _count_library(database)
+        state.home_library_counts = (now, counts)
+        return counts
+    computed_at, counts = cached
+    refreshing = getattr(state, "home_library_refresh", None)
+    if now - computed_at > LIBRARY_TOTALS_TTL_SECONDS and (refreshing is None or refreshing.done()):
+
+        async def refresh() -> None:
+            state.home_library_counts = (time.monotonic(), await _count_library(database))
+
+        state.home_library_refresh = asyncio.create_task(refresh())
+    return counts
+
+
+@router.get("/home")
+async def home(request: Request) -> dict[str, Any]:
+    database = request.app.state.database
+    counts = await library_counts(request)
+    local = await database.fetchone(
+        "SELECT COUNT(DISTINCT item_id) AS items, COALESCE(SUM(byte_size), 0) AS bytes "
+        "FROM media_files WHERE status='ready'"
     )
     stars = await database.fetchone("SELECT COUNT(*) AS total FROM item_stars")
     gone = await database.fetchone(
@@ -82,7 +131,7 @@ async def home(request: Request) -> dict[str, Any]:
         )
 
     recent_rows = await database.fetchall(
-        f"SELECT i.* FROM items i WHERE {in_library} "
+        f"SELECT i.* FROM items i WHERE {library_item_sql('i')} "
         "ORDER BY i.first_seen_at DESC, i.remote_id DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
@@ -130,21 +179,16 @@ async def home(request: Request) -> dict[str, Any]:
                 ],
             }
         )
-    creator_rows = await database.fetchall(
-        "SELECT c.remote_id, c.nickname, c.unique_id, c.avatar_url, COUNT(i.remote_id) AS items "
-        "FROM creators c JOIN items i ON i.creator_id=c.remote_id "
-        f"WHERE {in_library} GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
-        (HOME_SHELF_SIZE,),
-    )
+    creator_rows = counts["creator_rows"]
     covers = cover_store_for(request)
     return {
         "stats": {
-            "items": totals["items"],
-            "videos": totals["videos"],
-            "galleries": totals["galleries"],
+            "items": counts["items"],
+            "videos": counts["videos"],
+            "galleries": counts["galleries"],
             "downloadedItems": local["items"],
             "archivedBytes": local["bytes"],
-            "creators": creators["total"],
+            "creators": counts["creators"],
             "starred": stars["total"],
             "gone": gone["total"],
             "remoteChecked": checked["total"],
