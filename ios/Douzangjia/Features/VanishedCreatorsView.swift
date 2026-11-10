@@ -321,7 +321,11 @@ struct CreatorArchiveView: View {
             if !extras.isEmpty {
                 Text(extras.joined(separator: " · ")).font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Theme.muted)
             }
-            note(creator, status: status, kept: kept)
+            // A creator still active on Douyin has nothing "original" to explain;
+            // the note is only for profiles that changed or disappeared.
+            if status != .active {
+                note(creator, status: status, kept: kept)
+            }
             HStack(spacing: 8) {
                 ArchiveStat(title: "记录作品", value: Format.integer(creator.knownItemCount))
                 ArchiveStat(title: "已存视频", value: Format.integer(creator.archivedItemCount), highlight: true)
@@ -408,7 +412,7 @@ struct CreatorArchiveView: View {
 
     @ViewBuilder
     private func history(_ creator: Creator) -> some View {
-        let entries = (creator.archive?.history ?? []).reversed()
+        let entries = distinctProfiles((creator.archive?.history ?? []).reversed())
         if entries.count > 1 {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader(title: "资料变化", count: "\(entries.count)")
@@ -522,4 +526,10 @@ private struct ArchiveStat: View {
         }
         .card(radius: Theme.radiusInner, padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 10))
     }
+}
+
+/// Snapshots also record avatar or count changes; the strip shows only name changes.
+private func distinctProfiles<S: Sequence>(_ snapshots: S) -> [CreatorSnapshot] where S.Element == CreatorSnapshot {
+    var seen = Set<String>()
+    return snapshots.filter { seen.insert($0.nickname).inserted }
 }
