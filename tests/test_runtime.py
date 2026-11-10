@@ -501,3 +501,38 @@ async def test_scheduled_run_without_run_id_is_marked_timed_out(tmp_path: Path) 
     assert [tuple(row) for row in rows] == [("failed", "SYNC_TIMEOUT")]
     await coordinator.close()
     await database.close()
+
+
+class WedgedBrowserCoordinator(FakeBrowserCoordinator):
+    """A browser whose login check never answers, like a hung Chromium."""
+
+    async def is_douyin_authenticated(self) -> bool:
+        await asyncio.Event().wait()
+        return True
+
+
+async def test_wedged_browser_fails_the_run_quickly_and_visibly(tmp_path: Path) -> None:
+    """Catches sync silently stalling for hours behind a hung login check."""
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    browser = WedgedBrowserCoordinator()
+    coordinator = RuntimeSyncCoordinator(
+        database,
+        ArchiveRepository(database),
+        JobRepository(database),
+        FakeAuth(),
+        browser,
+        source_factory=FakeSource,
+        run_timeout_seconds=30,
+        prepare_timeout_seconds=0.05,
+    )
+
+    result = await asyncio.wait_for(coordinator.run_incremental(), timeout=5)
+
+    assert result.error_code == "BROWSER_STUCK"
+    rows = await database.fetchall("SELECT status, error_code, finished_at FROM sync_runs")
+    assert [(row["status"], row["error_code"]) for row in rows] == [("failed", "BROWSER_STUCK")]
+    assert rows[0]["finished_at"] is not None
+    assert browser.discards == 1
+    await coordinator.close()
+    await database.close()

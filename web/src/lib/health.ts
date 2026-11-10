@@ -33,6 +33,7 @@ const ERROR_TEXT: Record<string, string> = {
   DOUYIN_PAGE_CRASHED: "后台页面多次崩溃，已重开仍未完成",
   SYNC_FAILED: "同步意外中断",
   SYNC_TIMEOUT: "同步耗时过长，已放弃并重启后台浏览器",
+  BROWSER_STUCK: "后台浏览器没有响应，已重启，下次同步会重试",
   SYNC_INTERRUPTED: "同步被服务重启打断，下次会接着做",
 };
 

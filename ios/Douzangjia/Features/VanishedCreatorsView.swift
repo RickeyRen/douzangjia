@@ -329,7 +329,8 @@ struct CreatorArchiveView: View {
             HStack(spacing: 8) {
                 ArchiveStat(title: "记录作品", value: Format.integer(creator.knownItemCount))
                 ArchiveStat(title: "已存视频", value: Format.integer(creator.archivedItemCount), highlight: true)
-                ArchiveStat(title: "粉丝", value: (kept?.followerCount ?? creator.followerCount).map { Format.compact($0) } ?? "—")
+                // Douyin reports 0 when the creator hides the count, so 0 reads as unknown.
+                ArchiveStat(title: "粉丝", value: (kept?.followerCount ?? creator.followerCount).flatMap { $0 > 0 ? Format.compact($0) : nil } ?? "—")
             }
             saveBar(creator)
             history(creator)
@@ -385,7 +386,7 @@ struct CreatorArchiveView: View {
         let fraction = creator.knownItemCount > 0 ? Double(creator.archivedItemCount) / Double(creator.knownItemCount) : 0
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("\(Format.integer(creator.archivedItemCount)) 个作品已存到 NAS，其余只有封面和文字")
+                Text(saveSummary(creator))
                     .font(.system(size: 12)).foregroundStyle(Theme.muted)
                     .lineLimit(2)
                 Spacer(minLength: 8)
@@ -532,4 +533,13 @@ private struct ArchiveStat: View {
 private func distinctProfiles<S: Sequence>(_ snapshots: S) -> [CreatorSnapshot] where S.Element == CreatorSnapshot {
     var seen = Set<String>()
     return snapshots.filter { seen.insert($0.nickname).inserted }
+}
+
+/// One sentence for the save bar that stays true at 0%, partway and 100%.
+private func saveSummary(_ creator: Creator) -> String {
+    let saved = creator.archivedItemCount
+    let known = creator.knownItemCount
+    if known > 0 && saved >= known { return "全部 \(Format.integer(known)) 个作品都已存到 NAS" }
+    if saved == 0 { return "还没有作品存到 NAS，只有封面和文字" }
+    return "\(Format.integer(saved)) 个作品已存到 NAS，其余只有封面和文字"
 }

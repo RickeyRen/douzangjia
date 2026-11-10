@@ -327,10 +327,14 @@ function ArchiveProfile({ creator, onChange }: { creator: Creator; onChange: (cr
           })}
         </p>
         <p>
-          {t("记录了 {known} 个作品，其中 {saved} 个的视频已存到 NAS，其余只有封面和文字。", {
-            known: formatInteger(creator.knownItemCount),
-            saved: formatInteger(creator.archivedItemCount),
-          })}
+          {creator.knownItemCount > 0 && creator.archivedItemCount >= creator.knownItemCount
+            ? t("记录了 {known} 个作品，视频全部已存到 NAS。", { known: formatInteger(creator.knownItemCount) })
+            : creator.archivedItemCount === 0
+              ? t("记录了 {known} 个作品，视频都没有存下来，只有封面和文字。", { known: formatInteger(creator.knownItemCount) })
+              : t("记录了 {known} 个作品，其中 {saved} 个的视频已存到 NAS，其余只有封面和文字。", {
+                  known: formatInteger(creator.knownItemCount),
+                  saved: formatInteger(creator.archivedItemCount),
+                })}
         </p>
         <div className="profile-actions">
           {status === "reset" ? (

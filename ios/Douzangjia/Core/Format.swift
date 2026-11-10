@@ -68,6 +68,7 @@ enum Format {
             "SESSION_EXPIRED": "抖音登录已失效",
             "SYNC_INTERRUPTED": "同步被中断",
             "SYNC_TIMEOUT": "同步耗时过长，已重启后台浏览器",
+            "BROWSER_STUCK": "后台浏览器没有响应，已重启，下次同步会重试",
             "NETWORK_TIMEOUT": "访问抖音超时",
         ]
         return known[code] ?? code

@@ -34,6 +34,7 @@ from .creator_catalog import SCAN_EVERY_SECONDS as CREATOR_CATALOG_EVERY_SECONDS
 from .creator_catalog import CreatorCatalogScanner
 from .creator_sync import CreatorSyncService
 from .db import Database
+from .diagnostics import log_asyncio_tasks
 from .downloader import MediaDownloader
 from .item_covers import SAVE_EVERY_SECONDS as ITEM_COVER_EVERY_SECONDS
 from .item_covers import ItemCoverPreserver
@@ -59,6 +60,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SYNC_RUN_TIMEOUT_SECONDS = 90 * 60
 SYNC_TIMEOUT_CODE = "SYNC_TIMEOUT"
+# The login check before a run normally answers in seconds. When the browser is
+# wedged it never does, and waiting the whole run budget stalled sync for hours.
+SYNC_PREPARE_TIMEOUT_SECONDS = 120
+BROWSER_STUCK_CODE = "BROWSER_STUCK"
 # How long an abandoned run may take to unwind before the lock is given up on it.
 SYNC_CANCEL_GRACE_SECONDS = 60
 
@@ -132,9 +137,11 @@ class RuntimeSyncCoordinator:
         profile_source_factory: Callable[[], Any] | None = None,
         account_health: AccountHealthService | None = None,
         run_timeout_seconds: float = DEFAULT_SYNC_RUN_TIMEOUT_SECONDS,
+        prepare_timeout_seconds: float = SYNC_PREPARE_TIMEOUT_SECONDS,
     ) -> None:
         self.database = database
         self.run_timeout_seconds = run_timeout_seconds
+        self.prepare_timeout_seconds = prepare_timeout_seconds
         self.archive = archive
         self.jobs = jobs
         self.auth = auth
@@ -380,6 +387,8 @@ class RuntimeSyncCoordinator:
                 "Sync run exceeded %ss and is being abandoned; relaunching the browser",
                 self.run_timeout_seconds,
             )
+            # Where every task waits, so the next hang can be traced from the log.
+            log_asyncio_tasks()
             task.cancel()
             finished, _ = await asyncio.wait({task}, timeout=SYNC_CANCEL_GRACE_SECONDS)
             if task not in finished:
@@ -389,7 +398,9 @@ class RuntimeSyncCoordinator:
                     task.result()
             return await self._abandon_timed_out_run(run_id)
 
-    async def _abandon_timed_out_run(self, run_id: int | None) -> SyncResult:
+    async def _abandon_timed_out_run(
+        self, run_id: int | None, code: str = SYNC_TIMEOUT_CODE
+    ) -> SyncResult:
         now = int(time.time())
         if run_id is None:
             row = await self.database.fetchone(
@@ -399,23 +410,43 @@ class RuntimeSyncCoordinator:
         await self.database.execute(
             "UPDATE sync_runs SET phase='finished', status='failed', error_code=?, "
             "finished_at=? WHERE status IN ('queued', 'running')",
-            (SYNC_TIMEOUT_CODE, now),
+            (code, now),
         )
-        await self.account_health.record_failure(SYNC_TIMEOUT_CODE, checked_at=now)
+        await self.account_health.record_failure(code, checked_at=now)
         discard = getattr(self.browser_coordinator, "discard_stuck", None)
         if discard is not None:
             with suppress(Exception):
                 await discard()
-        return SyncResult(run_id, "failed", 0, 0, SYNC_TIMEOUT_CODE)
+        return SyncResult(run_id, "failed", 0, 0, code)
+
+    async def _check_authenticated(self, cookies: Any) -> bool:
+        authenticated = await self.browser_coordinator.is_douyin_authenticated()
+        if not authenticated and cookies:
+            await self.browser_coordinator.add_cookies(cookies)
+            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+        return authenticated
 
     async def _run_locked(self, *, full_scan: bool, run_id: int | None) -> SyncResult:
         await self.account_health.record_checking()
         cookies = await self.auth.load_cookies()
         source = None
-        authenticated = await self.browser_coordinator.is_douyin_authenticated()
-        if not authenticated and cookies:
-            await self.browser_coordinator.add_cookies(cookies)
-            authenticated = await self.browser_coordinator.is_douyin_authenticated()
+        try:
+            authenticated = await asyncio.wait_for(
+                self._check_authenticated(cookies), timeout=self.prepare_timeout_seconds
+            )
+        except TimeoutError:
+            logger.error(
+                "Browser did not answer the login check within %ss; relaunching it",
+                self.prepare_timeout_seconds,
+            )
+            log_asyncio_tasks()
+            if run_id is None:
+                # Scheduled runs create their row later; record this one so the
+                # activity page shows the failure instead of a silent gap.
+                run_id = await SyncService(_ExpiredProvider(), self.archive, self.jobs).create_run(
+                    full_scan=full_scan
+                )
+            return await self._abandon_timed_out_run(run_id, BROWSER_STUCK_CODE)
         if authenticated:
             source = self.source_factory()
             known_ids = await self.archive.list_known_item_ids()
