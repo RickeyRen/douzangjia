@@ -46,6 +46,7 @@ export const en: Record<string, string> = {
   "关闭": "Close",
   "关闭播放器": "Close player",
   "关闭自动连播": "Turn off autoplay",
+  "打开 {name} 的主页": "Open {name}’s profile",
   "关闭面板或退出选择": "Close a panel or leave selection",
   "写点什么，只有你能看到": "Write something; only you can see it",
   "准备好了": "Ready",

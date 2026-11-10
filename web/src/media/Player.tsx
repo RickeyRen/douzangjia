@@ -8,6 +8,7 @@ import {
   DownloadSimple,
   Info,
   LinkSimple,
+  Play,
   Repeat,
   SpeakerHigh,
   SpeakerSlash,
@@ -15,7 +16,7 @@ import {
   X,
   ArrowClockwise,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState, type TouchEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject, type TouchEvent, type WheelEvent } from "react";
 
 import { unsavedWorkRisk } from "../lib/creatorArchive";
 import { archiveItem, checkRemoteAvailability, type FeedItem, type RemoteAvailability } from "../app/api";
@@ -28,8 +29,10 @@ import { douyinUrl, itemDurationMs, itemTitle, thumbnailCandidates } from "./ite
 import { t } from "../i18n/t";
 
 const MUTED_KEY = "douzangjia.player.muted";
-const AUTOPLAY_KEY = "douzangjia.player.autonext";
-const PANEL_KEY = "douzangjia.player.panel";
+// v2: Douyin-style defaults (loop, panel closed) must apply once over old stored choices.
+const AUTOPLAY_KEY = "douzangjia.player.v2.autonext";
+const PANEL_KEY = "douzangjia.player.v2.panel";
+const WHEEL_GAP_MS = 220;
 
 function readFlag(key: string, fallback: boolean): boolean {
   try {
@@ -46,6 +49,12 @@ function writeFlag(key: string, value: boolean) {
   } catch {
     // Preferences are a convenience; playback works without storage.
   }
+}
+
+/** play() rejects when the browser blocks autoplay; the paused icon covers that. */
+function safePlay(video: HTMLVideoElement) {
+  const result = video.play() as Promise<void> | undefined;
+  result?.catch(() => undefined);
 }
 
 const isDesktop = () => typeof window !== "undefined" && window.matchMedia?.("(min-width: 901px)").matches !== false;
@@ -92,31 +101,56 @@ export function Player({
   const { toggleStar, toast } = useAppData();
   const item = items[index];
   const [muted, setMuted] = useState(() => readFlag(MUTED_KEY, false));
-  const [autoNext, setAutoNext] = useState(() => readFlag(AUTOPLAY_KEY, true));
-  const [panelOpen, setPanelOpen] = useState(() => isDesktop() && readFlag(PANEL_KEY, true));
+  // Like Douyin: the current video loops until you swipe; auto-advance is opt-in.
+  const [autoNext, setAutoNext] = useState(() => readFlag(AUTOPLAY_KEY, false));
+  const [panelOpen, setPanelOpen] = useState(() => isDesktop() && readFlag(PANEL_KEY, false));
   const [imageIndex, setImageIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<number | undefined>(undefined);
-  const wheelLock = useRef(0);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  // The track follows the finger (shift, px); `animating` turns on the CSS slide.
+  const [shift, setShift] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const pending = useRef<-1 | 0 | 1>(0);
+  const wheel = useRef({ last: 0, moved: false });
+  const drag = useRef<{ x: number; y: number; time: number; axis: "x" | "y" | null } | null>(null);
 
   const images = item ? item.media.filter((media) => media.type === "image") : [];
-  const video = item?.media.find((media) => media.type === "video");
   const atStart = index <= 0;
   const atEnd = index >= items.length - 1 && !hasMore;
 
+  const stageHeight = () => stageRef.current?.clientHeight || window.innerHeight;
+
+  const finishSlide = useCallback(() => {
+    const direction = pending.current;
+    pending.current = 0;
+    setAnimating(false);
+    setShift(0);
+    if (direction !== 0) onIndexChange(index + direction);
+  }, [index, onIndexChange]);
+
   const go = useCallback(
     (direction: -1 | 1) => {
+      if (pending.current !== 0) return;
       const next = index + direction;
-      if (next < 0) return;
-      if (next >= items.length) {
-        if (hasMore) onLoadMore?.();
+      if (next < 0) {
+        setAnimating(true);
+        setShift(0);
         return;
       }
-      onIndexChange(next);
+      if (next >= items.length) {
+        if (hasMore) onLoadMore?.();
+        setAnimating(true);
+        setShift(0);
+        return;
+      }
+      pending.current = direction;
+      setAnimating(true);
+      setShift(-direction * stageHeight());
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) finishSlide();
     },
-    [hasMore, index, items.length, onIndexChange, onLoadMore],
+    [finishSlide, hasMore, index, items.length, onLoadMore],
   );
 
   useEffect(() => setImageIndex(0), [item?.awemeId]);
@@ -132,16 +166,6 @@ export function Player({
       document.body.style.overflow = previous;
     };
   }, []);
-
-  // Warm the next poster so swiping feels instant.
-  useEffect(() => {
-    const next = items[index + 1];
-    const src = next ? thumbnailCandidates(next)[0] : undefined;
-    if (src) {
-      const image = new Image();
-      image.src = src;
-    }
-  }, [index, items]);
 
   const star = useCallback(async () => {
     if (!item) return;
@@ -219,7 +243,7 @@ export function Player({
           const element = videoRef.current;
           if (!element) break;
           event.preventDefault();
-          if (element.paused) void element.play().catch(() => undefined);
+          if (element.paused) safePlay(element);
           else element.pause();
           break;
         }
@@ -247,27 +271,57 @@ export function Player({
   }, [go, onClose, star, stepImage, toggleMute, togglePanel]);
 
   function onWheel(event: WheelEvent) {
-    if (Math.abs(event.deltaY) < 24) return;
-    const now = Date.now();
-    if (now - wheelLock.current < 650) return;
-    wheelLock.current = now;
+    // A trackpad flick keeps firing inertia events for about a second; one
+    // continuous gesture (no gap over WHEEL_GAP_MS) moves exactly one item.
+    const now = performance.now();
+    const continuing = now - wheel.current.last < WHEEL_GAP_MS;
+    wheel.current.last = now;
+    if (!continuing) wheel.current.moved = false;
+    if (wheel.current.moved) return;
+    if (Math.abs(event.deltaY) < 24 || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+    wheel.current.moved = true;
     go(event.deltaY > 0 ? 1 : -1);
   }
 
   function onTouchStart(event: TouchEvent) {
+    if (pending.current !== 0) return;
     const touch = event.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
+    drag.current = { x: touch.clientX, y: touch.clientY, time: performance.now(), axis: null };
+    setAnimating(false);
+  }
+
+  function onTouchMove(event: TouchEvent) {
+    const start = drag.current;
+    if (!start) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (start.axis === null && Math.max(Math.abs(dx), Math.abs(dy)) > 8) {
+      start.axis = Math.abs(dy) > Math.abs(dx) ? "y" : "x";
+    }
+    if (start.axis !== "y") return;
+    // Resist past either end so the edge is felt rather than hit.
+    const blocked = (dy > 0 && atStart) || (dy < 0 && atEnd);
+    setShift(blocked ? dy * 0.25 : dy);
   }
 
   function onTouchEnd(event: TouchEvent) {
-    const start = touchStart.current;
-    touchStart.current = null;
+    const start = drag.current;
+    drag.current = null;
     if (!start) return;
     const touch = event.changedTouches[0];
     const dx = touch.clientX - start.x;
     const dy = touch.clientY - start.y;
-    if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 1.2) go(dy < 0 ? 1 : -1);
-    else if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) stepImage(dx < 0 ? 1 : -1);
+    if (start.axis === "y") {
+      const velocity = Math.abs(dy) / Math.max(1, performance.now() - start.time);
+      if (Math.abs(dy) > stageHeight() * 0.2 || (velocity > 0.5 && Math.abs(dy) > 30)) go(dy < 0 ? 1 : -1);
+      else {
+        setAnimating(true);
+        setShift(0);
+      }
+    } else if (start.axis === "x" && Math.abs(dx) > 50) {
+      stepImage(dx < 0 ? 1 : -1);
+    }
   }
 
   async function copyLink() {
@@ -280,11 +334,11 @@ export function Player({
     }
   }
 
-  async function downloadNow() {
-    if (!item) return;
+  async function downloadNow(target: FeedItem | undefined = item) {
+    if (!target) return;
     try {
-      await archiveItem(item.awemeId);
-      onItemPatch?.(item.awemeId, { local: { ...item.local, state: "waiting" } });
+      await archiveItem(target.awemeId);
+      onItemPatch?.(target.awemeId, { local: { ...target.local, state: "waiting" } });
       toast(t("已加入下载队列"));
     } catch {
       toast(t("加入下载队列失败"));
@@ -302,73 +356,55 @@ export function Player({
   }
 
   const name = item.creator?.nickname || item.author;
-  const backdrop = thumbnailCandidates(item)[0];
-  const downloaded = item.local.state === "downloaded";
-  const risk = unsavedWorkRisk(item);
+  const currentVideo = item.media.find((media) => media.type === "video");
+  const playable = Boolean(currentVideo) && item.local.state === "downloaded";
+  // Previous, current and next sit on one track; keys keep each slide's element
+  // (and the next video's preloaded buffer) when the window moves.
+  const slides = [-1, 0, 1]
+    .map((offset) => ({ offset, slide: items[index + offset] }))
+    .filter((entry): entry is { offset: number; slide: FeedItem } => Boolean(entry.slide));
 
   return (
     <div className="player" role="dialog" aria-modal="true" aria-label={t("播放：{title}", { title: itemTitle(item) })}>
-      <div className={`player-stage${idle ? " is-idle" : ""}`} onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onPointerMove={wake} onPointerDown={wake}>
-        {backdrop ? <div className="player-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} /> : null}
-
-        <div className="player-media">
-          {video && downloaded ? (
-            <video
-              key={video.url}
-              ref={videoRef}
-              src={video.url}
-              poster={video.posterUrl}
-              autoPlay
-              playsInline
-              muted={muted}
-              onClick={(event) => {
-                const element = event.currentTarget;
-                if (element.paused) void element.play().catch(() => undefined);
-                else element.pause();
-              }}
+      <div
+        ref={stageRef}
+        className={`player-stage${idle ? " is-idle" : ""}`}
+        onWheel={onWheel}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onPointerMove={wake}
+        onPointerDown={wake}
+      >
+        <div
+          className={`player-track${animating ? " is-animating" : ""}`}
+          style={{ transform: `translate3d(0, ${shift}px, 0)` }}
+          onTransitionEnd={(event) => {
+            if (event.target === event.currentTarget) finishSlide();
+          }}
+        >
+          {slides.map(({ offset, slide }) => (
+            <PlayerSlide
+              key={slide.awemeId}
+              item={slide}
+              offset={offset}
+              videoRef={offset === 0 ? videoRef : undefined}
+              muted={offset === 0 ? muted : true}
               loop={!autoNext}
-              onVolumeChange={(event) => {
-                const element = event.currentTarget;
-                if (element.muted !== muted) {
-                  setMuted(element.muted);
-                  writeFlag(MUTED_KEY, element.muted);
-                }
+              imageIndex={offset === 0 ? imageIndex : 0}
+              onMutedChange={(value) => {
+                setMuted(value);
+                writeFlag(MUTED_KEY, value);
               }}
               onEnded={() => {
                 if (autoNext && !atEnd) go(1);
               }}
+              onDownload={() => void downloadNow(slide)}
             />
-          ) : images.length > 0 ? (
-            <img key={images[imageIndex]?.url} src={images[imageIndex]?.url} alt={itemTitle(item)} draggable={false} />
-          ) : (
-            <div className="player-empty">
-              {backdrop ? <img src={backdrop} alt="" referrerPolicy="no-referrer" /> : null}
-              <p>
-                {risk === "lost"
-                  ? t("视频没有存下来，抖音上也看不到了，这里只留下封面和文字。")
-                  : risk === "at-risk"
-                    ? t("视频还没存下来，抖音上可能很快就看不到了。")
-                    : item.local.state === "failed"
-                      ? t("这个作品下载失败了。")
-                      : t("这个作品还没有下载到 NAS。")}
-              </p>
-              <div className="player-empty-actions">
-                {risk !== "lost" ? (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void downloadNow()}>
-                    <CloudArrowDown size={16} weight="bold" />
-                    {item.local.state === "failed" ? t("重新下载") : t("立即下载")}
-                  </button>
-                ) : null}
-                <a className="btn btn-secondary btn-sm" href={douyinUrl(item)} target="_blank" rel="noreferrer">
-                  <ArrowSquareOut size={16} weight="bold" />
-                  {t("在抖音打开")}
-                </a>
-              </div>
-            </div>
-          )}
+          ))}
         </div>
 
-        {video && downloaded ? <VideoControls videoRef={videoRef} muted={muted} onToggleMute={toggleMute} /> : null}
+        {playable ? <VideoControls key={item.awemeId} videoRef={videoRef} muted={muted} onToggleMute={toggleMute} /> : null}
 
         {images.length > 1 ? (
           <>
@@ -395,7 +431,7 @@ export function Player({
             {hasMore ? "+" : ""}
           </span>
           <span className="player-spacer" />
-          {video && downloaded ? (
+          {playable ? (
             <button type="button" className="icon-btn" aria-label={muted ? t("取消静音") : t("静音")} onClick={toggleMute}>
               {muted ? <SpeakerSlash size={20} /> : <SpeakerHigh size={20} />}
             </button>
@@ -421,8 +457,14 @@ export function Player({
         </div>
 
         <div className="player-nav">
+          <button type="button" className="player-rail-avatar" aria-label={t("打开 {name} 的主页", { name })} onClick={() => onOpenCreator?.(item.creatorId, name)}>
+            <Avatar src={item.creator?.avatarUrl} name={name} />
+          </button>
           <button type="button" className={`icon-btn player-glass${item.starred ? " is-active" : ""}`} aria-label={item.starred ? t("取消精选") : t("加入精选")} aria-pressed={Boolean(item.starred)} onClick={() => void star()}>
             <Star size={22} weight={item.starred ? "fill" : "regular"} />
+          </button>
+          <button type="button" className={`icon-btn player-glass${panelOpen ? " is-active" : ""}`} aria-label={t("作品详情")} onClick={togglePanel}>
+            <Info size={22} />
           </button>
           <button type="button" className="icon-btn player-glass is-desktop" aria-label={t("上一个")} disabled={atStart} onClick={() => go(-1)}>
             <CaretUp size={22} weight="bold" />
@@ -432,14 +474,12 @@ export function Player({
           </button>
         </div>
 
-        {!panelOpen ? (
-          <div className="player-caption">
-            <button type="button" className="player-author" onClick={() => onOpenCreator?.(item.creatorId, name)}>
-              <Avatar src={item.creator?.avatarUrl} name={name} />@{name}
-            </button>
-            {item.description ? <p>{item.description}</p> : null}
-          </div>
-        ) : null}
+        <div className="player-caption">
+          <button type="button" className="player-author" onClick={() => onOpenCreator?.(item.creatorId, name)}>
+            @{name}
+          </button>
+          {item.description ? <p>{item.description}</p> : null}
+        </div>
       </div>
 
       {panelOpen ? (
@@ -458,6 +498,130 @@ export function Player({
           onOpenTag={onOpenTag}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** One full-screen page of the vertical track. Only the current page plays. */
+function PlayerSlide({
+  item,
+  offset,
+  videoRef,
+  muted,
+  loop,
+  imageIndex,
+  onMutedChange,
+  onEnded,
+  onDownload,
+}: {
+  item: FeedItem;
+  offset: number;
+  videoRef?: RefObject<HTMLVideoElement | null>;
+  muted: boolean;
+  loop: boolean;
+  imageIndex: number;
+  onMutedChange: (muted: boolean) => void;
+  onEnded: () => void;
+  onDownload: () => void;
+}) {
+  const current = offset === 0;
+  const element = useRef<HTMLVideoElement | null>(null);
+  const [paused, setPaused] = useState(false);
+  const images = item.media.filter((media) => media.type === "image");
+  const video = item.media.find((media) => media.type === "video");
+  const downloaded = item.local.state === "downloaded";
+  const backdrop = thumbnailCandidates(item)[0];
+  const risk = unsavedWorkRisk(item);
+
+  const setVideo = useCallback(
+    (node: HTMLVideoElement | null) => {
+      element.current = node;
+      if (videoRef) videoRef.current = node;
+    },
+    [videoRef],
+  );
+
+  useEffect(() => {
+    const node = element.current;
+    if (!node) return;
+    if (current) {
+      // Coming back to an item starts it over, as on Douyin.
+      if (node.ended || node.currentTime > 0) node.currentTime = 0;
+      safePlay(node);
+    } else {
+      node.pause();
+    }
+  }, [current]);
+
+  function togglePlay() {
+    const node = element.current;
+    if (!node || !current) return;
+    if (node.paused) safePlay(node);
+    else node.pause();
+  }
+
+  return (
+    <div className="player-slide" style={{ transform: `translate3d(0, ${offset * 100}%, 0)` }} aria-hidden={!current}>
+      {backdrop ? <div className="player-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} /> : null}
+      <div className="player-media">
+        {video && downloaded ? (
+          <>
+            <video
+              ref={setVideo}
+              src={video.url}
+              poster={video.posterUrl}
+              // Only the next page buffers ahead; the previous one just keeps its frame.
+              preload={offset >= 0 ? "auto" : "metadata"}
+              playsInline
+              muted={muted}
+              loop={loop}
+              onClick={togglePlay}
+              onPlay={() => setPaused(false)}
+              onPause={(event) => setPaused(current && !event.currentTarget.ended)}
+              onVolumeChange={(event) => {
+                if (current && event.currentTarget.muted !== muted) onMutedChange(event.currentTarget.muted);
+              }}
+              onEnded={() => {
+                if (current) onEnded();
+              }}
+            />
+            {current && paused ? (
+              <span className="player-paused" aria-hidden="true">
+                <Play size={64} weight="fill" />
+              </span>
+            ) : null}
+          </>
+        ) : images.length > 0 ? (
+          <img src={images[imageIndex]?.url} alt={itemTitle(item)} draggable={false} />
+        ) : (
+          <div className="player-empty">
+            {backdrop ? <img src={backdrop} alt="" referrerPolicy="no-referrer" /> : null}
+            <p>
+              {risk === "lost"
+                ? t("视频没有存下来，抖音上也看不到了，这里只留下封面和文字。")
+                : risk === "at-risk"
+                  ? t("视频还没存下来，抖音上可能很快就看不到了。")
+                  : item.local.state === "failed"
+                    ? t("这个作品下载失败了。")
+                    : t("这个作品还没有下载到 NAS。")}
+            </p>
+            {current ? (
+              <div className="player-empty-actions">
+                {risk !== "lost" ? (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={onDownload}>
+                    <CloudArrowDown size={16} weight="bold" />
+                    {item.local.state === "failed" ? t("重新下载") : t("立即下载")}
+                  </button>
+                ) : null}
+                <a className="btn btn-secondary btn-sm" href={douyinUrl(item)} target="_blank" rel="noreferrer">
+                  <ArrowSquareOut size={16} weight="bold" />
+                  {t("在抖音打开")}
+                </a>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
