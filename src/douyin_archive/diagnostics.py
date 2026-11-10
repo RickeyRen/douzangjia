@@ -23,8 +23,37 @@ def format_asyncio_tasks(loop: asyncio.AbstractEventLoop | None = None) -> str:
     for task in sorted(tasks, key=lambda item: item.get_name()):
         buffer.write(f"--- task {task.get_name()} done={task.done()}\n")
         with suppress(Exception):
-            task.print_stack(limit=12, file=buffer)
+            for line in await_chain(task.get_coro()):
+                buffer.write(f"  {line}\n")
     return buffer.getvalue()
+
+
+def await_chain(coro: object, limit: int = 40) -> list[str]:
+    """Follow cr_await from a task's coroutine down to where it is suspended.
+
+    Task.print_stack shows only the outermost frame of a suspended coroutine,
+    which hides the line that actually waits (a lock, a query, a page call).
+    """
+    lines: list[str] = []
+    current = coro
+    while current is not None and len(lines) < limit:
+        frame = getattr(current, "cr_frame", None) or getattr(current, "ag_frame", None)
+        if frame is None:
+            frame = getattr(current, "gi_frame", None)
+        if frame is not None:
+            code = frame.f_code
+            lines.append(f"{code.co_filename}:{frame.f_lineno} in {code.co_name}")
+        nxt = (
+            getattr(current, "cr_await", None)
+            or getattr(current, "ag_await", None)
+            or getattr(current, "gi_yieldfrom", None)
+        )
+        if nxt is None:
+            if not hasattr(current, "cr_frame") and not hasattr(current, "gi_frame"):
+                lines.append(f"awaiting {type(current).__name__}")
+            break
+        current = nxt
+    return lines
 
 
 def log_asyncio_tasks() -> None:

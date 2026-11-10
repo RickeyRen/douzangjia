@@ -32,3 +32,17 @@ async def test_reads_do_not_wait_for_another_tasks_write_transaction(tmp_path):
         assert [row["body"] for row in rows] == ["kept", "pending"]
     finally:
         await database.close()
+
+
+@pytest.mark.asyncio
+async def test_a_slow_read_does_not_block_other_reads(tmp_path):
+    database = await Database(tmp_path / "archive.sqlite3").open()
+    try:
+        await database.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)")
+        await database.execute("INSERT INTO notes(body) VALUES ('kept')")
+        # Hold one reader as a long-running query would.
+        async with database._read_connection("SELECT 1"):
+            rows = await asyncio.wait_for(database.fetchall("SELECT body FROM notes"), timeout=2)
+        assert [row["body"] for row in rows] == ["kept"]
+    finally:
+        await database.close()

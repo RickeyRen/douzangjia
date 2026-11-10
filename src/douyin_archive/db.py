@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
+import traceback
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,9 +13,17 @@ from typing import Any
 import aiosqlite
 
 CACHE_SIZE = -65536  # KiB, i.e. 64 MiB for the writer
-# Pages read by the API stay in memory: the whole archive database is a few hundred MiB
-# and the NAS evicts its page cache under pressure, which made cold reads take seconds.
-READER_CACHE_SIZE = -262144
+# Several readers so one slow query (the home totals take seconds on a busy NAS)
+# never makes every other page wait behind it. Each keeps its own page cache, and
+# mmap lets them share the OS page cache instead of each copying the database.
+READER_COUNT = 4
+# A write transaction holding the lock longer than this is logged with where it
+# began: every other writer, and reads that need the writer, wait behind it.
+SLOW_TRANSACTION_SECONDS = 5.0
+
+logger = logging.getLogger(__name__)
+READER_CACHE_SIZE = -65536
+READER_MMAP_SIZE = 1024 * 1024 * 1024
 
 
 def _is_plain_select(sql: str) -> bool:
@@ -28,10 +39,10 @@ class Database:
         self._connection: aiosqlite.Connection | None = None
         self._operation_lock = asyncio.Lock()
         self._transaction_owner: asyncio.Task[Any] | None = None
-        # WAL lets a second connection read while the first is inside a long
+        # WAL lets reader connections run while the writer is inside a long
         # write transaction, so API requests never queue behind background work.
-        self._reader: aiosqlite.Connection | None = None
-        self._read_lock = asyncio.Lock()
+        self._readers: list[aiosqlite.Connection] = []
+        self._idle_readers: asyncio.Queue[aiosqlite.Connection] = asyncio.Queue()
 
     @property
     def connection(self) -> aiosqlite.Connection:
@@ -52,18 +63,22 @@ class Database:
         await self._connection.execute(f"PRAGMA cache_size={CACHE_SIZE}")
         await self._migrate()
         if str(self.path) != ":memory:":
-            reader = await aiosqlite.connect(self.path, isolation_level=None)
-            reader.row_factory = aiosqlite.Row
-            await reader.execute("PRAGMA busy_timeout=5000")
-            await reader.execute("PRAGMA query_only=ON")
-            await reader.execute(f"PRAGMA cache_size={READER_CACHE_SIZE}")
-            self._reader = reader
+            for _ in range(READER_COUNT):
+                reader = await aiosqlite.connect(self.path, isolation_level=None)
+                reader.row_factory = aiosqlite.Row
+                await reader.execute("PRAGMA busy_timeout=5000")
+                await reader.execute("PRAGMA query_only=ON")
+                await reader.execute(f"PRAGMA cache_size={READER_CACHE_SIZE}")
+                await reader.execute(f"PRAGMA mmap_size={READER_MMAP_SIZE}")
+                self._readers.append(reader)
+                self._idle_readers.put_nowait(reader)
         return self
 
     async def close(self) -> None:
-        if self._reader is not None:
-            await self._reader.close()
-            self._reader = None
+        readers, self._readers = self._readers, []
+        self._idle_readers = asyncio.Queue()
+        for reader in readers:
+            await reader.close()
         if self._connection is not None:
             await self._connection.close()
             self._connection = None
@@ -115,15 +130,19 @@ class Database:
         # Inside its own transaction a task must read its uncommitted writes,
         # and INSERT ... RETURNING goes through fetchone too.
         if (
-            self._reader is None
+            not self._readers
             or asyncio.current_task() is self._transaction_owner
             or not _is_plain_select(sql)
         ):
             async with self._operation():
                 yield self.connection
             return
-        async with self._read_lock:
-            yield self._reader
+        reader = await self._idle_readers.get()
+        try:
+            yield reader
+        finally:
+            if reader in self._readers:
+                self._idle_readers.put_nowait(reader)
 
     @asynccontextmanager
     async def _operation(self) -> AsyncIterator[None]:
@@ -145,6 +164,7 @@ class Database:
             return
         async with self._operation_lock:
             self._transaction_owner = current
+            started = time.monotonic()
             await self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             try:
                 yield
@@ -155,3 +175,22 @@ class Database:
                 await self.connection.commit()
             finally:
                 self._transaction_owner = None
+                held = time.monotonic() - started
+                if held >= SLOW_TRANSACTION_SECONDS:
+                    logger.warning(
+                        "database transaction held the write lock %.1fs, opened at %s",
+                        held,
+                        _caller_summary(),
+                    )
+
+
+def _caller_summary() -> str:
+    frames = [
+        frame
+        for frame in traceback.extract_stack()[:-1]
+        if "douyin_archive" in frame.filename and not frame.filename.endswith("db.py")
+    ]
+    return " <- ".join(
+        f"{frame.filename.rsplit('/', 1)[-1]}:{frame.lineno} {frame.name}"
+        for frame in reversed(frames[-4:])
+    ) or "unknown"

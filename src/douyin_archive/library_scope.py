@@ -21,3 +21,20 @@ def library_item_sql(alias: str = "i") -> str:
         f"AND ldj.remote_id={alias}.remote_id)"
         ")"
     )
+
+
+def library_item_ids_sql() -> str:
+    """SQL listing every library item id once; same rule as library_item_sql.
+
+    Each branch is an index-only scan of a small table, so callers that need the
+    whole library can avoid running five EXISTS probes for every item row.
+    """
+    transient = ", ".join(f"'{kind}'" for kind in TRANSIENT_SOURCE_KINDS)
+    return (
+        "SELECT lsi.item_id FROM source_items lsi JOIN library_sources lls "
+        f"ON lls.id=lsi.source_id WHERE lls.kind NOT IN ({transient}) "
+        "UNION SELECT item_id FROM media_files WHERE status='ready' "
+        "UNION SELECT item_id FROM item_stars "
+        "UNION SELECT item_id FROM album_items "
+        "UNION SELECT remote_id FROM download_jobs WHERE kind='download'"
+    )

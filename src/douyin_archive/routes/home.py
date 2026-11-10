@@ -10,13 +10,14 @@ from fastapi import APIRouter, Request
 
 from ..avatars import avatar_route
 from ..creator_archive import preserved_identity
-from ..library_scope import library_item_sql
+from ..library_scope import library_item_ids_sql, library_item_sql
 from ..sync_health import sync_health_snapshot
 from .feed import _serialize_item, cover_store_for
 
 router = APIRouter(prefix="/api")
 
 HOME_SHELF_SIZE = 12
+SQL_CHUNK = 500
 # Library-wide counts scan every item; they barely move, so serve the last answer
 # and recount in the background at most this often.
 LIBRARY_TOTALS_TTL_SECONDS = 300
@@ -48,37 +49,66 @@ async def sync_health(request: Request, *, now: int | None = None) -> dict[str, 
 
 
 async def _count_library(database: Any, *, now: int | None = None) -> dict[str, Any]:
-    in_library = library_item_sql("i")
+    # Counted in Python from index-only scans: the SQL form ran the library
+    # predicate per item and per creator, which took minutes on a busy NAS.
     week_ago = (int(time.time()) if now is None else now) - WEEK_SECONDS
-    totals = await database.fetchone(
-        "SELECT COUNT(*) AS items, "
-        "COALESCE(SUM(CASE WHEN item_type='video' THEN 1 ELSE 0 END), 0) AS videos, "
-        "COALESCE(SUM(CASE WHEN item_type='gallery' THEN 1 ELSE 0 END), 0) AS galleries, "
-        "COALESCE(SUM(CASE WHEN first_seen_at>=? THEN 1 ELSE 0 END), 0) AS items_week "
-        f"FROM items i WHERE {in_library}",
-        (week_ago,),
+    library_ids = {row[0] for row in await database.fetchall(library_item_ids_sql())}
+    item_rows = await database.fetchall(
+        "SELECT remote_id, item_type, first_seen_at, creator_id FROM items "
+        "INDEXED BY items_library_counts"
     )
-    creators = await database.fetchone(
-        "SELECT COUNT(*) AS total, "
-        "COALESCE(SUM(CASE WHEN c.first_seen_at>=? THEN 1 ELSE 0 END), 0) AS week "
-        "FROM creators c WHERE EXISTS "
-        f"(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id AND {in_library})",
-        (week_ago,),
-    )
-    creator_rows = await database.fetchall(
-        "SELECT c.remote_id, c.nickname, c.unique_id, c.avatar_url, COUNT(i.remote_id) AS items "
-        "FROM creators c JOIN items i ON i.creator_id=c.remote_id "
-        f"WHERE {in_library} GROUP BY c.remote_id ORDER BY items DESC, c.last_seen_at DESC LIMIT ?",
-        (HOME_SHELF_SIZE,),
-    )
+    items = videos = galleries = items_week = 0
+    per_creator: dict[str, int] = {}
+    for row in item_rows:
+        if row[0] not in library_ids:
+            continue
+        items += 1
+        if row[1] == "video":
+            videos += 1
+        elif row[1] == "gallery":
+            galleries += 1
+        if row[2] is not None and row[2] >= week_ago:
+            items_week += 1
+        if row[3] is not None:
+            per_creator[row[3]] = per_creator.get(row[3], 0) + 1
+    creator_ids = list(per_creator)
+    creator_seen: dict[str, tuple[int, int]] = {}
+    for offset in range(0, len(creator_ids), SQL_CHUNK):
+        chunk = creator_ids[offset : offset + SQL_CHUNK]
+        rows = await database.fetchall(
+            "SELECT remote_id, first_seen_at, last_seen_at FROM creators "
+            f"WHERE remote_id IN ({','.join('?' for _ in chunk)})",
+            chunk,
+        )
+        for row in rows:
+            creator_seen[row[0]] = (row[1] or 0, row[2] or 0)
+    creators_week = sum(1 for first, _ in creator_seen.values() if first >= week_ago)
+    top = sorted(
+        creator_seen,
+        key=lambda creator_id: (per_creator[creator_id], creator_seen[creator_id][1]),
+        reverse=True,
+    )[:HOME_SHELF_SIZE]
+    details: dict[str, dict[str, Any]] = {}
+    if top:
+        rows = await database.fetchall(
+            "SELECT remote_id, nickname, unique_id, avatar_url FROM creators "
+            f"WHERE remote_id IN ({','.join('?' for _ in top)})",
+            top,
+        )
+        details = {row["remote_id"]: dict(row) for row in rows}
+    creator_rows = [
+        {**details[creator_id], "items": per_creator[creator_id]}
+        for creator_id in top
+        if creator_id in details
+    ]
     return {
-        "items": totals["items"],
-        "videos": totals["videos"],
-        "galleries": totals["galleries"],
-        "creators": creators["total"],
-        "items_week": totals["items_week"],
-        "creators_week": creators["week"],
-        "creator_rows": [dict(row) for row in creator_rows],
+        "items": items,
+        "videos": videos,
+        "galleries": galleries,
+        "creators": len(creator_seen),
+        "items_week": items_week,
+        "creators_week": creators_week,
+        "creator_rows": creator_rows,
     }
 
 
