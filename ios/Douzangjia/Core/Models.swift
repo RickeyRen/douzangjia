@@ -41,6 +41,9 @@ struct DouyinInfo: Decodable, Hashable {
 }
 
 struct FeedCreator: Decodable, Hashable {
+    let id: String?
+    let nickname: String?
+    let avatarUrl: String?
     let archiveStatus: CreatorArchiveStatus?
 }
 

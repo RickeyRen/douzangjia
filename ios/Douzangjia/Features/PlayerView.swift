@@ -15,6 +15,16 @@ struct PlayerView: View {
     }
 
     var body: some View {
+        // Tapping the author opens their archive on top of the player, and Back
+        // returns to the same video, as on Douyin.
+        NavigationStack {
+            pager
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
+        }
+    }
+
+    private var pager: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
@@ -58,19 +68,30 @@ private struct PlayerPage: View {
     let onItemChange: (FeedItem) -> Void
     @State private var queued = false
     @State private var message: String?
+    @State private var video = VideoController()
+
+    private var playableURL: URL? {
+        guard !item.isGallery, let file = item.media.first(where: \.isVideo) else { return nil }
+        return model.client.resolve(file.url)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.black
             content
             details
+            if playableURL != nil {
+                VideoProgressBar(video: video)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 22)
+            }
         }
     }
 
     @ViewBuilder
     private var content: some View {
-        if let video = item.media.first(where: \.isVideo), !item.isGallery {
-            VideoPage(url: model.client.resolve(video.url), cookies: model.client.cookies, isCurrent: isCurrent)
+        if let url = playableURL {
+            VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent)
         } else if item.isGallery, !item.media.isEmpty {
             TabView {
                 ForEach(item.media, id: \.id) { file in
@@ -115,10 +136,22 @@ private struct PlayerPage: View {
         }
     }
 
+    private var creatorRoute: CreatorRoute? {
+        item.creator?.id.map { CreatorRoute(id: $0) }
+    }
+
     private var details: some View {
         HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("@\(item.author)").font(.headline)
+                if let creatorRoute {
+                    NavigationLink(value: creatorRoute) {
+                        Text("@\(item.creator?.nickname ?? item.author)").font(.headline)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("打开博主存档主页")
+                } else {
+                    Text("@\(item.author)").font(.headline)
+                }
                 if item.isSaved {
                     Pill(text: "已存到 NAS", systemImage: "checkmark", style: .tag)
                 }
@@ -127,24 +160,33 @@ private struct PlayerPage: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                Task { await toggleStar() }
-            } label: {
-                Image(systemName: item.starred == true ? "star.fill" : "star")
-                    .font(.title2)
-                    .foregroundStyle(item.starred == true ? Theme.lime : .white)
-                    .frame(width: 48, height: 48)
-                    .background(item.starred == true ? Theme.violet.opacity(0.85) : .black.opacity(0.35), in: Circle())
-                    .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
+            VStack(spacing: 18) {
+                if let creatorRoute {
+                    NavigationLink(value: creatorRoute) {
+                        CreatorAvatar(path: item.creator?.avatarUrl, size: 48)
+                            .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("打开 \(item.creator?.nickname ?? item.author) 的主页")
+                }
+                Button {
+                    Task { await toggleStar() }
+                } label: {
+                    Image(systemName: item.starred == true ? "star.fill" : "star")
+                        .font(.title2)
+                        .foregroundStyle(item.starred == true ? Theme.lime : .white)
+                        .frame(width: 48, height: 48)
+                        .background(item.starred == true ? Theme.violet.opacity(0.85) : .black.opacity(0.35), in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
+                }
+                .accessibilityLabel(item.starred == true ? "取消精选" : "加入精选")
             }
-            .accessibilityLabel(item.starred == true ? "取消精选" : "加入精选")
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
-        .padding(.bottom, 40)
+        .padding(.bottom, 48)
         .padding(.top, 60)
-        .background(LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom))
-        .allowsHitTesting(true)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     private func toggleStar() async {
@@ -171,43 +213,189 @@ private struct PlayerPage: View {
     }
 }
 
-private struct VideoPage: View {
-    let url: URL?
-    let cookies: [HTTPCookie]
-    let isCurrent: Bool
-    @State private var player: AVPlayer?
-    @State private var looper: Any?
+/// Owns one page's AVPlayer so the video surface and the progress bar share it.
+@Observable
+final class VideoController {
+    private(set) var player: AVPlayer?
+    private(set) var paused = false
+    private(set) var duration: Double = 0
+    var progress: Double = 0
+    var scrubbing = false
+    private var timeObserver: Any?
+    private var endObserver: NSObjectProtocol?
 
-    var body: some View {
-        ZStack {
-            if let player {
-                VideoPlayer(player: player)
-            } else {
-                ProgressView().tint(Theme.violet3)
-            }
-        }
-        .onAppear { prepare() }
-        .onChange(of: isCurrent) { _, current in
-            if current { player?.play() } else { player?.pause() }
-        }
-        .onDisappear {
-            player?.pause()
-        }
-    }
-
-    private func prepare() {
-        guard player == nil, let url else { return }
+    func prepare(url: URL, cookies: [HTTPCookie]) {
+        guard player == nil else { return }
         // AVPlayer does not read URLSession's cookie store; hand it the session.
         let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPCookiesKey: cookies])
         let item = AVPlayerItem(asset: asset)
         let next = AVPlayer(playerItem: item)
-        looper = NotificationCenter.default.addObserver(
+        next.actionAtItemEnd = .none
+        endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
-        ) { _ in
-            next.seek(to: .zero)
-            next.play()
+        ) { [weak next] _ in
+            // Loops like Douyin until the user swipes on.
+            next?.seek(to: .zero)
+            next?.play()
+        }
+        timeObserver = next.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 10), queue: .main
+        ) { [weak self, weak next] time in
+            guard let self, let next, !self.scrubbing else { return }
+            let total = next.currentItem?.duration.seconds ?? 0
+            if total.isFinite, total > 0 {
+                self.duration = total
+                self.progress = min(1, max(0, time.seconds / total))
+            }
         }
         player = next
-        if isCurrent { next.play() }
+    }
+
+    func setActive(_ active: Bool, restart: Bool = false) {
+        guard let player else { return }
+        if active {
+            if restart { player.seek(to: .zero) }
+            player.play()
+            paused = false
+        } else {
+            player.pause()
+        }
+    }
+
+    func togglePlay() {
+        guard let player else { return }
+        if player.timeControlStatus == .paused {
+            player.play()
+            paused = false
+        } else {
+            player.pause()
+            paused = true
+        }
+    }
+
+    func seek(to fraction: Double) {
+        guard let player, duration > 0 else { return }
+        progress = min(1, max(0, fraction))
+        player.seek(
+            to: CMTime(seconds: progress * duration, preferredTimescale: 600),
+            toleranceBefore: .zero, toleranceAfter: .zero
+        )
+    }
+
+    deinit {
+        if let timeObserver { player?.removeTimeObserver(timeObserver) }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+    }
+}
+
+private struct VideoPage: View {
+    let video: VideoController
+    let url: URL
+    let cookies: [HTTPCookie]
+    let isCurrent: Bool
+
+    var body: some View {
+        ZStack {
+            if let player = video.player {
+                PlayerSurface(player: player)
+            } else {
+                ProgressView().tint(Theme.violet3)
+            }
+            if video.paused && isCurrent {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .shadow(color: .black.opacity(0.5), radius: 12)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 1.3)))
+            }
+        }
+        .contentShape(Rectangle())
+        // Single tap pauses or resumes, like Douyin; no system controls appear.
+        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { video.togglePlay() } }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(video.paused ? "继续播放" : "暂停")
+        .onAppear {
+            video.prepare(url: url, cookies: cookies)
+            // Also resumes after coming back from the creator page.
+            if isCurrent { video.setActive(true) }
+        }
+        .onChange(of: isCurrent) { _, current in
+            // Swiping back to a video starts it over.
+            video.setActive(current, restart: current)
+        }
+        .onDisappear { video.setActive(false) }
+    }
+}
+
+/// AVPlayerLayer without AVKit's controls, so taps reach our own gesture.
+private struct PlayerSurface: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerLayerView {
+        let view = PlayerLayerView()
+        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.player = player
+        return view
+    }
+
+    func updateUIView(_ view: PlayerLayerView, context: Context) {
+        if view.playerLayer.player !== player { view.playerLayer.player = player }
+    }
+}
+
+private final class PlayerLayerView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+}
+
+/// Douyin-style hairline progress: thickens and shows the time while dragged.
+private struct VideoProgressBar: View {
+    let video: VideoController
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if video.scrubbing {
+                Text("\(clock(video.progress * video.duration)) / \(clock(video.duration))")
+                    .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 6)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.25))
+                    Capsule().fill(.white.opacity(video.scrubbing ? 1 : 0.8))
+                        .frame(width: proxy.size.width * video.progress)
+                }
+                .frame(height: video.scrubbing ? 6 : 2)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !video.scrubbing { withAnimation(.easeOut(duration: 0.12)) { video.scrubbing = true } }
+                            video.progress = min(1, max(0, value.location.x / max(1, proxy.size.width)))
+                        }
+                        .onEnded { value in
+                            video.seek(to: value.location.x / max(1, proxy.size.width))
+                            withAnimation(.easeOut(duration: 0.2)) { video.scrubbing = false }
+                        }
+                )
+            }
+            .frame(height: 24)
+        }
+        .accessibilityElement()
+        .accessibilityLabel("播放进度")
+        .accessibilityValue("\(clock(video.progress * video.duration)) / \(clock(video.duration))")
+        .accessibilityAdjustableAction { direction in
+            let step = video.duration > 0 ? 5 / video.duration : 0
+            video.seek(to: video.progress + (direction == .increment ? step : -step))
+        }
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds > 0 else { return "0:00" }
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
