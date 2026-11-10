@@ -128,7 +128,7 @@ struct LibraryView: View {
             .navigationTitle("作品")
             .navigationBarTitleDisplayMode(.large)
             // Always shown under the title, as the old search row was.
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品描述、博主名或抖音号")
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "作品描述、博主名或抖音号")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .refreshable { await reload() }
