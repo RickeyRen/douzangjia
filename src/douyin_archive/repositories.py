@@ -227,6 +227,28 @@ class JobRepository:
             )
         return DownloadJob.from_row(row) if row is not None else None
 
+    async def refresh_links(self, remote_id: str, payload: dict[str, object]) -> bool:
+        """Swap in play URLs a list page just handed out and move the job to the front.
+
+        A bulk "save everything" queues items synced weeks ago whose signed URLs
+        expired; the detail API re-signs only a third of them. A sync walking the
+        lists sees fresh URLs for every item, so waiting downloads take those.
+        Paused or cancelled jobs are the user's choice and keep their place.
+        """
+        if not payload.get("assets"):
+            return False
+        now = int(time.time())
+        row = await self.db.fetchone(
+            "UPDATE download_jobs SET payload_json=?, status='pending', next_attempt_at=0, "
+            "last_error_code=NULL, updated_at=? "
+            "WHERE kind='download' AND remote_id=? AND paused_at IS NULL "
+            "AND cancel_requested_at IS NULL AND (status='pending' OR (status='retry' "
+            "AND last_error_code IN ('MEDIA_URL_EXPIRED', 'MEDIA_HTTP_ERROR', "
+            "'MEDIA_URL_UNAVAILABLE'))) RETURNING id",
+            (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), now, remote_id),
+        )
+        return row is not None
+
     async def get_by_key(self, kind: str, remote_id: str) -> DownloadJob | None:
         row = await self.db.fetchone(
             "SELECT * FROM download_jobs WHERE kind=? AND remote_id=?",

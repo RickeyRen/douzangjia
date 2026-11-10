@@ -158,6 +158,7 @@ class SyncService:
                             ),
                             asdict(item),
                         )
+                        await self.jobs.refresh_links(item.remote_id, asdict(item))
                         if source_policy is not None and source_policy.enabled:
                             existing = await self.jobs.get_by_key("download", item.remote_id)
                             await self.download_policy.record_intent(
@@ -303,6 +304,7 @@ class SyncService:
                                 ),
                                 asdict(item),
                             )
+                            await self.jobs.refresh_links(item.remote_id, asdict(item))
                             if source_policy is not None and source_policy.enabled:
                                 existing = await self.jobs.get_by_key("download", item.remote_id)
                                 await self.download_policy.record_intent(
