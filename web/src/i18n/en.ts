@@ -177,6 +177,8 @@ export const en: Record<keyof typeof import("./zh-CN").zhCN, string> = {
   localLoginBody: "Enter the local NAS administrator username and password.",
   login: "Sign in",
   invalidCredentials: "Incorrect username or password",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
   tooManyAttempts: "Too many sign-in attempts, try again in {seconds} s",
   serverUnreachable: "Cannot reach DouZangJia; check that the NAS is online and try again",
   loggingIn: "Signing in…",

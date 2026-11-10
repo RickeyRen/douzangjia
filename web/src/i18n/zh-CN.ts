@@ -177,6 +177,8 @@ export const zhCN = {
   localLoginBody: "输入 NAS 本地管理员用户名和密码。",
   login: "登录",
   invalidCredentials: "用户名或密码不正确",
+  showPassword: "显示密码",
+  hidePassword: "隐藏密码",
   tooManyAttempts: "登录尝试过于频繁，请 {seconds} 秒后再试",
   serverUnreachable: "连不上抖藏家服务，请确认 NAS 在线后重试",
   loggingIn: "登录中…",

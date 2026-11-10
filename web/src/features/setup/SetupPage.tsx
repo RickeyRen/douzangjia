@@ -1,4 +1,4 @@
-import { LockKey } from "@phosphor-icons/react";
+import { Eye, EyeSlash, LockKey } from "@phosphor-icons/react";
 import { useState, type FormEvent } from "react";
 
 import { setupAdmin } from "../../app/api";
@@ -79,16 +79,47 @@ export function AuthFrame({ title, body, children }: { title: string; body: stri
   );
 }
 
-export function PasswordField({ label, value, onChange, hint, autoComplete = "new-password" }: { label: string; value: string; onChange: (value: string) => void; hint?: string; autoComplete?: "new-password" | "current-password" }) {
+export function PasswordField({
+  label,
+  value,
+  onChange,
+  hint,
+  autoComplete = "new-password",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  autoComplete?: "new-password" | "current-password";
+}) {
+  const { t } = useI18n();
+  const [visible, setVisible] = useState(false);
   return (
     <label className="auth-field">
       {label}
-      <input
-        type="password"
-        autoComplete={autoComplete}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <div className="auth-password">
+        <input
+          type={visible ? "text" : "password"}
+          autoComplete={autoComplete}
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          type="button"
+          className="auth-password-toggle"
+          aria-label={visible ? t("hidePassword") : t("showPassword")}
+          aria-pressed={visible}
+          onClick={(event) => {
+            event.preventDefault();
+            setVisible((current) => !current);
+          }}
+        >
+          {visible ? <EyeSlash size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
       {hint ? <span>{hint}</span> : null}
     </label>
   );

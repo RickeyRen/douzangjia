@@ -361,6 +361,14 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             return locked_response(wait)
         account = admin_store.account(payload.username)
         if account is None or not password_hasher.verify(account.password_hash, payload.password):
+            # Record which half was wrong (never the values themselves) so a
+            # stuck login can be diagnosed from the container log.
+            logger.warning(
+                "local login rejected: %s (username length %d, password length %d)",
+                "unknown username" if account is None else f"wrong password for {account.username}",
+                len(payload.username.strip()),
+                len(payload.password),
+            )
             login_guard.record_failure(*keys)
             return JSONResponse(
                 status_code=401,

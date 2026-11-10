@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import { ApiError, loginAdmin } from "../../app/api";
 import { useI18n } from "../../i18n/context";
-import { AuthFrame } from "../setup/SetupPage";
+import { AuthFrame, PasswordField } from "../setup/SetupPage";
 
 export function LocalLoginPage({ onComplete }: { onComplete: () => void }) {
   const { t } = useI18n();
@@ -43,6 +43,9 @@ export function LocalLoginPage({ onComplete }: { onComplete: () => void }) {
           <input
             type="text"
             autoComplete="username"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             autoFocus
             value={username}
             maxLength={32}
@@ -52,18 +55,15 @@ export function LocalLoginPage({ onComplete }: { onComplete: () => void }) {
             }}
           />
         </label>
-        <label className="auth-field">
-          {t("password")}
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
-              setError(null);
-            }}
-          />
-        </label>
+        <PasswordField
+          label={t("password")}
+          value={password}
+          autoComplete="current-password"
+          onChange={(value) => {
+            setPassword(value);
+            setError(null);
+          }}
+        />
         {error ? (
           <p className="auth-error" role="alert">
             {error}
