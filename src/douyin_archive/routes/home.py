@@ -172,7 +172,11 @@ async def warm_library_counts(app: Any) -> None:
 
 async def library_counts(request: Request) -> dict[str, Any]:
     """Library-wide counts, recomputed in the background once they are stale."""
-    state = request.app.state
+    return await library_counts_for_state(request.app.state)
+
+
+async def library_counts_for_state(state: Any) -> dict[str, Any]:
+    """The same cached counts for callers without a request, like the event stream."""
     database = state.database
     cached = getattr(state, "home_library_counts", None)
     now = time.monotonic()

@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from ..dashboard_events import dashboard_event_stream
 from ..dashboard_service import DashboardService
+from .home import library_counts_for_state
 
 router = APIRouter(prefix="/api")
 
@@ -77,7 +78,7 @@ async def dashboard(request: Request) -> dict[str, object]:
         request.app.state.database,
         request.app.state.settings.archive_root,
         started_at=int(getattr(request.app.state, "started_at", time.time())),
-    ).snapshot(runtime=runtime)
+    ).snapshot(runtime=runtime, library_totals=await library_counts_for_state(request.app.state))
 
 
 @router.get("/dashboard/series")
@@ -106,7 +107,10 @@ async def dashboard_events(request: Request) -> StreamingResponse:
         runtime = (
             runtime_owner.dashboard_runtime() if runtime_owner is not None else None
         )
-        return await service.snapshot(runtime=runtime)
+        return await service.snapshot(
+            runtime=runtime,
+            library_totals=await library_counts_for_state(request.app.state),
+        )
 
     return StreamingResponse(
         dashboard_event_stream(

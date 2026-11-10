@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import time
 from dataclasses import asdict
@@ -18,6 +19,8 @@ from ..archive_service import (
     ArchiveTargetNotFound,
 )
 from ..repositories import JobRepository
+
+PROGRESS_SHARE_SECONDS = 2.5
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -108,21 +111,25 @@ async def _archive_target(request: Request, kind: str, target_id: str):
 
 @router.post("/archive/items/{remote_id}", status_code=202)
 async def archive_item(remote_id: str, request: Request):
+    request.app.state.archive_progress_cache = None
     return await _archive_target(request, "item", remote_id)
 
 
 @router.post("/archive/sources/{source_id}", status_code=202)
 async def archive_source(source_id: str, request: Request):
+    request.app.state.archive_progress_cache = None
     return await _archive_target(request, "source", source_id)
 
 
 @router.post("/archive/creators/{creator_id}", status_code=202)
 async def archive_creator(creator_id: str, request: Request):
+    request.app.state.archive_progress_cache = None
     return await _archive_target(request, "creator", creator_id)
 
 
 @router.post("/archive/selection", status_code=202)
 async def archive_selection(body: SelectionRequest, request: Request):
+    request.app.state.archive_progress_cache = None
     try:
         batch, skipped = await _service(request).archive_selection(body.item_ids)
     except ArchiveTargetNotFound:
@@ -140,6 +147,7 @@ async def missing_summary(request: Request):
 
 @router.post("/archive/missing", status_code=202)
 async def archive_missing(request: Request):
+    request.app.state.archive_progress_cache = None
     state = request.app.state
     service = _service(request)
     task = await start_missing_queue(state, service)
@@ -204,7 +212,16 @@ def _log_queue_failure(task: asyncio.Task) -> None:
 
 @router.get("/archive/progress")
 async def archive_progress(request: Request):
-    snapshot = await ArchiveProgressService(request.app.state.database).snapshot()
+    state = request.app.state
+    cached = getattr(state, "archive_progress_cache", None)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < PROGRESS_SHARE_SECONDS:
+        # The web page and the app both poll every few seconds; with a large
+        # batch each snapshot costs a second or more on a busy NAS.
+        snapshot = copy.deepcopy(cached[1])
+    else:
+        snapshot = await ArchiveProgressService(state.database).snapshot()
+        state.archive_progress_cache = (time.monotonic(), copy.deepcopy(snapshot))
     plan = queueing_plan(request)
     active = snapshot.get("active")
     if plan and active and any(batch["id"] == plan["batchId"] for batch in active["batches"]):
@@ -215,12 +232,14 @@ async def archive_progress(request: Request):
 
 @router.post("/archive/retry-failed")
 async def retry_failed(request: Request):
+    request.app.state.archive_progress_cache = None
     retried = await ArchiveProgressService(request.app.state.database).retry_failed()
     return {"retried": retried}
 
 
 @router.post("/items/bulk-star")
 async def bulk_star(body: BulkStarRequest, request: Request):
+    request.app.state.archive_progress_cache = None
     database = request.app.state.database
     now = int(time.time())
     placeholders = ",".join("?" for _ in body.item_ids)
@@ -267,6 +286,7 @@ async def get_batch(batch_id: int, request: Request):
 
 @router.post("/archive/batches/{batch_id}/{action}")
 async def control_batch(batch_id: int, action: str, request: Request):
+    request.app.state.archive_progress_cache = None
     if action not in {"pause", "resume", "cancel"}:
         return JSONResponse(
             status_code=404,

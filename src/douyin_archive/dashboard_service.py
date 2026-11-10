@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .account_health import AccountHealthService
@@ -151,16 +152,34 @@ class DashboardService:
         }
 
     async def snapshot(
-        self, *, runtime: dict[str, object] | None = None
+        self,
+        *,
+        runtime: dict[str, object] | None = None,
+        library_totals: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         disk = shutil.disk_usage(self.archive_root)
+        # Library-wide item and creator counts scan every item (seconds on the
+        # NAS) and the live stream refreshes every second, so callers pass the
+        # home page's cached totals; tests and one-offs still count directly.
+        if library_totals is not None:
+            totals_sql = "? AS items, ? AS creators, "
+            totals_args: tuple[Any, ...] = (
+                int(library_totals["items"]),
+                int(library_totals["creators"]),
+            )
+        else:
+            totals_sql = (
+                f"(SELECT COUNT(*) FROM items i WHERE {library_item_sql('i')}) AS items, "
+                "(SELECT COUNT(*) FROM creators c WHERE EXISTS "
+                "(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id "
+                f"AND {library_item_sql('i')})) AS creators, "
+            )
+            totals_args = ()
         library = await self.db.fetchone(
-            f"SELECT (SELECT COUNT(*) FROM items i WHERE {library_item_sql('i')}) AS items, "
+            f"SELECT {totals_sql}"
             "(SELECT COUNT(DISTINCT item_id) FROM media_files WHERE status='ready') "
             "AS archived_items, (SELECT COUNT(*) FROM media_files WHERE status='ready') "
-            "AS media_files, (SELECT COUNT(*) FROM creators c WHERE EXISTS "
-            "(SELECT 1 FROM items i WHERE i.creator_id=c.remote_id "
-            f"AND {library_item_sql('i')})) AS creators, "
+            "AS media_files, "
             "(SELECT COUNT(*) FROM library_sources) AS sources, "
             "(SELECT COUNT(*) FROM library_sources WHERE sync_status='complete') "
             "AS complete_sources, "
@@ -171,7 +190,8 @@ class DashboardService:
             "(SELECT COUNT(*) FROM source_items) + "
             "(SELECT COUNT(*) FROM source_entities) AS discovered_links, "
             "(SELECT COALESCE(SUM(byte_size), 0) FROM media_files WHERE status='ready') "
-            "AS archived_bytes"
+            "AS archived_bytes",
+            totals_args,
         )
         downloads = await DownloadMonitor(self.db, clock=self.clock).snapshot(limit=3)
         queue = downloads["summary"]
