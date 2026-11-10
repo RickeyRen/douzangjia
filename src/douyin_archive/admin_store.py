@@ -106,6 +106,31 @@ class AdminStore:
         self._write(next_payload)
         return account
 
+    def set_password(self, username: str, password_hash: str) -> AdminAccount:
+        """Replace one existing account's password hash, keeping everything else."""
+        payload = self._read()
+        if payload is None:
+            raise LookupError(username)
+        try:
+            _, username_key = normalize_username(username)
+        except ValueError as error:
+            raise LookupError(username) from error
+        accounts = self._accounts(payload)
+        updated: AdminAccount | None = None
+        for index, value in enumerate(accounts):
+            if value.username_key == username_key:
+                updated = AdminAccount(value.username, value.username_key, password_hash, value.kind)
+                accounts[index] = updated
+        if updated is None:
+            raise LookupError(username)
+        next_payload: dict[str, object] = {
+            **payload,
+            "version": 2,
+            "accounts": [self._serialize(value) for value in accounts],
+        }
+        self._write(next_payload)
+        return updated
+
     def remove_account(self, username: str) -> bool:
         payload = self._read()
         if payload is None:
