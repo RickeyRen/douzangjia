@@ -176,6 +176,9 @@ struct ActivityView: View {
         case "ok": "同步正常"
         case "syncing": "正在同步收藏"
         case "login_required": "抖音登录已失效"
+        // The browser probe also reports "failing" while recent runs succeeded;
+        // name that cause so it doesn't contradict the run history below.
+        case "failing" where health?.lastErrorCode == "BROWSER_DISCONNECTED": "后台浏览器没有响应"
         case "failing": "同步一直失败"
         case "stale": "同步好久没完成了"
         case "never": "还没同步过"
@@ -188,6 +191,9 @@ struct ActivityView: View {
         guard let health else { return " " }
         if health.state == "login_required" { return "请在电脑上打开抖藏家网页，重新扫码登录抖音。" }
         let interval = "每 \(health.intervalSeconds / 60) 分钟检查一次"
+        if health.state == "failing" && health.lastErrorCode == "BROWSER_DISCONNECTED" {
+            return "下次同步时会自动重启它 · 上次成功同步 \(Format.relative(health.lastSuccessAt))"
+        }
         return "上次成功同步 \(Format.relative(health.lastSuccessAt)) · \(interval)"
     }
 

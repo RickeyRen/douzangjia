@@ -34,3 +34,9 @@ it("hides bookkeeping codes but explains real errors", () => {
   expect(errorSuffix("SOMETHING_NEW")).toBe(" · SOMETHING_NEW");
   expect(errorSuffix("DOUYIN_PAGE_CRASHED")).toContain("崩溃");
 });
+
+it("blames the browser, not sync, when only the browser probe failed", () => {
+  const view = describeHealth(makeHealth({ state: "failing", lastSuccessAt: daysAgo(0), lastErrorCode: "BROWSER_DISCONNECTED", consecutiveFailures: 0 }), now);
+  expect(view.title).toBe("后台浏览器没有响应");
+  expect(view.body).not.toContain("连续失败");
+});

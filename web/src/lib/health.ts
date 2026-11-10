@@ -88,6 +88,17 @@ export function describeHealth(health: SyncHealth | null, now = Date.now()): Hea
         action: "login",
       };
     case "failing":
+      if (health.lastErrorCode === "BROWSER_DISCONNECTED") {
+        // Recent runs may all have succeeded; the problem is the browser itself.
+        return {
+          tone: "danger",
+          label: t("浏览器无响应"),
+          title: t("后台浏览器没有响应"),
+          body: t("下次同步时会自动重启它。上次成功同步 {last}。", { last }),
+          alert: true,
+          action: "sync",
+        };
+      }
       return {
         tone: "danger",
         label: t("同步失败"),
