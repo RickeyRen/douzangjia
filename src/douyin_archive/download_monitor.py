@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Callable
 from math import ceil
 from sqlite3 import Row
@@ -29,11 +29,21 @@ class DownloadMonitor:
             "SELECT id, kind, remote_id, payload_json, status, attempts, "
             "next_attempt_at, last_error_code, updated_at FROM download_jobs "
         )
+        # A "save everything" batch leaves ten thousand jobs pending; loading
+        # and serializing all of them every few seconds (telemetry and the live
+        # dashboard both ask) only to count them pinned the NAS. Count in SQL and
+        # load in detail just the running jobs plus the page that is shown.
+        status_rows = await self.database.fetchall(
+            "SELECT status, COUNT(*) AS total FROM download_jobs "
+            "WHERE kind='download' AND status!='completed' GROUP BY status"
+        )
+        counts = {str(row["status"]): int(row["total"]) for row in status_rows}
         jobs = await self.database.fetchall(
             columns + "WHERE kind='download' AND status!='completed' ORDER BY "
             "CASE status WHEN 'running' THEN 0 WHEN 'pending' THEN 1 "
             "WHEN 'retry' THEN 2 WHEN 'failed' THEN 3 ELSE 4 END, "
-            "updated_at DESC, id DESC"
+            "updated_at DESC, id DESC LIMIT ?",
+            (counts.get("running", 0) + max(0, limit),),
         )
         jobs += await self.database.fetchall(
             columns + "WHERE kind='download' AND status='completed' "
@@ -82,7 +92,7 @@ class DownloadMonitor:
             )
             for row in jobs
         ]
-        summary = self._summary(serialized)
+        summary = self._summary(serialized, counts)
         summary["completed"] = int(completed_total["total"]) if completed_total else 0
         return {
             "summary": summary,
@@ -256,9 +266,12 @@ class DownloadMonitor:
             return None
         return ceil((total_bytes - downloaded_bytes) / speed_bps)
 
-    def _summary(self, jobs: list[dict[str, Any]]) -> dict[str, object]:
-        counts = Counter(str(job["status"]) for job in jobs)
-        active = [job for job in jobs if job["status"] in _ACTIVE_STATUSES]
+    def _summary(
+        self, jobs: list[dict[str, Any]], counts: dict[str, int]
+    ) -> dict[str, object]:
+        # Bytes, speed and ETA describe the downloads in flight; jobs still
+        # waiting in the queue have nothing transferred yet.
+        active = [job for job in jobs if job["status"] == "running"]
         downloaded_bytes = sum(int(job["downloadedBytes"]) for job in active)
         total_values = [job["totalBytes"] for job in active]
         total_bytes = (
@@ -268,11 +281,11 @@ class DownloadMonitor:
         )
         speed_bps = sum(float(job["speedBps"]) for job in active)
         return {
-            "pending": counts["pending"],
-            "running": counts["running"],
-            "retry": counts["retry"],
-            "failed": counts["failed"],
-            "completed": counts["completed"],
+            "pending": counts.get("pending", 0),
+            "running": counts.get("running", 0),
+            "retry": counts.get("retry", 0),
+            "failed": counts.get("failed", 0),
+            "completed": counts.get("completed", 0),
             "downloadedBytes": downloaded_bytes,
             "totalBytes": total_bytes,
             "speedBps": speed_bps,

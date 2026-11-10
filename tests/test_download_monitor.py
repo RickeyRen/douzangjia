@@ -82,10 +82,11 @@ async def test_snapshot_aggregates_queue_and_complete_task_details(
         "retry": 1,
         "failed": 0,
         "completed": 1,
-        "downloadedBytes": 13,
-        "totalBytes": 30,
+        # Bytes and ETA cover the download in flight; the retrying one is not moving.
+        "downloadedBytes": 10,
+        "totalBytes": 20,
         "speedBps": 5.0,
-        "etaSeconds": 4,
+        "etaSeconds": 2,
     }
     assert [item["remoteId"] for item in snapshot["items"]] == ["735", "734", "736"]
     retry = snapshot["items"][1]
@@ -142,4 +143,30 @@ async def test_unknown_totals_and_stale_speed_do_not_invent_eta(tmp_path: Path) 
     assert snapshot["summary"]["etaSeconds"] is None
     assert snapshot["items"][0]["totalBytes"] is None
     assert snapshot["items"][0]["etaSeconds"] is None
+    await database.close()
+
+
+async def test_a_huge_queue_is_counted_without_loading_every_job(tmp_path: Path) -> None:
+    """Catches a ten-thousand-item save-everything pinning the NAS every few seconds."""
+    database = Database(tmp_path / "archive.sqlite3")
+    await database.open()
+    for index in range(40):
+        remote_id = f"8{index:03d}"
+        await database.execute(
+            "INSERT INTO items (remote_id, author_name, description, item_type, first_seen_at, last_seen_at) "
+            "VALUES (?, 'a', 'd', 'video', 1, 1)",
+            (remote_id,),
+        )
+        await database.execute(
+            "INSERT INTO download_jobs (kind, remote_id, payload_json, status, attempts, next_attempt_at, "
+            "created_at, updated_at) VALUES ('download', ?, ?, ?, 0, 0, 1, ?)",
+            (remote_id, _payload(remote_id, expected_size=10), "running" if index < 2 else "pending", index),
+        )
+
+    snapshot = await DownloadMonitor(database, clock=lambda: 100).snapshot(limit=3)
+
+    assert snapshot["summary"]["pending"] == 38
+    assert snapshot["summary"]["running"] == 2
+    assert len(snapshot["items"]) == 3
+    assert [item["status"] for item in snapshot["items"][:2]] == ["running", "running"]
     await database.close()
