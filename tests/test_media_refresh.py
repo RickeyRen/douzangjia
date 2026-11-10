@@ -137,3 +137,28 @@ def test_a_link_douyin_never_hands_out_stops_retrying_so_the_batch_can_finish(tm
     assert (old["status"], old["last_error_code"]) == ("failed", "MEDIA_URL_UNAVAILABLE")
     # The only item failed for good, so the batch no longer counts as running.
     assert batch_status == "failed"
+
+
+def test_resigned_links_jump_ahead_of_stale_first_tries(tmp_path: Path) -> None:
+    """Catches re-signed jobs expiring again behind thousands of stale queued ones."""
+
+    async def scenario() -> str:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        # A stale first try that has been due for an hour.
+        await database.execute(
+            "INSERT INTO download_jobs (kind, remote_id, payload_json, status, attempts, "
+            "next_attempt_at, created_at, updated_at) VALUES ('download', '111', ?, 'pending', 0, ?, 1, 1)",
+            (json.dumps({"remote_id": "111", "assets": []}), int(time.time()) - 3600),
+        )
+        await queue(database, "734", attempts=1, code="MEDIA_URL_EXPIRED")
+
+        async def fetch(ids: list[str]) -> list[dict]:
+            return FIXTURE["aweme_list"]
+
+        await MediaUrlRefresher(database, fetch).run_batch()
+        job = await JobRepository(database).claim_next(worker_id="w1")
+        await database.close()
+        assert job is not None
+        return job.remote_id
+
+    assert asyncio.run(scenario()) == "734"

@@ -69,11 +69,14 @@ class MediaUrlRefresher:
             for row in rows:
                 item = fresh.get(str(row["remote_id"]))
                 if item is not None:
+                    # Fresh signatures expire within hours; put them at the front of
+                    # the queue. Scheduled "now", they waited behind thousands of
+                    # stale first tries and expired again before a worker got there.
                     await self.db.execute(
                         "UPDATE download_jobs SET payload_json=?, status='pending', "
-                        "next_attempt_at=?, last_error_code=NULL, updated_at=? "
+                        "next_attempt_at=0, last_error_code=NULL, updated_at=? "
                         "WHERE id=? AND status='retry'",
-                        (json.dumps(asdict(item), separators=(",", ":")), now, now, row["id"]),
+                        (json.dumps(asdict(item), separators=(",", ":")), now, row["id"]),
                     )
                     refreshed += 1
                 elif int(row["attempts"]) >= MAX_UNAVAILABLE_ATTEMPTS:
