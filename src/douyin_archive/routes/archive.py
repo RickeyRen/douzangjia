@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 from dataclasses import asdict
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
@@ -141,15 +142,7 @@ async def missing_summary(request: Request):
 async def archive_missing(request: Request):
     state = request.app.state
     service = _service(request)
-    task = getattr(state, "missing_archive_task", None)
-    if task is None or task.done():
-        item_ids = await service.missing_item_ids()
-        batch = await service.batches.create_batch("missing", "all")
-        # The progress card shows the whole plan while items are still being queued.
-        state.missing_archive_plan = {"batchId": batch.id, "planned": len(item_ids)}
-        task = asyncio.create_task(service.archive_missing(item_ids))
-        task.add_done_callback(_log_queue_failure)
-        state.missing_archive_task = task
+    task = await start_missing_queue(state, service)
     try:
         batch, skipped = await asyncio.wait_for(asyncio.shield(task), MISSING_QUEUE_WAIT_SECONDS)
     except TimeoutError:
@@ -159,6 +152,40 @@ async def archive_missing(request: Request):
             batch = await service.batches.create_batch("missing", "all")
         return {"batch": _serialize_batch(batch), "skipped": 0, "queueing": True}
     return {"batch": _serialize_batch(batch), "skipped": skipped, "queueing": False}
+
+
+async def start_missing_queue(state: Any, service: ArchiveService) -> asyncio.Task:
+    """Start (or join) queueing every unsaved library item into the bulk batch."""
+    task = getattr(state, "missing_archive_task", None)
+    if task is None or task.done():
+        item_ids = await service.missing_item_ids()
+        batch = await service.batches.create_batch("missing", "all")
+        # The progress card shows the whole plan while items are still being queued.
+        state.missing_archive_plan = {"batchId": batch.id, "planned": len(item_ids)}
+        task = asyncio.create_task(service.archive_missing(item_ids))
+        task.add_done_callback(_log_queue_failure)
+        state.missing_archive_task = task
+    return task
+
+
+async def resume_missing_queue(app: Any) -> bool:
+    """Finish queueing a "save everything" batch that a restart cut short.
+
+    Queueing ten thousand items runs in the background for minutes; a deploy or
+    reboot in that window left most of them never queued while the card showed
+    the batch nearly done. Paused or stopped batches are the user's choice and
+    stay as they are.
+    """
+    database = app.state.database
+    active = await database.fetchone(
+        "SELECT id FROM archive_batches WHERE kind='missing' AND target_id='all' "
+        "AND status IN ('queued', 'running') ORDER BY id DESC LIMIT 1"
+    )
+    if active is None:
+        return False
+    service = ArchiveService(database, JobRepository(database), ArchiveBatchRepository(database))
+    await start_missing_queue(app.state, service)
+    return True
 
 
 def queueing_plan(request: Request) -> dict[str, int] | None:

@@ -151,3 +151,38 @@ def test_save_everything_answers_quickly_and_keeps_queueing_in_the_background(
     # While queueing, progress reports the whole plan, not just what is queued so far.
     assert during["active"]["plannedItems"] == 2
     assert during["active"]["queueing"] is True
+
+
+async def _resume_after_restart(root: Path, status: str) -> list[str]:
+    """Simulates a restart with a half-queued "save everything" batch."""
+    from types import SimpleNamespace
+
+    from douyin_archive.routes.archive import resume_missing_queue
+
+    await seed(root)
+    database = await Database(root / "data" / "archive.sqlite3").open()
+    try:
+        await database.execute(
+            "INSERT INTO archive_batches (kind, target_id, status, created_at, updated_at) "
+            "VALUES ('missing', 'all', ?, 1, 1)",
+            (status,),
+        )
+        app = SimpleNamespace(state=SimpleNamespace(database=database))
+        resumed = await resume_missing_queue(app)
+        task = getattr(app.state, "missing_archive_task", None)
+        if task is not None:
+            await task
+        rows = await database.fetchall("SELECT remote_id FROM download_jobs ORDER BY remote_id")
+        assert resumed is (task is not None)
+        return [str(row["remote_id"]) for row in rows]
+    finally:
+        await database.close()
+
+
+def test_restart_finishes_queueing_an_interrupted_save_everything(tmp_path: Path) -> None:
+    """Catches a deploy mid-queue leaving most items never queued."""
+    assert asyncio.run(_resume_after_restart(tmp_path, "running")) == ["902", "903"]
+
+
+def test_restart_leaves_a_paused_save_everything_alone(tmp_path: Path) -> None:
+    assert asyncio.run(_resume_after_restart(tmp_path, "paused")) == []

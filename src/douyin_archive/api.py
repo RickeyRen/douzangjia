@@ -39,6 +39,11 @@ class CachedStaticFiles(StaticFiles):
 
 logger = logging.getLogger(__name__)
 
+
+def _log_background_failure(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("startup background task failed", exc_info=task.exception())
+
 SESSION_COOKIE = "archive_session"
 CSRF_COOKIE = "archive_csrf"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -196,6 +201,10 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
             from .routes.home import warm_library_counts
 
             warm_home = asyncio.create_task(warm_library_counts(application))
+            from .routes.archive import resume_missing_queue
+
+            resume_queue = asyncio.create_task(resume_missing_queue(application))
+            resume_queue.add_done_callback(_log_background_failure)
         install_task_dump_signal(asyncio.get_running_loop())
         try:
             yield
