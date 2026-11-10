@@ -168,9 +168,17 @@ async def start_missing_queue(state: Any, service: ArchiveService) -> asyncio.Ta
     if task is None or task.done():
         item_ids = await service.missing_item_ids()
         batch = await service.batches.create_batch("missing", "all")
+        # Joining an existing batch (a second click, or resuming after a restart)
+        # only queues what it does not hold yet; re-queueing thousands of known
+        # items held the write lock for minutes after every deploy.
+        rows = await service.db.fetchall(
+            "SELECT item_id FROM archive_batch_items WHERE batch_id=?", (batch.id,)
+        )
+        held = {str(row["item_id"]) for row in rows}
+        fresh = [item_id for item_id in item_ids if item_id not in held]
         # The progress card shows the whole plan while items are still being queued.
-        state.missing_archive_plan = {"batchId": batch.id, "planned": len(item_ids)}
-        task = asyncio.create_task(service.archive_missing(item_ids))
+        state.missing_archive_plan = {"batchId": batch.id, "planned": len(held) + len(fresh)}
+        task = asyncio.create_task(service.archive_missing(fresh))
         task.add_done_callback(_log_queue_failure)
         state.missing_archive_task = task
     return task

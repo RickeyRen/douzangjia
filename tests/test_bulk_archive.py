@@ -186,3 +186,35 @@ def test_restart_finishes_queueing_an_interrupted_save_everything(tmp_path: Path
 
 def test_restart_leaves_a_paused_save_everything_alone(tmp_path: Path) -> None:
     assert asyncio.run(_resume_after_restart(tmp_path, "paused")) == []
+
+
+async def _resume_with_one_already_held(root: Path) -> tuple[list[str], dict]:
+    from types import SimpleNamespace
+
+    from douyin_archive.routes.archive import resume_missing_queue
+
+    await seed(root)
+    database = await Database(root / "data" / "archive.sqlite3").open()
+    try:
+        row = await database.fetchone(
+            "INSERT INTO archive_batches (kind, target_id, status, created_at, updated_at) "
+            "VALUES ('missing', 'all', 'running', 1, 1) RETURNING id"
+        )
+        await database.execute(
+            "INSERT INTO archive_batch_items (batch_id, item_id, created_at) VALUES (?, '902', 1)",
+            (row["id"],),
+        )
+        app = SimpleNamespace(state=SimpleNamespace(database=database))
+        await resume_missing_queue(app)
+        await app.state.missing_archive_task
+        jobs = await database.fetchall("SELECT remote_id FROM download_jobs ORDER BY remote_id")
+        return [str(job["remote_id"]) for job in jobs], app.state.missing_archive_plan
+    finally:
+        await database.close()
+
+
+def test_resume_queues_only_what_the_batch_does_not_hold(tmp_path: Path) -> None:
+    """Catches every deploy re-queueing thousands of known items under the write lock."""
+    jobs, plan = asyncio.run(_resume_with_one_already_held(tmp_path))
+    assert jobs == ["903"]
+    assert plan["planned"] == 2
