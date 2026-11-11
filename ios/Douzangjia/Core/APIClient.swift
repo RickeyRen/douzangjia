@@ -16,6 +16,7 @@ final class APIClient {
     let baseURL: URL
     private let session: URLSession
     private let decoder = JSONDecoder()
+    private let cache: ResponseCache
 
     init(baseURL: URL) {
         self.baseURL = baseURL
@@ -25,6 +26,7 @@ final class APIClient {
         // A busy NAS can take a while on the home page; give it room before giving up.
         configuration.timeoutIntervalForRequest = 45
         session = URLSession(configuration: configuration)
+        cache = ResponseCache(server: baseURL)
     }
 
     /// Resolves the relative paths the API returns (e.g. `/api/media/12`).
@@ -38,6 +40,28 @@ final class APIClient {
 
     func clearCookies() {
         for cookie in cookies { HTTPCookieStorage.shared.deleteCookie(cookie) }
+        cache.clear()
+    }
+
+    // MARK: Last good answers (shown at once while a fresh request runs)
+
+    func cachedHome() -> HomeSnapshot? { cached("/api/home") }
+    func cachedMissingSummary() -> MissingSummary? { cached("/api/archive/missing") }
+    func cachedSyncHealth() -> SyncHealth? { cached("/api/health/sync") }
+    func cachedSyncRuns() -> [SyncRun]? {
+        let page: Page<SyncRun>? = cached("/api/sync/runs", query: [URLQueryItem(name: "limit", value: "50")])
+        return page?.items
+    }
+    func cachedFeed(filter: LibraryFilter) -> Page<FeedItem>? {
+        cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: ""))
+    }
+    func cachedVanished(sort: String) -> VanishedPage? {
+        cached("/api/creators/vanished", query: vanishedQuery(cursor: nil, search: "", sort: sort))
+    }
+
+    private func cached<T: Decodable>(_ path: String, query: [URLQueryItem] = []) -> T? {
+        guard let data = cache.data(for: url(path, query: query)) else { return nil }
+        return try? decoder.decode(T.self, from: data)
     }
 
     // MARK: Endpoints
@@ -56,6 +80,10 @@ final class APIClient {
     func home() async throws -> HomeSnapshot { try await get("/api/home") }
 
     func feed(filter: LibraryFilter, cursor: String?, search: String = "") async throws -> Page<FeedItem> {
+        try await get("/api/feed", query: feedQuery(filter: filter, cursor: cursor, search: search))
+    }
+
+    private func feedQuery(filter: LibraryFilter, cursor: String?, search: String) -> [URLQueryItem] {
         var query = [URLQueryItem(name: "limit", value: "30")]
         if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         switch filter {
@@ -64,7 +92,7 @@ final class APIClient {
         case .starred: query.append(URLQueryItem(name: "starred", value: "true"))
         }
         if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
-        return try await get("/api/feed", query: query)
+        return query
     }
 
     func creatorFeed(_ creatorId: String, cursor: String?) async throws -> Page<FeedItem> {
@@ -75,10 +103,14 @@ final class APIClient {
     }
 
     func vanishedCreators(cursor: String?, search: String = "", sort: String = "recent") async throws -> VanishedPage {
+        try await get("/api/creators/vanished", query: vanishedQuery(cursor: cursor, search: search, sort: sort))
+    }
+
+    private func vanishedQuery(cursor: String?, search: String, sort: String) -> [URLQueryItem] {
         var query = [URLQueryItem(name: "limit", value: "60"), URLQueryItem(name: "sort", value: sort)]
         if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
-        return try await get("/api/creators/vanished", query: query)
+        return query
     }
 
     func searchCreators(_ search: String) async throws -> [Creator] {
@@ -146,10 +178,15 @@ final class APIClient {
 
     // MARK: Transport
 
-    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+    private func url(_ path: String, query: [URLQueryItem]) -> URL {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
-        return try await perform(URLRequest(url: components.url!))
+        return components.url!
+    }
+
+    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+        let target = url(path, query: query)
+        return try await perform(URLRequest(url: target), cacheAs: target)
     }
 
     private func send<T: Decodable>(_ method: String, _ path: String, body: [String: Any]? = nil) async throws -> T {
@@ -166,7 +203,7 @@ final class APIClient {
         return try await perform(request)
     }
 
-    private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+    private func perform<T: Decodable>(_ request: URLRequest, cacheAs cacheURL: URL? = nil) async throws -> T {
         var request = request
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response): (Data, URLResponse)
@@ -187,7 +224,9 @@ final class APIClient {
         }
         if T.self == EmptyBody.self { return EmptyBody() as! T }
         do {
-            return try decoder.decode(T.self, from: data)
+            let value = try decoder.decode(T.self, from: data)
+            if let cacheURL { cache.store(data, for: cacheURL) }
+            return value
         } catch {
             throw APIError(status: status, code: "DECODE", message: "NAS 返回的数据看不懂，可能需要升级 App 或服务器。")
         }

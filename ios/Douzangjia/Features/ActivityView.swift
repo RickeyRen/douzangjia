@@ -198,6 +198,9 @@ struct ActivityView: View {
     }
 
     private func load() async {
+        if health == nil { health = model.client.cachedSyncHealth() }
+        if runs == nil { runs = model.client.cachedSyncRuns() }
+        if stats == nil { stats = model.client.cachedHome()?.stats }
         do {
             async let healthValue = model.client.syncHealth()
             async let runValues = model.client.syncRuns()

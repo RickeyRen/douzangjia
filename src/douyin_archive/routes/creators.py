@@ -164,7 +164,7 @@ async def _monitor_summary(request: Request) -> dict[str, object]:
     catalog = await database.fetchone(
         "SELECT COUNT(*) AS total, COALESCE(SUM(cover_state=1), 0) AS covers FROM creator_catalog_items"
     )
-    runtime = request.app.state.runtime
+    runtime = getattr(request.app.state, "runtime", None)
     checker = getattr(runtime, "creator_checker", None)
     scanner = getattr(runtime, "creator_catalog", None)
     return {

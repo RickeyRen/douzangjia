@@ -95,6 +95,11 @@ struct VanishedCreatorsView: View {
     }
 
     private func load() async {
+        if creators == nil, search.isEmpty, let saved = model.client.cachedVanished(sort: sort) {
+            creators = saved.items
+            counts = saved.counts
+            monitor = saved.monitor
+        }
         do {
             let page = try await model.client.vanishedCreators(cursor: nil, search: search, sort: sort)
             creators = page.items

@@ -197,6 +197,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
                 application.state.poster_cache = runtime.poster_cache
             await runtime.start()
         warm_home = None
+        keep_warm = None
         if runtime is not None:
             from .routes.home import warm_library_counts
 
@@ -205,12 +206,16 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
 
             resume_queue = asyncio.create_task(resume_missing_queue(application))
             resume_queue.add_done_callback(_log_background_failure)
+            from .warmers import keep_pages_warm
+
+            keep_warm = asyncio.create_task(keep_pages_warm(application))
         install_task_dump_signal(asyncio.get_running_loop())
         try:
             yield
         finally:
             if warm_home is not None:
                 warm_home.cancel()
+                keep_warm.cancel()
             if runtime is not None:
                 await runtime.stop()
             if owns_auth_service:

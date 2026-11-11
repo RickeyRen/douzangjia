@@ -9,6 +9,7 @@ final class LibraryFeed {
     private var cursor: String?
     private var exhausted = false
     private var generation = 0
+    private var replaceOnNextPage = false
 
     var creators: [Creator] = []
     private var search = ""
@@ -17,7 +18,13 @@ final class LibraryFeed {
         generation += 1
         cursor = nil
         exhausted = false
-        items = []
+        // Show this filter's last first page until the fresh one arrives.
+        if search.isEmpty, let saved = client.cachedFeed(filter: filter) {
+            items = saved.items
+        } else if !search.isEmpty {
+            items = []
+        }
+        replaceOnNextPage = true
         self.search = search
         let started = generation
         if search.isEmpty {
@@ -38,8 +45,13 @@ final class LibraryFeed {
         do {
             let page = try await client.feed(filter: filter, cursor: cursor, search: search)
             guard started == generation else { return }
-            let known = Set(items.map(\.id))
-            items.append(contentsOf: page.items.filter { !known.contains($0.id) })
+            if replaceOnNextPage {
+                items = page.items
+                replaceOnNextPage = false
+            } else {
+                let known = Set(items.map(\.id))
+                items.append(contentsOf: page.items.filter { !known.contains($0.id) })
+            }
             cursor = page.nextCursor
             exhausted = page.nextCursor == nil
             error = nil

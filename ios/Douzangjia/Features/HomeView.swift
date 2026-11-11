@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var missing: MissingSummary?
     @State private var poller = ProgressPoller()
     @State private var loadError: String?
+    @State private var live = false
     @State private var confirmSaveAll = false
     @State private var queueing = false
     @State private var saveAllNotice: String?
@@ -89,10 +90,11 @@ struct HomeView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            if home != nil {
-                ConnectionPill(text: "NAS 在线", color: Theme.lime)
-            } else if loadError != nil {
+            // Saved data can be on screen before (or without) the NAS answering.
+            if loadError != nil {
                 ConnectionPill(text: "NAS 离线", color: Theme.red)
+            } else if live {
+                ConnectionPill(text: "NAS 在线", color: Theme.lime)
             } else {
                 ConnectionPill(text: "连接中", color: Theme.muted)
             }
@@ -302,12 +304,16 @@ struct HomeView: View {
     // MARK: Actions
 
     private func load() async {
+        // Show the last answer at once; the fresh one replaces it when it lands.
+        if home == nil { home = model.client.cachedHome() }
+        if missing == nil { missing = model.client.cachedMissingSummary() }
         do {
             async let snapshot = model.client.home()
             async let summary = model.client.missingSummary()
             home = try await snapshot
             missing = try? await summary
             loadError = nil
+            live = true
         } catch is CancellationError {
             return
         } catch {

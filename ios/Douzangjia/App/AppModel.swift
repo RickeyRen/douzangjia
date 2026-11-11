@@ -37,11 +37,19 @@ final class AppModel {
     }
 
     func restore() async {
+        // With a saved session go straight to the app and its last saved data;
+        // waiting on a busy NAS here held every launch on a spinner. The check
+        // below still sends the user to the login form if the session expired.
+        let hasSession = client.cookies.contains {
+            $0.name == "archive_session" && ($0.expiresDate ?? .distantFuture) > Date()
+        }
+        if hasSession { phase = .signedIn }
         do {
             let status = try await client.status()
             phase = status.authenticated ? .signedIn : .signedOut
         } catch {
-            phase = .signedOut
+            // Offline or slow: keep showing saved data rather than a login form.
+            if !hasSession { phase = .signedOut }
         }
         #if DEBUG
         // Simulator QA: `-devUsername x -devPassword y` signs in without typing.
