@@ -35,3 +35,9 @@ E. iPhone 下载页
 - 图片不要外链真实照片：作品缩略图用 CSS 渐变/几何色块模拟，头像用首字母圆形。
 - 只借参考稿的风格（配色、圆角、卡片结构、排版节奏），不复制它们的品牌、文字和图片。
 - 质量要求：像 Dribbble 上的成品稿，层次清晰、留白讲究、对齐严格，不是线框图。
+
+## 选定版本与参考原稿
+
+- 选定：v1 紫电数据风（`v1-violet-analytics.html`），即现在网页和 App 的样子。
+- 参考原稿：Dribbble「AI Analytics Dashboard」by Outcrowd — https://dribbble.com/shots/27167729-AI-Analytics-Dashboard
+- 只借风格（近黑底、电光紫、胶囊分段导航、便当盒统计卡、方块热力图节奏），品牌、文字和图片都是抖藏家自己的。
