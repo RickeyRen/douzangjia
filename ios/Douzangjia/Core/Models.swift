@@ -256,6 +256,20 @@ struct ActiveDownload: Decodable {
     /// Whole plan while a bulk download is still being queued in the background.
     let plannedItems: Int?
     let queueing: Bool?
+    /// Set while Douyin hands out no fresh download links; the server retries on its own.
+    let linkRefusal: LinkRefusal?
+
+    struct LinkRefusal: Decodable {
+        let refusedSince: Int
+        let retryAt: Int?
+    }
+
+    var refusalNotice: String? {
+        guard let linkRefusal, !isPaused else { return nil }
+        guard let retryAt = linkRefusal.retryAt else { return "抖音暂时不给新的下载链接，正在确认，会自动再试。" }
+        let clock = Date(timeIntervalSince1970: TimeInterval(retryAt)).formatted(date: .omitted, time: .shortened)
+        return "抖音暂时不给新的下载链接，已自动放慢，\(clock) 自动再试，不用手动暂停。"
+    }
 
     /// Items this download will cover, counting ones still being queued.
     var plannedTotal: Int { max(totalItems, plannedItems ?? 0) }

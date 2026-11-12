@@ -4860,6 +4860,10 @@ video {
   color: var(--muted);
 }
 
+.dl-refused {
+  color: var(--warning, #d69e2e);
+}
+
 /* Douyin-style vertical track: previous, current and next pages stacked. */
 .player-track {
   position: absolute;

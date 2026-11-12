@@ -1,7 +1,7 @@
 import { ArrowClockwise, CaretRight, CloudArrowDown, Pause, Play, Stop, WarningCircle } from "@phosphor-icons/react";
 import { useState } from "react";
 
-import { controlArchiveBatch, plannedTotal, retryFailedDownloads, type ArchiveProgress, type ArchiveProgressItem } from "../app/api";
+import { controlArchiveBatch, linkRefusalNotice, plannedTotal, retryFailedDownloads, type ArchiveProgress, type ArchiveProgressItem } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { routeHref } from "../app/router";
 import { formatBytes, formatEta, formatInteger, formatSpeed } from "../lib/format";
@@ -95,6 +95,7 @@ function HomeActiveCard({ active }: { active: ActiveBatch }) {
           {t("还在加入下载队列：已加入 {queued} / {planned} 个", { queued: formatInteger(active.totalItems), planned: formatInteger(total) })}
         </p>
       ) : null}
+      {!paused && linkRefusalNotice(active) ? <p className="dl-queueing dl-refused">{linkRefusalNotice(active)}</p> : null}
       <div className="meta3">
         <div>
           <span>{t("速度")}</span>
@@ -106,7 +107,7 @@ function HomeActiveCard({ active }: { active: ActiveBatch }) {
         </div>
         <div>
           <span>{t("预计剩余")}</span>
-          <b className="num">{paused ? t("已暂停") : active.etaSeconds ? formatEta(active.etaSeconds) : t("估算中")}</b>
+          <b className="num">{paused ? t("已暂停") : active.linkRefusal ? t("等抖音") : active.etaSeconds ? formatEta(active.etaSeconds) : t("估算中")}</b>
         </div>
       </div>
       <a className="dl-more" href={routeHref({ name: "activity" })}>
@@ -206,6 +207,7 @@ function ActiveDownload({ progress }: { progress: ArchiveProgress }) {
             {t("还在加入下载队列：已加入 {queued} / {planned} 个", { queued: formatInteger(active.totalItems), planned: formatInteger(total) })}
           </small>
         ) : null}
+        {!paused && linkRefusalNotice(active) ? <small className="dl-queueing dl-refused">{linkRefusalNotice(active)}</small> : null}
       </div>
       <Progress value={percent} tone={paused ? "warning" : "info"} />
 
@@ -223,7 +225,7 @@ function ActiveDownload({ progress }: { progress: ArchiveProgress }) {
         </div>
         <div>
           <dt>{t("预计还要")}</dt>
-          <dd className="num">{paused ? t("已暂停") : active.etaSeconds ? formatEta(active.etaSeconds) : t("估算中…")}</dd>
+          <dd className="num">{paused ? t("已暂停") : active.linkRefusal ? t("等抖音给链接") : active.etaSeconds ? formatEta(active.etaSeconds) : t("估算中…")}</dd>
         </div>
         <div>
           <dt>{t("排队 / 失败")}</dt>

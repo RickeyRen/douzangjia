@@ -120,8 +120,11 @@ def test_a_link_douyin_never_hands_out_stops_retrying_so_the_batch_can_finish(tm
             (job["id"], now),
         )
 
+        await queue(database, "734", attempts=1, code="MEDIA_URL_EXPIRED")
+
         async def fetch(ids: list[str]) -> list[dict]:
-            return []
+            # Douyin answers, just never with this one item.
+            return FIXTURE["aweme_list"]
 
         await MediaUrlRefresher(database, fetch).run_batch()
         rows = {
@@ -162,3 +165,57 @@ def test_resigned_links_jump_ahead_of_stale_first_tries(tmp_path: Path) -> None:
         return job.remote_id
 
     assert asyncio.run(scenario()) == "734"
+
+
+def test_refusals_pause_refresh_then_probe_and_resume(tmp_path: Path) -> None:
+    """Catches the refresher hammering Douyin while it hands out no links at all."""
+    from douyin_archive.media_refresh import BATCH_SIZE, COOLDOWN_SECONDS
+
+    async def scenario() -> None:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        for index in range(BATCH_SIZE * 4):
+            await queue(database, str(1000 + index), attempts=3, code="MEDIA_URL_EXPIRED")
+        await queue(database, "734", attempts=3, code="MEDIA_URL_EXPIRED")
+        clock = [1_800_000_000.0]
+        calls: list[list[str]] = []
+        answer: list[dict] = []
+
+        async def fetch(ids: list[str]) -> list[dict]:
+            calls.append(ids)
+            return answer
+
+        refresher = MediaUrlRefresher(database, fetch, clock=lambda: clock[0])
+        # Two empty answers in a row: stop asking.
+        assert await refresher.run_batch() == 0
+        assert refresher.status() is not None and refresher.status()["retryAt"] is None
+        assert len(calls) == 1  # an empty answer ends the run instead of asking again
+        await refresher.run_batch()
+        status = refresher.status()
+        assert status["retryAt"] == int(clock[0]) + COOLDOWN_SECONDS[0]
+        # Items keep their retry budget and wait out the pause instead of retrying dead links.
+        rows = await database.fetchall(
+            "SELECT attempts, last_error_code, next_attempt_at FROM download_jobs"
+        )
+        assert {(r["attempts"], r["last_error_code"]) for r in rows} == {(3, "MEDIA_URL_EXPIRED")}
+        assert all(r["next_attempt_at"] >= status["retryAt"] for r in rows)
+
+        asked = len(calls)
+        clock[0] += 60
+        await refresher.run_batch()
+        assert len(calls) == asked  # still cooling down
+
+        # The probe after the pause is one small batch; still refused, the pause grows.
+        clock[0] = status["retryAt"] + 1
+        await refresher.run_batch()
+        assert len(calls) == asked + 1
+        assert refresher.status()["retryAt"] == int(clock[0]) + COOLDOWN_SECONDS[1]
+
+        # Douyin answers again: refresh resumes and the warning clears.
+        clock[0] = refresher.status()["retryAt"] + 1
+        answer.extend(FIXTURE["aweme_list"])
+        await database.execute("UPDATE download_jobs SET next_attempt_at=0 WHERE remote_id='734'")
+        assert await refresher.run_batch() >= 1
+        assert refresher.status() is None
+        await database.close()
+
+    asyncio.run(scenario())

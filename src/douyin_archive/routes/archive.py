@@ -235,6 +235,9 @@ async def archive_progress(request: Request):
     if plan and active and any(batch["id"] == plan["batchId"] for batch in active["batches"]):
         active["plannedItems"] = max(int(active["totalItems"]), plan["planned"])
         active["queueing"] = True
+    refresher = getattr(getattr(state, "runtime", None), "media_url_refresher", None)
+    if active and refresher is not None:
+        active["linkRefusal"] = refresher.status()
     return snapshot
 
 

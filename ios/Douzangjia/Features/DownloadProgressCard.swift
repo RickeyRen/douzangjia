@@ -112,13 +112,19 @@ struct DownloadProgressCard: View {
                     .foregroundStyle(Theme.muted)
                     .padding(.top, 6)
             }
+            if let notice = active.refusalNotice {
+                Text(notice)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.top, 6)
+            }
             if compact {
                 HStack(spacing: 7) {
                     if let perMinute, !active.isPaused {
                         meta(perMinute)
                         dot
                     }
-                    meta(active.isPaused ? "已暂停" : "预计 " + (active.etaSeconds.map { Format.eta($0) } ?? "估算中"))
+                    meta(active.isPaused ? "已暂停" : active.linkRefusal != nil ? "等抖音" : "预计 " + (active.etaSeconds.map { Format.eta($0) } ?? "估算中"))
                     dot
                     meta(active.isPaused ? "—" : Format.speed(active.speedBps))
                     dot
@@ -138,7 +144,7 @@ struct DownloadProgressCard: View {
                     if let perMinute {
                         fact("每分钟", perMinute.replacingOccurrences(of: "每分钟 ", with: ""), divider: true)
                     }
-                    fact("预计剩余", active.isPaused ? "已暂停" : (active.etaSeconds.map { Format.eta($0) } ?? "估算中…"), divider: true)
+                    fact("预计剩余", active.isPaused ? "已暂停" : active.linkRefusal != nil ? "等抖音" : (active.etaSeconds.map { Format.eta($0) } ?? "估算中…"), divider: true)
                     fact("已下载", estimatedTotal, divider: true)
                 }
                 .padding(.top, 10)

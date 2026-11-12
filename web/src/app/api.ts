@@ -215,6 +215,8 @@ export type ArchiveProgress = {
     /** Whole plan while a bulk download is still being queued in the background. */
     plannedItems?: number;
     queueing?: boolean;
+    /** Set while Douyin hands out no fresh download links; the server retries on its own. */
+    linkRefusal?: { refusedSince: number; retryAt: number | null } | null;
     completedItems: number;
     failedItems: number;
     runningItems: number;
@@ -786,3 +788,13 @@ export const triggerSync = (fullScan = false) =>
 /** Items the active download will cover, counting ones still being queued. */
 export const plannedTotal = (active: { totalItems: number; plannedItems?: number }) =>
   Math.max(active.totalItems, active.plannedItems ?? 0);
+
+/** "抖音暂时不给…" line for the download cards, or null while links flow. */
+export function linkRefusalNotice(active: { linkRefusal?: { retryAt: number | null } | null }): string | null {
+  const refusal = active.linkRefusal;
+  if (!refusal) return null;
+  if (!refusal.retryAt) return "抖音暂时不给新的下载链接，正在确认，会自动再试。";
+  const at = new Date(refusal.retryAt * 1000);
+  const clock = `${at.getHours().toString().padStart(2, "0")}:${at.getMinutes().toString().padStart(2, "0")}`;
+  return `抖音暂时不给新的下载链接，已自动放慢，${clock} 自动再试，不用手动暂停。`;
+}

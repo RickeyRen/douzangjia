@@ -85,3 +85,14 @@ it("retries failed downloads when nothing else is running", async () => {
   await user.click(screen.getByRole("button", { name: /全部重试/ }));
   await waitFor(() => expect(appData.toast).toHaveBeenCalledWith("已重新加入 2 个作品"));
 });
+
+it("says Douyin is refusing links and when it retries, instead of an endless estimate", () => {
+  const retryAt = new Date(2026, 10, 12, 1, 5).getTime() / 1000;
+  render(
+    <WithAppData value={makeAppData()}>
+      <DownloadProgress progress={active({ linkRefusal: { refusedSince: 1, retryAt } })} variant="full" />
+    </WithAppData>,
+  );
+  expect(screen.getByText(/抖音暂时不给新的下载链接.*01:05 自动再试/)).toBeInTheDocument();
+  expect(screen.getByText("等抖音给链接")).toBeInTheDocument();
+});
