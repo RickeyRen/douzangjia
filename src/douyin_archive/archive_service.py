@@ -103,11 +103,15 @@ class ArchiveService:
             f"AND {library_item_sql('i')}"
         )
         missing = int(row["missing"]) if row else 0
+        queued_count = int(queued["queued"]) if queued else 0
         average = int(sizes["bytes"]) / int(sizes["items"]) if sizes and int(sizes["items"]) else None
+        # The size goes next to "N more not saved yet", where N leaves out what is
+        # already queued; sized on every unsaved item it read "1 item · 191 GB".
+        unqueued = max(0, missing - queued_count)
         return {
             "missing": missing,
-            "queued": int(queued["queued"]) if queued else 0,
-            "estimatedBytes": int(average * missing) if average else None,
+            "queued": queued_count,
+            "estimatedBytes": int(average * unqueued) if average else None,
         }
 
     async def missing_item_ids(self) -> list[str]:

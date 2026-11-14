@@ -95,6 +95,8 @@ def test_missing_summary_and_archive_everything(tmp_path: Path, master_key: str)
     assert summary == {"missing": 2, "queued": 0, "estimatedBytes": 2 * 4096}
     # Once queued they still lack media, but nothing is left for "save everything" to add.
     assert after["missing"] == 2 and after["queued"] == 2
+    # The size describes the same items as the count shown next to it.
+    assert after["estimatedBytes"] == 0
     assert queued.status_code == 202 and queued.json()["skipped"] == 0
     assert queued.json()["batch"]["kind"] == "missing"
     # The active "missing" batch is reused instead of duplicated.
