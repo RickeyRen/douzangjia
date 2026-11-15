@@ -13,6 +13,16 @@ MAX_TAGS_PER_ITEM = 30
 MAX_NOTE_LENGTH = 4000
 
 
+def _clean_tags(value: list[str]) -> list[str]:
+    """Drops '#', squeezes spaces, caps length and removes duplicates, keeping order."""
+    seen: list[str] = []
+    for raw in value:
+        tag = " ".join(str(raw).replace("#", "").split()).strip()[:40]
+        if tag and tag not in seen:
+            seen.append(tag)
+    return seen
+
+
 class AlbumBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
 
@@ -35,12 +45,20 @@ class TagsBody(BaseModel):
     @field_validator("tags")
     @classmethod
     def clean(cls, value: list[str]) -> list[str]:
-        seen: list[str] = []
-        for raw in value:
-            tag = " ".join(str(raw).replace("#", "").split()).strip()[:40]
-            if tag and tag not in seen:
-                seen.append(tag)
-        return seen
+        return _clean_tags(value)
+
+
+class BulkTagsBody(BaseModel):
+    item_ids: list[str] = Field(alias="itemIds", min_length=1, max_length=2000)
+    add: list[str] = Field(min_length=1, max_length=10)
+
+    @field_validator("add")
+    @classmethod
+    def clean(cls, value: list[str]) -> list[str]:
+        cleaned = _clean_tags(value)
+        if not cleaned:
+            raise ValueError("标签不能为空")
+        return cleaned
 
 
 class NoteBody(BaseModel):
@@ -179,6 +197,33 @@ async def set_item_tags(remote_id: str, body: TagsBody, request: Request):
                 "INSERT INTO item_tags (item_id, tag, created_at) VALUES (?, ?, ?)", (remote_id, tag, now)
             )
     return {"tags": body.tags}
+
+
+@router.post("/items/bulk-tags")
+async def bulk_add_tags(body: BulkTagsBody, request: Request):
+    """Adds the same tags to many works; each work keeps its other tags and the per-work cap."""
+    database = request.app.state.database
+    now = int(time.time())
+    ids = list(dict.fromkeys(body.item_ids))
+    placeholders = ",".join("?" for _ in ids)
+    added = 0
+    async with database.transaction(immediate=True):
+        for tag in body.add:
+            cursor = await database.execute(
+                f"INSERT OR IGNORE INTO item_tags (item_id, tag, created_at) "
+                f"SELECT i.remote_id, ?, ? FROM items i WHERE i.remote_id IN ({placeholders}) "
+                f"AND (SELECT COUNT(*) FROM item_tags t WHERE t.item_id=i.remote_id) < ?",
+                (tag, now, *ids, MAX_TAGS_PER_ITEM),
+            )
+            added += cursor.rowcount
+    rows = await database.fetchall(
+        f"SELECT item_id, tag FROM item_tags WHERE item_id IN ({placeholders}) ORDER BY created_at, tag",
+        tuple(ids),
+    )
+    tags: dict[str, list[str]] = {}
+    for row in rows:
+        tags.setdefault(str(row["item_id"]), []).append(row["tag"])
+    return {"added": added, "tags": tags}
 
 
 @router.put("/items/{remote_id}/note")

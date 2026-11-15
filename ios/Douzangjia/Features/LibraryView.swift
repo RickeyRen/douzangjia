@@ -89,6 +89,9 @@ struct LibraryView: View {
     @State private var bulkNotice: String?
     @State private var naming = false
     @State private var newAlbumName = ""
+    @State private var knownTags: [TagCount] = []
+    @State private var taggingNew = false
+    @State private var newTag = ""
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -188,6 +191,13 @@ struct LibraryView: View {
             } message: {
                 Text("已选的 \(selected.count) 个作品会放进去")
             }
+            .alert("新标签", isPresented: $taggingNew) {
+                TextField("标签", text: $newTag)
+                Button("取消", role: .cancel) {}
+                Button("加上") { Task { await tag(newTag) } }
+            } message: {
+                Text("给已选的 \(selected.count) 个作品加上这个标签，原有的标签不变")
+            }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .task {
                 if sources.isEmpty { sources = (model.client.cachedLibrarySources() ?? []).filter(\.browsable) }
@@ -239,6 +249,19 @@ struct LibraryView: View {
             }
             .accessibilityLabel("给已选作品加入或取消精选")
             Menu {
+                Button("新标签…", systemImage: "plus") { newTag = ""; taggingNew = true }
+                if !knownTags.isEmpty {
+                    Section("加上标签") {
+                        ForEach(knownTags.prefix(15), id: \.tag) { known in
+                            Button("#\(known.tag)（\(known.itemCount)）") { Task { await tag(known.tag) } }
+                        }
+                    }
+                }
+            } label: {
+                Label("标签", systemImage: "number")
+            }
+            .accessibilityLabel("给已选作品加标签")
+            Menu {
                 Button("新建相册…", systemImage: "plus") { newAlbumName = ""; naming = true }
                 if !albums.isEmpty {
                     Section("加入相册") {
@@ -253,6 +276,8 @@ struct LibraryView: View {
             .accessibilityLabel("把已选作品加入相册")
         }
         .buttonStyle(.glass)
+        // Three actions plus the count do not fit a phone's width with words; icons there, words on iPad.
+        .labelStyle(BarLabelStyle(compact: sizeClass != .regular))
         .disabled(bulkBusy)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -274,6 +299,8 @@ struct LibraryView: View {
         if on {
             if albums.isEmpty { albums = model.client.cachedAlbums() ?? [] }
             Task { if let fresh = try? await model.client.albums() { albums = fresh } }
+            if knownTags.isEmpty { knownTags = model.client.cachedTags() ?? [] }
+            Task { if let fresh = try? await model.client.tags() { knownTags = fresh } }
         }
     }
 
@@ -321,6 +348,27 @@ struct LibraryView: View {
         } catch {
             model.handle(error)
             notice("没放进去：\(error.localizedDescription)")
+        }
+    }
+
+    private func tag(_ raw: String) async {
+        let name = raw.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let ids = selectedIds
+        guard !ids.isEmpty else { return notice("先点几个作品") }
+        bulkBusy = true
+        defer { bulkBusy = false }
+        do {
+            let tags = try await model.client.bulkAddTags(ids, add: [name])
+            for var item in feed.items where tags[item.id] != nil {
+                item.tags = tags[item.id]
+                feed.update(item)
+            }
+            notice("\(ids.count) 个已加上 #\(name)")
+            if let fresh = try? await model.client.tags() { knownTags = fresh }
+        } catch {
+            model.handle(error)
+            notice("没加上：\(error.localizedDescription)")
         }
     }
 
@@ -534,5 +582,18 @@ struct SelectionMark: View {
         .frame(width: 24, height: 24)
         .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
         .padding(5)
+    }
+}
+
+/// Icon only on a phone, icon and title where there is room.
+private struct BarLabelStyle: LabelStyle {
+    let compact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if compact {
+            configuration.icon.font(.system(size: 17, weight: .semibold)).frame(minWidth: 28, minHeight: 28)
+        } else {
+            HStack(spacing: 6) { configuration.icon; configuration.title }
+        }
     }
 }

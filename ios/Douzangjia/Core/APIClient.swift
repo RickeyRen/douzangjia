@@ -187,6 +187,17 @@ final class APIClient {
         return result
     }
 
+    /// Adds tags to many works, keeping their other tags; answers each work's tags afterwards.
+    func bulkAddTags(_ itemIds: [String], add: [String]) async throws -> [String: [String]] {
+        struct Result: Decodable { let tags: [String: [String]] }
+        var result: [String: [String]] = [:]
+        for chunk in itemIds.chunked(2000).map(Array.init) {
+            let page: Result = try await send("POST", "/api/items/bulk-tags", body: ["itemIds": chunk, "add": add])
+            result.merge(page.tags) { _, new in new }
+        }
+        return result
+    }
+
     /// Puts many works into one album; answers how many were new to it.
     func addToAlbum(_ albumId: Int, itemIds: [String]) async throws -> Int {
         struct Result: Decodable { let added: Int }

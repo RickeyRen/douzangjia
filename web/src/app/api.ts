@@ -721,6 +721,11 @@ export const removeFromAlbum = (albumId: number, itemIds: string[]) =>
 export const fetchTags = () => request<{ items: TagSummary[] }>("/api/tags");
 export const setItemTags = (remoteId: string, tags: string[]) =>
   request<{ tags: string[] }>(`/api/items/${encodeURIComponent(remoteId)}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
+export const bulkAddTags = (itemIds: string[], add: string[]) =>
+  request<{ added: number; tags: Record<string, string[]> }>("/api/items/bulk-tags", {
+    method: "POST",
+    body: JSON.stringify({ itemIds, add }),
+  });
 export const setItemNote = (remoteId: string, note: string) =>
   request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
 export type CollectionReview = {

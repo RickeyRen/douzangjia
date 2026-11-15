@@ -106,3 +106,28 @@ def test_album_sort_follows_added_order(tmp_path: Path, master_key: str) -> None
     # Same added_at, so the id tiebreaker decides; both were added in one call.
     assert set(ids(feed)) == {"704", "701"}
     assert wrong.status_code == 400
+
+
+def test_bulk_tags_add_without_dropping_existing_ones(tmp_path: Path, master_key: str) -> None:
+    client = client_for(tmp_path, master_key)
+    try:
+        client.put("/api/items/701/tags", json={"tags": ["周末"]})
+        full = [f"t{n}" for n in range(30)]
+        client.put("/api/items/704/tags", json={"tags": full})
+        result = client.post(
+            "/api/items/bulk-tags", json={"itemIds": ["701", "702", "704", "nope", "701"], "add": [" #做饭 ", "周末"]}
+        )
+        by_tag = client.get("/api/feed?tag=做饭")
+        by_search = client.get("/api/feed?search=做饭")
+        empty = client.post("/api/items/bulk-tags", json={"itemIds": ["701"], "add": [" # "]})
+    finally:
+        client.__exit__(None, None, None)
+
+    body = result.json()
+    # 701 already had 周末; 704 is at the 30-tag cap; the unknown id is ignored.
+    assert body["added"] == 3
+    assert set(body["tags"]["701"]) == set(body["tags"]["702"]) == {"周末", "做饭"}
+    assert sorted(body["tags"]["704"]) == sorted(full)
+    assert "nope" not in body["tags"]
+    assert set(ids(by_tag)) == {"701", "702"} == set(ids(by_search))
+    assert empty.status_code == 422

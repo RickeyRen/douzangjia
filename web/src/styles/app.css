@@ -1374,7 +1374,7 @@ video {
   animation: toast-in 0.2s var(--ease);
 }
 
-.selection-album {
+.popover-anchor.selection-album {
   position: relative;
   display: inline-block;
 }

@@ -1,10 +1,10 @@
-import { CloudArrowDown, Export, FolderPlus, Star, X } from "@phosphor-icons/react";
+import { CloudArrowDown, Export, FolderPlus, Hash, Star, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { EXPORT_SELECTION_LIMIT, archiveSelection, bulkStar, exportUrl, type FeedItem } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { Spinner } from "../ui/primitives";
-import { AlbumPicker } from "./Organize";
+import { AlbumPicker, BulkTagPicker } from "./Organize";
 import { t } from "../i18n/t";
 
 export function SelectionBar({
@@ -22,6 +22,7 @@ export function SelectionBar({
 }) {
   const { toast } = useAppData();
   const [albumOpen, setAlbumOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
   const [busy, setBusy] = useState<"star" | "download" | null>(null);
   const ids = [...selected];
   const chosen = items.filter((item) => selected.has(item.awemeId));
@@ -80,11 +81,35 @@ export function SelectionBar({
       </button>
       <span className="toolbar-spacer" />
       <span className="popover-anchor selection-album">
-        <button type="button" className="btn btn-secondary btn-sm" disabled={!ids.length} aria-expanded={albumOpen} onClick={() => setAlbumOpen((value) => !value)}>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={!ids.length} aria-expanded={albumOpen} onClick={() => { setTagOpen(false); setAlbumOpen((value) => !value); }}>
           <FolderPlus size={15} weight="bold" />
           {t("加入相册")}
         </button>
         {albumOpen ? <AlbumPicker itemIds={ids} onClose={() => setAlbumOpen(false)} /> : null}
+      </span>
+      <span className="popover-anchor selection-album">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!ids.length}
+          aria-expanded={tagOpen}
+          onClick={() => {
+            setAlbumOpen(false);
+            setTagOpen((value) => !value);
+          }}
+        >
+          <Hash size={15} weight="bold" />
+          {t("加标签")}
+        </button>
+        {tagOpen ? (
+          <BulkTagPicker
+            itemIds={ids}
+            onTagged={(tagsById) => {
+              for (const [id, tags] of Object.entries(tagsById)) onItemsPatched([id], { tags });
+            }}
+            onClose={() => setTagOpen(false)}
+          />
+        ) : null}
       </span>
       <button type="button" className="btn btn-secondary btn-sm" disabled={!ids.length || busy !== null} onClick={() => void star()}>
         {busy === "star" ? <Spinner size={14} /> : <Star size={15} weight={allStarred ? "fill" : "bold"} />}

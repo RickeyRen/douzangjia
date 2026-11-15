@@ -1,7 +1,17 @@
-import { Check, FolderPlus, Plus, X } from "@phosphor-icons/react";
+import { Check, FolderPlus, Hash, Plus, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { addToAlbum, createAlbum, removeFromAlbum, setItemNote, setItemTags, type FeedItem } from "../app/api";
+import {
+  addToAlbum,
+  bulkAddTags,
+  createAlbum,
+  fetchTags,
+  removeFromAlbum,
+  setItemNote,
+  setItemTags,
+  type FeedItem,
+  type TagSummary,
+} from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { Spinner } from "../ui/primitives";
 import { t } from "../i18n/t";
@@ -104,6 +114,87 @@ export function AlbumPicker({
           {t("新建相册")}
         </button>
       )}
+    </div>
+  );
+}
+
+/** Adds one tag to many works at once: pick a tag you already use, or type a new one. */
+export function BulkTagPicker({
+  itemIds,
+  onTagged,
+  onClose,
+}: {
+  itemIds: string[];
+  onTagged: (tagsById: Record<string, string[]>) => void;
+  onClose: () => void;
+}) {
+  const { toast } = useAppData();
+  const [known, setKnown] = useState<TagSummary[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    input.current?.focus();
+    let live = true;
+    fetchTags()
+      .then((result) => live && setKnown(result.items))
+      .catch(() => live && setKnown([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function add(raw: string) {
+    const tag = raw.replace(/#/g, "").trim();
+    if (!tag) return;
+    setBusy(tag);
+    try {
+      const result = await bulkAddTags(itemIds, [tag]);
+      onTagged(result.tags);
+      toast(t("已给 {n} 个作品加上 #{tag}", { n: itemIds.length, tag }));
+      onClose();
+    } catch {
+      toast(t("标签保存失败"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const query = draft.replace(/#/g, "").trim();
+  const suggestions = (known ?? []).filter((item) => !query || item.tag.includes(query)).slice(0, 12);
+
+  return (
+    <div className="popover" role="dialog" aria-label={t("加标签")}>
+      <div className="popover-head">
+        <strong>{t("给 {n} 个作品加标签", { n: itemIds.length })}</strong>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label={t("关闭")} onClick={onClose}>
+          <X size={14} />
+        </button>
+      </div>
+      <div className="popover-list">
+        {known === null ? <Spinner size={14} /> : null}
+        {known !== null && suggestions.length === 0 && !query ? <p className="empty-note">{t("还没有标签，输入一个新的。")}</p> : null}
+        {suggestions.map((item) => (
+          <button key={item.tag} type="button" className="popover-item" disabled={busy !== null} onClick={() => void add(item.tag)}>
+            <span className="check">{busy === item.tag ? <Spinner size={12} /> : <Hash size={12} weight="bold" />}</span>
+            <span className="popover-item-text">{item.tag}</span>
+            <small>{item.itemCount}</small>
+          </button>
+        ))}
+      </div>
+      <form
+        className="popover-create"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void add(draft);
+        }}
+      >
+        <input ref={input} aria-label={t("新标签")} placeholder={t("新标签，回车添加")} maxLength={40} value={draft} onChange={(event) => setDraft(event.target.value)} />
+        <button type="submit" className="btn btn-primary btn-sm" disabled={!query || busy !== null}>
+          {busy === query && query ? <Spinner size={14} /> : t("添加")}
+        </button>
+      </form>
     </div>
   );
 }
