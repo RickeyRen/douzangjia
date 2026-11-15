@@ -4,6 +4,7 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -22,14 +23,29 @@ PAGES_PER_STEP = 4096
 def _copy(source: Path, target: Path) -> None:
     partial = target.with_name(target.name + ".part")
     partial.unlink(missing_ok=True)
-    with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as origin, sqlite3.connect(partial) as copy:
+    # closing(): a sqlite3 connection used as a context manager only commits, it
+    # stays open. The copy also inherits the source's WAL mode, so renaming it
+    # while open left .part-wal / .part-shm files behind every day.
+    with (
+        closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True)) as origin,
+        closing(sqlite3.connect(partial)) as copy,
+    ):
         origin.backup(copy, pages=PAGES_PER_STEP, sleep=0.02)
+        # One self-contained file that can be copied off the NAS as it is.
+        copy.execute("PRAGMA journal_mode=DELETE")
         # A backup nobody can open is worse than none: prove it reads back.
         verdict = copy.execute("PRAGMA quick_check").fetchone()[0]
     if verdict != "ok":
         partial.unlink(missing_ok=True)
         raise RuntimeError(f"database backup failed its check: {verdict}")
     partial.rename(target)
+
+
+def _clear_litter(backup_dir: Path) -> None:
+    """Remove half-written copies and SQLite sidecars of our own copies (never other files)."""
+    for path in backup_dir.glob(f"{PREFIX}*"):
+        if path.name.endswith((".part", ".part-wal", ".part-shm", ".part-journal")):
+            path.unlink(missing_ok=True)
 
 
 def created_at(path: Path) -> int:
@@ -86,6 +102,7 @@ class DatabaseBackups:
             logger.warning("database backup failed", exc_info=True)
             return None
         self.last_error = None
+        _clear_litter(self.backup_dir)
         for stale in self.backups()[self.keep :]:
             stale.unlink(missing_ok=True)
         logger.info("database backed up to %s", target.name)

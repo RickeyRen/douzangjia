@@ -41,3 +41,36 @@ def test_daily_backup_is_checked_and_only_the_last_week_is_kept(tmp_path: Path) 
         assert not list(backup_dir.glob("*.part"))
 
     asyncio.run(scenario())
+
+
+def test_backup_of_a_wal_database_is_one_self_contained_file(tmp_path: Path) -> None:
+    """Catches .part-wal / .part-shm litter piling up next to each daily copy."""
+    source = tmp_path / "archive.sqlite3"
+    live = sqlite3.connect(source)
+    live.execute("PRAGMA journal_mode=WAL")
+    live.execute("CREATE TABLE notes (body TEXT)")
+    live.execute("INSERT INTO notes VALUES ('kept')")
+    live.commit()
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    # Litter an older build left behind; ours to clear. Other files are not.
+    (backup_dir / "auto-20261101-030000.sqlite3.part-wal").write_bytes(b"")
+    (backup_dir / "auto-20261101-030000.sqlite3.part-shm").write_bytes(b"x")
+    (backup_dir / "archive-pre-abc.sqlite3-wal").write_bytes(b"not ours")
+    backups = DatabaseBackups(source, backup_dir, clock=lambda: 1_800_000_000.0)
+
+    try:
+        target = asyncio.run(backups.backup_now())
+    finally:
+        live.close()
+
+    assert target is not None
+    assert sorted(path.name for path in backup_dir.iterdir()) == sorted(
+        [target.name, "archive-pre-abc.sqlite3-wal"]
+    )
+    copy = sqlite3.connect(target)
+    try:
+        assert copy.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+        assert copy.execute("SELECT body FROM notes").fetchone()[0] == "kept"
+    finally:
+        copy.close()
