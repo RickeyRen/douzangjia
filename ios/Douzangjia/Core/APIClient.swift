@@ -217,6 +217,21 @@ final class APIClient {
 
     func integrity() async throws -> ArchiveIntegrity { try await get("/api/archive/integrity") }
 
+    func serverSettings() async throws -> ServerSettings { try await get("/api/settings") }
+
+    func updateSettings(_ changes: [String: Any]) async throws -> ServerSettings {
+        try await send("PUT", "/api/settings", body: changes)
+    }
+
+    /// Per channel: "ok" or why it failed.
+    func testNotifications() async throws -> [String: String] {
+        struct Report: Decodable { let results: [String: String] }
+        let report: Report = try await send("POST", "/api/settings/notifications/test")
+        return report.results
+    }
+
+    func storage() async throws -> StorageUsage { try await get("/api/storage") }
+
     func backupStatus() async throws -> BackupStatus { try await get("/api/backup/status") }
 
     func backupNow() async throws -> BackupStatus { try await send("POST", "/api/backup/now") }

@@ -403,3 +403,76 @@ struct LibrarySource: Decodable, Identifiable, Hashable {
         }
     }
 }
+
+/// Arbitrary JSON, so settings the app does not edit round-trip untouched.
+enum JSONValue: Codable, Hashable {
+    case string(String), number(Double), bool(Bool), object([String: JSONValue]), array([JSONValue]), null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() { self = .null }
+        else if let value = try? container.decode(Bool.self) { self = .bool(value) }
+        else if let value = try? container.decode(Double.self) { self = .number(value) }
+        else if let value = try? container.decode(String.self) { self = .string(value) }
+        else if let value = try? container.decode([String: JSONValue].self) { self = .object(value) }
+        else { self = .array(try container.decode([JSONValue].self)) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .null: try container.encodeNil()
+        }
+    }
+
+    subscript(key: String) -> JSONValue? {
+        if case .object(let fields) = self { return fields[key] }
+        return nil
+    }
+
+    var stringValue: String? { if case .string(let value) = self { return value }; return nil }
+    var boolValue: Bool? { if case .bool(let value) = self { return value }; return nil }
+
+    /// Plain Foundation value for JSONSerialization.
+    var foundation: Any {
+        switch self {
+        case .string(let value): value
+        case .number(let value): value
+        case .bool(let value): value
+        case .object(let value): value.mapValues(\.foundation)
+        case .array(let value): value.map(\.foundation)
+        case .null: NSNull()
+        }
+    }
+}
+
+struct ServerSettings: Decodable {
+    struct Values: Decodable {
+        var syncIntervalSeconds: Int
+        var downloadWorkers: Int
+        var notifications: JSONValue
+
+        enum CodingKeys: String, CodingKey {
+            case syncIntervalSeconds = "sync_interval_seconds"
+            case downloadWorkers = "download_workers"
+            case notifications
+        }
+    }
+    var values: Values
+}
+
+struct StorageUsage: Decodable {
+    struct Disk: Decodable { let totalBytes: Int; let freeBytes: Int; let usedBytes: Int; let low: Bool }
+    struct Media: Decodable { let files: Int; let bytes: Int; let videoBytes: Int; let imageBytes: Int; let otherBytes: Int }
+    struct Sized: Decodable { let bytes: Int; let count: Int?; let files: Int? }
+    let disk: Disk?
+    let media: Media
+    let database: Sized
+    let backups: Sized
+    let quarantine: Sized
+}
