@@ -25,6 +25,8 @@ RECHECK_AFTER_SECONDS = 30 * 24 * 3600
 # whole archive is covered within the first hour, then again every day.
 PRESENCE_FILES_PER_RUN = 2000
 PRESENCE_RECHECK_SECONDS = 24 * 3600
+# Files saved this recently and not yet reached count as fine in the summary.
+FRESH_GRACE_SECONDS = 3600
 QUARANTINE_DIR = "quarantine"
 
 
@@ -172,14 +174,21 @@ class ArchiveVerifier:
         )
 
     async def summary(self) -> dict[str, Any]:
+        # Downloads keep landing; a file saved minutes ago and not yet reached
+        # by either pass should not keep "all files are there" from ever showing.
+        fresh_after = int(self.clock()) - FRESH_GRACE_SECONDS
         row = await self.db.fetchone(
             "SELECT COUNT(*) AS total, "
+            "COALESCE(SUM(present_at IS NULL AND verified_at IS NULL AND completed_at > ?), 0) "
+            "AS fresh_unseen, "
+            "COALESCE(SUM(verified_at IS NULL AND completed_at > ?), 0) AS fresh_unhashed, "
             "COALESCE(SUM(verified_at IS NOT NULL), 0) AS verified, "
             "COALESCE(SUM(present_at IS NOT NULL OR verified_at IS NOT NULL), 0) AS present, "
             "MIN(COALESCE(present_at, verified_at)) AS oldest_present, "
             "MIN(verified_at) AS oldest, MAX(verified_at) AS latest, "
             "COALESCE(SUM(verify_failed_at IS NOT NULL), 0) AS repaired "
-            "FROM media_files WHERE status='ready' AND relative_path IS NOT NULL"
+            "FROM media_files WHERE status='ready' AND relative_path IS NOT NULL",
+            (fresh_after, fresh_after),
         )
         broken = await self.db.fetchone(
             "SELECT COUNT(*) AS broken FROM media_files "
@@ -187,16 +196,21 @@ class ArchiveVerifier:
         )
         total = int(row["total"]) if row else 0
         verified = int(row["verified"]) if row else 0
+        present = int(row["present"]) if row else 0
+        settled_present = total - (int(row["fresh_unseen"]) if row else 0)
+        settled_hashed = total - (int(row["fresh_unhashed"]) if row else 0)
         return {
             "totalFiles": total,
             "verifiedFiles": verified,
             # Fast pass: seen on disk with the right size, contents not yet hashed.
-            "presentFiles": int(row["present"]) if row else 0,
+            "presentFiles": present,
             "allPresentSince": int(row["oldest_present"])
-            if row and total and int(row["present"]) == total and row["oldest_present"] is not None
+            if row and total and present >= settled_present and row["oldest_present"] is not None
             else None,
             # Only meaningful once every file has been looked at once.
-            "allCheckedSince": int(row["oldest"]) if row and verified == total and total else None,
+            "allCheckedSince": int(row["oldest"])
+            if row and total and verified >= settled_hashed and row["oldest"] is not None
+            else None,
             "lastCheckedAt": int(row["latest"]) if row and row["latest"] is not None else None,
             "repairingFiles": int(broken["broken"]) if broken else 0,
             "repairedFiles": int(row["repaired"]) if row else 0,

@@ -158,6 +158,10 @@ final class APIClient {
 
     func integrity() async throws -> ArchiveIntegrity { try await get("/api/archive/integrity") }
 
+    func backupStatus() async throws -> BackupStatus { try await get("/api/backup/status") }
+
+    func backupNow() async throws -> BackupStatus { try await send("POST", "/api/backup/now") }
+
     func controlBatch(_ batchId: Int, action: String) async throws {
         let _: EmptyBody = try await send("POST", "/api/archive/batches/\(batchId)/\(action)")
     }

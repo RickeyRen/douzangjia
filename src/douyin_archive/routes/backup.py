@@ -17,6 +17,34 @@ def _snapshot(source: Path, target: Path) -> None:
         origin.backup(copy)
 
 
+def _backups(request: Request):
+    runtime = getattr(request.app.state, "runtime", None)
+    backups = getattr(runtime, "database_backups", None)
+    if backups is None:
+        from ..db_backup import DatabaseBackups
+
+        root: Path = request.app.state.settings.archive_root
+        backups = DatabaseBackups(root / "data" / "archive.sqlite3", root / "data" / "backups")
+    return backups
+
+
+@router.get("/backup/status")
+async def backup_status(request: Request):
+    return await asyncio.to_thread(_backups(request).summary)
+
+
+@router.post("/backup/now")
+async def backup_now(request: Request):
+    backups = _backups(request)
+    created = await backups.backup_now()
+    if created is None:
+        return JSONResponse(
+            status_code=500,
+            content={"code": "BACKUP_FAILED", "message": backups.last_error or "备份没有完成"},
+        )
+    return await asyncio.to_thread(backups.summary)
+
+
 @router.get("/backup/database")
 async def download_database(request: Request, background: BackgroundTasks):
     root: Path = request.app.state.settings.archive_root

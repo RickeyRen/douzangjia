@@ -120,3 +120,32 @@ def test_fast_pass_covers_the_whole_archive_before_hashing_catches_up(tmp_path: 
         await database.close()
 
     asyncio.run(scenario())
+
+
+def test_files_saved_moments_ago_do_not_hold_back_all_clear(tmp_path: Path) -> None:
+    """Catches "all files are there" never showing because downloads keep landing."""
+    root = tmp_path / "archive"
+
+    async def scenario() -> None:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        await saved(database, root, "1", b"old")
+        clock = [1_800_000_000.0]
+        verifier = ArchiveVerifier(database, root, clock=lambda: clock[0])
+        await verifier.run_batch()
+        await saved(database, root, "2", b"just landed")
+        await database.execute(
+            "UPDATE media_files SET completed_at=? WHERE item_id='2'", (int(clock[0]) - 60,)
+        )
+        summary = await verifier.summary()
+        assert summary["totalFiles"] == 2 and summary["presentFiles"] == 1
+        assert summary["allPresentSince"] == int(clock[0])
+        assert summary["allCheckedSince"] == int(clock[0])
+        # An unchecked file older than the grace period does hold it back.
+        await database.execute(
+            "UPDATE media_files SET completed_at=? WHERE item_id='2'", (int(clock[0]) - 7200,)
+        )
+        summary = await verifier.summary()
+        assert summary["allPresentSince"] is None and summary["allCheckedSince"] is None
+        await database.close()
+
+    asyncio.run(scenario())

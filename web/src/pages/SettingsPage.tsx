@@ -8,6 +8,7 @@ import { describeHealth } from "../lib/health";
 import { useTheme } from "../theme/theme-context";
 import type { ThemePreference } from "../theme/theme-context";
 import { Avatar, PageHeader, Segmented, Select } from "../ui/primitives";
+import { AutoBackupSetting } from "./AutoBackupSetting";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { currentLocale, setLocale, t, type Locale } from "../i18n/t";
 
@@ -238,6 +239,7 @@ export function SettingsPage() {
           <div className="panel-head">
             <h2>{t("数据与备份")}</h2>
           </div>
+          <AutoBackupSetting />
           <div className="setting">
             <div className="setting-text">
               <strong>{t("下载数据库备份")}</strong>

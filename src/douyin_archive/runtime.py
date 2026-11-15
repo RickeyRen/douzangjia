@@ -34,6 +34,8 @@ from .creator_catalog import SCAN_EVERY_SECONDS as CREATOR_CATALOG_EVERY_SECONDS
 from .creator_catalog import CreatorCatalogScanner
 from .creator_sync import CreatorSyncService
 from .db import Database
+from .db_backup import RUN_EVERY_SECONDS as DB_BACKUP_EVERY_SECONDS
+from .db_backup import DatabaseBackups
 from .diagnostics import log_asyncio_tasks
 from .downloader import MediaDownloader
 from .integrity import RUN_EVERY_SECONDS as INTEGRITY_EVERY_SECONDS
@@ -572,6 +574,10 @@ class ArchiveRuntime:
         self.creator_catalog = CreatorCatalogScanner(database, self.sync.scan_creator_catalog)
         self.item_covers = ItemCoverPreserver(database, settings.archive_root)
         self.verifier = ArchiveVerifier(database, settings.archive_root)
+        self.database_backups = DatabaseBackups(
+            settings.archive_root / "data" / "archive.sqlite3",
+            settings.archive_root / "data" / "backups",
+        )
         self._creator_backfill_task: asyncio.Task[int] | None = None
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
@@ -632,6 +638,7 @@ class ArchiveRuntime:
             (self.creator_catalog.run_tick, CREATOR_CATALOG_EVERY_SECONDS, "creator-catalog-scan"),
             (self.item_covers.run_batch, ITEM_COVER_EVERY_SECONDS, "item-cover-preserve"),
             (self.verifier.run_batch, INTEGRITY_EVERY_SECONDS, "archive-integrity-check"),
+            (self.database_backups.run_tick, DB_BACKUP_EVERY_SECONDS, "database-backup"),
         ):
             self._scheduler.add_job(
                 job,

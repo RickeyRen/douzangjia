@@ -327,3 +327,17 @@ struct ArchiveIntegrity: Decodable {
         return Double(done) / Double(totalFiles)
     }
 }
+
+/// Daily self-checked database copies on the NAS.
+struct BackupStatus: Decodable {
+    struct Copy: Decodable {
+        let name: String
+        let bytes: Int
+        let createdAt: Int
+    }
+
+    let directory: String
+    let keep: Int
+    let lastError: String?
+    let backups: [Copy]
+}

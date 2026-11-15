@@ -814,3 +814,13 @@ export type ArchiveIntegrity = {
 };
 
 export const fetchArchiveIntegrity = () => request<ArchiveIntegrity>("/api/archive/integrity");
+
+export type BackupStatus = {
+  directory: string;
+  keep: number;
+  lastError: string | null;
+  backups: { name: string; bytes: number; createdAt: number }[];
+};
+
+export const fetchBackupStatus = () => request<BackupStatus>("/api/backup/status");
+export const backupNow = () => request<BackupStatus>("/api/backup/now", { method: "POST" });
