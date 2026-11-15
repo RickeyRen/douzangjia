@@ -1251,6 +1251,24 @@ video {
   background: var(--tile-bg);
 }
 
+/* How far a half-watched video got, along the tile's bottom edge. */
+.tile-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 4px;
+  /* Sits on the cover's dark bottom gradient in both themes, so the colours are fixed. */
+  background: rgb(255 255 255 / 24%);
+}
+
+.tile-progress > span {
+  display: block;
+  height: 100%;
+  background: #c9beff;
+}
+
 .tile-media img,
 .tile-media video {
   width: 100%;
@@ -4636,6 +4654,10 @@ video {
 
 .lists > .recc {
   grid-column: span 8;
+}
+
+.lists > .watchc {
+  grid-column: span 12;
 }
 
 .gonec {

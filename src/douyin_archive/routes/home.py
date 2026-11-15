@@ -261,6 +261,13 @@ async def home(request: Request) -> dict[str, Any]:
         "ORDER BY s.starred_at DESC, i.remote_id DESC LIMIT ?",
         (HOME_SHELF_SIZE,),
     )
+    # Long videos left part-way (item_playback only keeps resumable positions), latest first.
+    watching_rows = await database.fetchall(
+        "SELECT i.*, p.position_ms AS playback_position_ms, p.duration_ms AS playback_duration_ms "
+        "FROM item_playback p JOIN items i ON i.remote_id=p.item_id "
+        "ORDER BY p.updated_at DESC, i.remote_id DESC LIMIT ?",
+        (HOME_SHELF_SIZE,),
+    )
     placeholders = ",".join("?" for _ in SHELF_SOURCE_KINDS)
     source_rows = await database.fetchall(
         "SELECT ls.id, ls.kind, ls.name, COUNT(si.item_id) AS item_count, "
@@ -315,6 +322,16 @@ async def home(request: Request) -> dict[str, Any]:
         "health": await sync_health(request),
         "recent": [await _serialize_item(database, row, covers) for row in recent_rows],
         "starred": [await _serialize_item(database, row, covers) for row in starred_rows],
+        "watching": [
+            {
+                **await _serialize_item(database, row, covers),
+                "playback": {
+                    "positionMs": int(row["playback_position_ms"]),
+                    "durationMs": int(row["playback_duration_ms"]),
+                },
+            }
+            for row in watching_rows
+        ],
         "gone": [await _serialize_item(database, row, covers) for row in gone_rows],
         "shelves": shelves,
         "creators": [

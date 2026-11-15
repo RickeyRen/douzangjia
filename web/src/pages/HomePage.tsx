@@ -105,7 +105,7 @@ export function HomePage() {
   const patchShelfItem = useCallback((awemeId: string, patch: Partial<FeedItem>) => {
     const apply = (items: FeedItem[]) => items.map((item) => (item.awemeId === awemeId ? { ...item, ...patch } : item));
     setShelf((current) => (current ? { ...current, items: apply(current.items) } : current));
-    setHome((current) => (current ? { ...current, recent: apply(current.recent), starred: apply(current.starred), gone: apply(current.gone) } : current));
+    setHome((current) => (current ? { ...current, recent: apply(current.recent), starred: apply(current.starred), gone: apply(current.gone), watching: current.watching?.map((item) => (item.awemeId === awemeId ? { ...item, ...patch } : item)) } : current));
   }, []);
 
   const range = useMemo(() => weekRange(), []);
@@ -264,6 +264,21 @@ export function HomePage() {
       </section>
 
       <section className="bento lists">
+        {home?.watching?.length ? (
+          <section className="card recc watchc" aria-label={t("继续观看")}>
+            <div className="row-h top">
+              <div>
+                <h2 className="h4">{t("继续观看")}</h2>
+                <p className="cap">{t("没看完的长视频，点开从上次的位置接着播")}</p>
+              </div>
+            </div>
+            <div className="rec">
+              {home.watching.slice(0, 6).map((item, index, shown) => (
+                <MediaTile key={item.awemeId} item={item} progress={item.playback.positionMs / item.playback.durationMs} onOpen={() => setShelf({ items: shown, index })} onOpenCreator={handlers.openCreator} />
+              ))}
+            </div>
+          </section>
+        ) : null}
         <section className="card gonec" aria-label={t("已在抖音消失的博主")}>
           <div className="row-h top">
             <div>

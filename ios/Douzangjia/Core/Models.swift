@@ -125,7 +125,29 @@ struct HomeSnapshot: Decodable {
     let health: SyncHealth
     let recent: [FeedItem]
     let starred: [FeedItem]
+    /// Long videos left part-way, latest first; absent from older servers.
+    let watching: [WatchingItem]?
     let vanishedCreators: [VanishedCreatorTile]?
+}
+
+/// A feed item plus where it was left: the server sends the item's fields with a `playback` object beside them.
+struct WatchingItem: Decodable, Identifiable {
+    let item: FeedItem
+    let positionMs: Int
+    let durationMs: Int
+
+    var id: FeedItem.ID { item.id }
+    var progress: Double { durationMs > 0 ? min(1, max(0, Double(positionMs) / Double(durationMs))) : 0 }
+
+    private enum Keys: String, CodingKey { case playback }
+    private struct Playback: Decodable { let positionMs: Int; let durationMs: Int }
+
+    init(from decoder: Decoder) throws {
+        item = try FeedItem(from: decoder)
+        let playback = try decoder.container(keyedBy: Keys.self).decode(Playback.self, forKey: .playback)
+        positionMs = playback.positionMs
+        durationMs = playback.durationMs
+    }
 }
 
 struct VanishedCreatorTile: Decodable, Identifiable, Hashable {

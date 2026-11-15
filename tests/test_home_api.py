@@ -67,6 +67,11 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
     with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
         client.post("/api/setup", json={"username": "owner", "password": "a secure local passphrase"})
         client.put("/api/items/701/star", headers={"X-CSRF-Token": client.cookies["archive_csrf"]})
+        client.put(
+            "/api/items/702/playback",
+            json={"positionMs": 61_000, "durationMs": 300_000},
+            headers={"X-CSRF-Token": client.cookies["archive_csrf"]},
+        )
         body = client.get("/api/home").json()
 
     assert body["stats"] == {
@@ -84,6 +89,10 @@ def test_home_summarizes_library_for_the_landing_page(tmp_path: Path, master_key
     assert body["vanishedCreators"] == []
     assert [item["awemeId"] for item in body["recent"]] == ["702", "701"]
     assert [item["awemeId"] for item in body["starred"]] == ["701"]
+    # Half-watched long videos come back with where they were left.
+    assert [(item["awemeId"], item["playback"]) for item in body["watching"]] == [
+        ("702", {"positionMs": 61_000, "durationMs": 300_000})
+    ]
     # Watch history is not a shelf; the collection prefers downloaded posters first.
     assert [shelf["name"] for shelf in body["shelves"]] == ["想去的地方"]
     assert body["shelves"][0]["covers"][0].endswith("/poster")

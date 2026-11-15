@@ -52,6 +52,7 @@ export function MediaTile({
   selected = false,
   aspect,
   preview = true,
+  progress,
 }: {
   item: FeedItem;
   onOpen: (event: { shiftKey: boolean }) => void;
@@ -62,6 +63,8 @@ export function MediaTile({
   /** CSS aspect-ratio override (natural grid mode). */
   aspect?: number;
   preview?: boolean;
+  /** 0–1: how far a half-watched video got. */
+  progress?: number;
 }) {
   const [hovering, setHovering] = useState(false);
   const hoverTimer = useRef<number | undefined>(undefined);
@@ -136,6 +139,11 @@ export function MediaTile({
             )}
           </span>
         </span>
+        {progress !== undefined ? (
+          <span className="tile-progress" role="progressbar" aria-label={t("已看到")} aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+            <span style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }} />
+          </span>
+        ) : null}
         <span className="tile-bottom">
           <span className="tile-title">{itemTitle(item)}</span>
         </span>

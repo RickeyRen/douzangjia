@@ -112,3 +112,30 @@ it("fills quiet buckets with zero across the last day", () => {
   expect(series[143]).toEqual({ at: end, bps: 100 });
   expect(series[0].bps).toBe(0);
 });
+
+it("lists half-watched long videos with how far they got, and hides the row when there are none", async () => {
+  const home = await api.fetchHome();
+  vi.mocked(api.fetchHome).mockResolvedValue({
+    ...home,
+    watching: [{ ...makeItem({ awemeId: "w1", description: "看了一半的纪录片" }), playback: { positionMs: 90_000, durationMs: 360_000 } }],
+  });
+  const { unmount } = render(
+    <WithAppData value={makeAppData({ health: makeHealth() })}>
+      <HomePage />
+    </WithAppData>,
+  );
+
+  const row = await screen.findByRole("region", { name: "继续观看" });
+  expect(row).toHaveTextContent("看了一半的纪录片");
+  expect(screen.getByRole("progressbar", { name: "已看到" })).toHaveAttribute("aria-valuenow", "25");
+  unmount();
+
+  vi.mocked(api.fetchHome).mockResolvedValue({ ...home, watching: [] });
+  render(
+    <WithAppData value={makeAppData({ health: makeHealth() })}>
+      <HomePage />
+    </WithAppData>,
+  );
+  await screen.findByText("最近收藏");
+  expect(screen.queryByRole("region", { name: "继续观看" })).not.toBeInTheDocument();
+});

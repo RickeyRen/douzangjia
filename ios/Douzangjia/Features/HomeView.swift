@@ -40,6 +40,10 @@ struct HomeView: View {
                     if let vanished = home?.vanishedCreators, !vanished.isEmpty {
                         vanishedShelf(vanished, total: home?.stats.vanishedCreators ?? vanished.count)
                     }
+                    if let watching = home?.watching, !watching.isEmpty {
+                        shelf("继续观看", items: watching.map(\.item),
+                              progress: Dictionary(watching.map { ($0.id, $0.progress) }, uniquingKeysWith: { first, _ in first }))
+                    }
                     if let home, !home.recent.isEmpty {
                         shelf("最近收藏", items: home.recent)
                     }
@@ -300,7 +304,7 @@ struct HomeView: View {
         }
     }
 
-    private func shelf(_ title: String, items: [FeedItem]) -> some View {
+    private func shelf(_ title: String, items: [FeedItem], progress: [FeedItem.ID: Double] = [:]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader(title: title, count: "\(items.count)")
             ScrollView(.horizontal, showsIndicators: false) {
@@ -312,6 +316,10 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 MediaTile(item: item, showTitle: false, radius: 16)
                                     .frame(width: 112, height: 150)
+                                    .overlay(alignment: .bottom) {
+                                        if let fraction = progress[item.id] { WatchedBar(fraction: fraction) }
+                                    }
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 Text(item.title)
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(Theme.text)
@@ -411,6 +419,23 @@ private struct KPITile: View {
 }
 
 /// Cover thumbnail with the design's status badge (已存 / 仅封面), duration and optional title.
+/// How far a half-watched video got, along a tile's bottom edge.
+private struct WatchedBar: View {
+    let fraction: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(.white.opacity(0.25))
+                Rectangle().fill(Theme.violet4).frame(width: proxy.size.width * fraction)
+            }
+        }
+        .frame(height: 3)
+        .accessibilityElement()
+        .accessibilityLabel("已看到 \(Int((fraction * 100).rounded()))%")
+    }
+}
+
 struct MediaTile: View {
     let item: FeedItem
     var showTitle = true

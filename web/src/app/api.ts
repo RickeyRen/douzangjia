@@ -469,6 +469,8 @@ export type HomeCreator = {
   itemCount: number;
 };
 
+export type WatchingItem = FeedItem & { playback: { positionMs: number; durationMs: number } };
+
 export type HomeSnapshot = {
   stats: {
     items: number;
@@ -489,6 +491,8 @@ export type HomeSnapshot = {
   health: SyncHealth;
   recent: FeedItem[];
   starred: FeedItem[];
+  /** Long videos left part-way, latest first. Absent from older servers. */
+  watching?: WatchingItem[];
   gone: FeedItem[];
   shelves: HomeShelf[];
   creators: HomeCreator[];
