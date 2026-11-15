@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 RUN_EVERY_SECONDS = 60
 # Hashing reads every byte, and the NAS disk is shared with downloads and other
-# services: a few hundred MB a minute walks a 300 GB archive in about a day.
+# services: a quarter GB a minute walks a 300 GB archive in under a day.
 MAX_FILES_PER_RUN = 40
-MAX_BYTES_PER_RUN = 400 * 1024 * 1024
+MAX_BYTES_PER_RUN = 256 * 1024 * 1024
 # A full re-check of everything this often; new files are checked first.
 RECHECK_AFTER_SECONDS = 30 * 24 * 3600
 QUARANTINE_DIR = "quarantine"
@@ -60,44 +60,56 @@ class ArchiveVerifier:
             "ORDER BY verified_at IS NOT NULL, verified_at, id LIMIT ?",
             (now - RECHECK_AFTER_SECONDS, MAX_FILES_PER_RUN),
         )
-        checked = 0
+        if not rows:
+            return 0
+        # All disk work happens off the event loop: on a busy NAS a single stat
+        # can stall for seconds, and every request would wait behind it.
+        results = await anyio.to_thread.run_sync(self._check_files, [dict(row) for row in rows])
+        stamp = int(self.clock())
+        async with self.db.transaction(immediate=True):
+            for row, problem in results:
+                if problem is None:
+                    await self.db.execute(
+                        "UPDATE media_files SET verified_at=?, verify_status='ok' WHERE id=?",
+                        (stamp, row["id"]),
+                    )
+                else:
+                    await self._mark_for_repair(row, problem, stamp)
+        return len(results)
+
+    def _check_files(self, rows: list[dict[str, Any]]) -> list[tuple[dict[str, Any], str | None]]:
+        results: list[tuple[dict[str, Any], str | None]] = []
         budget = MAX_BYTES_PER_RUN
         for row in rows:
             if budget <= 0:
                 break
-            problem = await self._check(row)
+            problem = self._check(row)
             budget -= int(row["byte_size"] or 0)
-            checked += 1
-            stamp = int(self.clock())
-            if problem is None:
-                await self.db.execute(
-                    "UPDATE media_files SET verified_at=?, verify_status='ok' WHERE id=?",
-                    (stamp, row["id"]),
-                )
-            else:
-                await self._repair(row, problem, stamp)
-        return checked
+            if problem == "corrupt":
+                self._quarantine(row)
+            results.append((row, problem))
+        return results
 
-    async def _check(self, row: Any) -> str | None:
+    def _check(self, row: dict[str, Any]) -> str | None:
         path = self.archive_root / str(row["relative_path"])
         if not path.is_file():
             return "missing"
         if row["byte_size"] is not None and path.stat().st_size != int(row["byte_size"]):
             return "corrupt"
-        if row["checksum_sha256"]:
-            actual = await anyio.to_thread.run_sync(_sha256, path)
-            if actual != row["checksum_sha256"]:
-                return "corrupt"
+        if row["checksum_sha256"] and _sha256(path) != row["checksum_sha256"]:
+            return "corrupt"
         return None
 
-    async def _repair(self, row: Any, problem: str, now: int) -> None:
+    def _quarantine(self, row: dict[str, Any]) -> None:
+        # Keep the damaged copy for the owner to inspect; the downloader would
+        # otherwise take the existing file as already saved.
         path = self.archive_root / str(row["relative_path"])
-        if problem == "corrupt" and path.is_file():
-            # Keep the damaged copy for the owner to inspect; the downloader
-            # would otherwise take the existing file as already saved.
-            target = self.archive_root / QUARANTINE_DIR / f"{row['relative_path']}.{now}"
+        if path.is_file():
+            target = self.archive_root / QUARANTINE_DIR / f"{row['relative_path']}.{int(self.clock())}"
             target.parent.mkdir(parents=True, exist_ok=True)
             path.rename(target)
+
+    async def _mark_for_repair(self, row: dict[str, Any], problem: str, now: int) -> None:
         logger.warning(
             "saved file %s for item %s is %s; downloading it again",
             row["relative_path"],
