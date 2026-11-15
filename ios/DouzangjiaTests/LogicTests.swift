@@ -28,6 +28,24 @@ final class FeedOptionsTests: XCTestCase {
         XCTAssertEqual(query(options), ["minDuration": "300"])
     }
 
+    func testPeriodsStartAtLocalMidnightLikeTheWeb() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        // 2026-11-15 15:30 in Shanghai.
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 15, minute: 30))!
+        func since(_ period: FeedOptions.Period) -> Date? {
+            var options = FeedOptions()
+            options.period = period
+            return options.queryItems(now: now, calendar: calendar)
+                .first { $0.name == "since" }
+                .flatMap { $0.value }.flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
+        }
+        XCTAssertNil(since(.all))
+        XCTAssertEqual(since(.week), calendar.date(from: DateComponents(year: 2026, month: 11, day: 8)))
+        XCTAssertEqual(since(.quarter), calendar.date(from: DateComponents(year: 2026, month: 8, day: 17)))
+        XCTAssertEqual(since(.year), calendar.date(from: DateComponents(year: 2026, month: 1, day: 1)))
+    }
+
     func testGalleriesIgnoreTheLengthBucket() {
         // Galleries have no duration; sending one would empty the list.
         var options = FeedOptions()

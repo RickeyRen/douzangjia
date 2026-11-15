@@ -417,16 +417,21 @@ struct FeedOptions: Hashable {
     enum Sort: String, CaseIterable { case standard, published, random }
     enum Kind: String, CaseIterable { case all, video, gallery }
     enum Length: String, CaseIterable { case all, short, medium, long }
+    /// When the work was first collected, as on the web: week / month / quarter count back from today, year from Jan 1.
+    enum Period: String, CaseIterable { case all, week, month, quarter, year }
 
     var sort: Sort = .standard
     var kind: Kind = .all
     var length: Length = .all
+    var period: Period = .all
     /// Keeps a random order stable while paging; a new one reshuffles.
     var seed = 1
 
-    var isNarrowed: Bool { kind != .all || length != .all }
+    var isNarrowed: Bool { kind != .all || length != .all || period != .all }
 
-    var queryItems: [URLQueryItem] {
+    var queryItems: [URLQueryItem] { queryItems(now: Date()) }
+
+    func queryItems(now: Date, calendar: Calendar = .current) -> [URLQueryItem] {
         var items: [URLQueryItem] = []
         switch sort {
         case .standard: break
@@ -447,7 +452,22 @@ struct FeedOptions: Hashable {
             case .long: items.append(URLQueryItem(name: "minDuration", value: "300"))
             }
         }
+        if let start = Self.periodStart(period, now: now, calendar: calendar) {
+            items.append(URLQueryItem(name: "since", value: String(Int(start.timeIntervalSince1970))))
+        }
         return items
+    }
+
+    /// Local midnight the period starts at, so the list (and its cache key) stays the same all day.
+    static func periodStart(_ period: Period, now: Date, calendar: Calendar = .current) -> Date? {
+        let today = calendar.startOfDay(for: now)
+        switch period {
+        case .all: return nil
+        case .week: return calendar.date(byAdding: .day, value: -7, to: today)
+        case .month: return calendar.date(byAdding: .day, value: -30, to: today)
+        case .quarter: return calendar.date(byAdding: .day, value: -90, to: today)
+        case .year: return calendar.dateInterval(of: .year, for: now)?.start
+        }
     }
 }
 
@@ -457,6 +477,18 @@ extension FeedOptions.Kind {
         case .all: "全部类型"
         case .video: "视频"
         case .gallery: "图集"
+        }
+    }
+}
+
+extension FeedOptions.Period {
+    var title: String {
+        switch self {
+        case .all: "任意时间"
+        case .week: "最近一周"
+        case .month: "最近一月"
+        case .quarter: "最近三月"
+        case .year: "今年"
         }
     }
 }

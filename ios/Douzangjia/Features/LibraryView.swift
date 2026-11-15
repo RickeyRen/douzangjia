@@ -214,6 +214,11 @@ struct LibraryView: View {
                     }
                 }
             }
+            Section("收藏时间") {
+                Picker("收藏时间", selection: $options.period) {
+                    ForEach(FeedOptions.Period.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            }
             if options != FeedOptions() {
                 Button("恢复默认", systemImage: "arrow.counterclockwise") { options = FeedOptions() }
             }
@@ -233,6 +238,7 @@ struct LibraryView: View {
         var parts = [sortTitle(options.sort)]
         if options.kind != .all { parts.append(options.kind.title) }
         if options.kind != .gallery && options.length != .all { parts.append(options.length.title) }
+        if options.period != .all { parts.append(options.period.title) }
         return parts.joined(separator: " · ")
     }
 
