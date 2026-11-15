@@ -43,3 +43,40 @@ it("toggles playback and reflects the video clock", () => {
   fireEvent.click(screen.getByRole("button", { name: "播放" }));
   expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
 });
+
+it("cycles playback speed, applies it to the video and remembers it", () => {
+  window.localStorage.clear();
+  const ref = createRef<HTMLVideoElement>();
+  const { unmount } = render(
+    <div>
+      <video ref={ref} />
+      <VideoControls videoRef={ref} muted={false} onToggleMute={vi.fn()} />
+    </div>,
+  );
+  const video = ref.current!;
+  expect(video.playbackRate).toBe(1);
+  fireEvent.click(screen.getByRole("button", { name: /播放速度 1×/ }));
+  expect(video.playbackRate).toBe(1.25);
+  fireEvent.click(screen.getByRole("button", { name: /播放速度 1.25×/ }));
+  expect(video.playbackRate).toBe(1.5);
+  expect(screen.getByRole("button", { name: /播放速度 1.5×/ })).toHaveTextContent("1.5×");
+  // A new source resets the rate in real browsers; the choice must come back.
+  video.playbackRate = 1;
+  fireEvent(video, new Event("loadedmetadata"));
+  expect(video.playbackRate).toBe(1.5);
+  unmount();
+
+  // The next video opens at the speed picked last time.
+  const next = createRef<HTMLVideoElement>();
+  render(
+    <div>
+      <video ref={next} />
+      <VideoControls videoRef={next} muted={false} onToggleMute={vi.fn()} />
+    </div>,
+  );
+  expect(next.current!.playbackRate).toBe(1.5);
+  for (let i = 0; i < 3; i += 1) fireEvent.click(screen.getByRole("button", { name: /播放速度/ }));
+  expect(next.current!.playbackRate).toBe(1);
+  expect(screen.getByRole("button", { name: /播放速度/ })).toHaveTextContent("倍速");
+  expect(window.localStorage.getItem("douzangjia.speed.v1")).toBeNull();
+});

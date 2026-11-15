@@ -212,6 +212,7 @@ private struct PlayerPage: View {
                         .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
                 }
                 .accessibilityLabel("整理：相册、标签、备注")
+                if playableURL != nil { speedMenu }
             }
         }
         .foregroundStyle(.white)
@@ -222,6 +223,28 @@ private struct PlayerPage: View {
         .sheet(isPresented: $organizing) {
             OrganizeSheet(item: $item, onItemChange: onItemChange)
         }
+    }
+
+    private var speedMenu: some View {
+        Menu {
+            Picker("播放速度", selection: Binding(get: { video.speed }, set: { video.setSpeed($0) })) {
+                ForEach(VideoController.speeds.reversed(), id: \.self) { value in
+                    Text(value == 1 ? "正常" : "\(Self.speedText(value))×").tag(value)
+                }
+            }
+        } label: {
+            Text(video.speed == 1 ? "倍速" : "\(Self.speedText(video.speed))×")
+                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                .foregroundStyle(video.speed == 1 ? .white : Theme.violet4)
+                .frame(width: 48, height: 48)
+                .background(video.speed == 1 ? .black.opacity(0.35) : Theme.violet.opacity(0.85), in: Circle())
+                .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
+        }
+        .accessibilityLabel("播放速度 \(Self.speedText(video.speed)) 倍")
+    }
+
+    private static func speedText(_ value: Float) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%g", value)
     }
 
     private var isOrganized: Bool {
@@ -281,6 +304,18 @@ final class VideoController {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var lastSave = Date.distantPast
+    /// The owner's chosen speed; shared by every video and kept across launches.
+    private(set) var speed: Float = VideoController.savedSpeed
+    /// Held down on the picture: plays at 2× until released, like Douyin.
+    private(set) var boosting = false
+
+    static let speeds: [Float] = [0.75, 1, 1.25, 1.5, 2]
+    static let boostSpeed: Float = 2
+    private static let speedKey = "playbackSpeed"
+    static var savedSpeed: Float {
+        let value = UserDefaults.standard.float(forKey: speedKey)
+        return speeds.contains(value) ? value : 1
+    }
 
     /// Same threshold as the server: shorter clips always start over.
     static let resumeMinSeconds: Double = 120
@@ -292,6 +327,8 @@ final class VideoController {
         let item = AVPlayerItem(asset: asset)
         let next = AVPlayer(playerItem: item)
         next.actionAtItemEnd = .none
+        // play() starts at defaultRate, so a chosen speed survives pause and loop.
+        next.defaultRate = speed
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
         ) { [weak self, weak next] _ in
@@ -319,6 +356,8 @@ final class VideoController {
     func setActive(_ active: Bool, restart: Bool = false) {
         guard let player else { return }
         if active {
+            // Another video may have changed the speed since this one was made.
+            applySpeed(Self.savedSpeed)
             if restart { player.seek(to: .zero) }
             player.play()
             paused = false
@@ -347,6 +386,30 @@ final class VideoController {
         lastSave = Date()
         let position = ended ? total : player.currentTime().seconds
         onSave?(Int(position * 1000), Int(total * 1000))
+    }
+
+    func setSpeed(_ value: Float) {
+        UserDefaults.standard.set(value, forKey: Self.speedKey)
+        applySpeed(value)
+    }
+
+    private func applySpeed(_ value: Float) {
+        speed = value
+        guard let player else { return }
+        player.defaultRate = value
+        if player.timeControlStatus != .paused, !boosting { player.rate = value }
+    }
+
+    /// Long press: double speed while held, back to the chosen speed on release.
+    func setBoosting(_ on: Bool) {
+        guard let player, on != boosting else { return }
+        boosting = on
+        if on {
+            if player.timeControlStatus == .paused { paused = false }
+            player.rate = Self.boostSpeed
+        } else {
+            player.rate = speed
+        }
     }
 
     func togglePlay() {
@@ -403,10 +466,30 @@ private struct VideoPage: View {
             if isCurrent, let seconds = video.resumedAt {
                 resumeChip(seconds)
             }
+            if isCurrent && video.boosting {
+                Label("2 倍速播放中", systemImage: "forward.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 110)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
         }
         .contentShape(Rectangle())
         // Single tap pauses or resumes, like Douyin; no system controls appear.
         .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { video.togglePlay() } }
+        // Press and hold for 2×; the drag that follows only waits for the finger to lift.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4)
+                .sequenced(before: DragGesture(minimumDistance: 0))
+                .onChanged { value in
+                    if case .second = value { withAnimation(.easeOut(duration: 0.15)) { video.setBoosting(true) } }
+                }
+                .onEnded { _ in withAnimation(.easeOut(duration: 0.15)) { video.setBoosting(false) } }
+        )
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(video.paused ? "继续播放" : "暂停")
         .onAppear {
@@ -429,7 +512,10 @@ private struct VideoPage: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active, isCurrent { video.save() }
         }
-        .onDisappear { video.setActive(false) }
+        .onDisappear {
+            video.setBoosting(false)
+            video.setActive(false)
+        }
     }
 
     private func resumeChip(_ seconds: Double) -> some View {

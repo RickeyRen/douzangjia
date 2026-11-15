@@ -3,13 +3,15 @@ import { useEffect, useState, type PointerEvent, type RefObject } from "react";
 
 import { formatClock } from "../lib/format";
 import { t } from "../i18n/t";
+import { nextSpeed, readSpeed, speedLabel, writeSpeed } from "./playbackSpeed";
 
-/** Minimal controls over a <video>: scrubber, clock, mute and fullscreen. */
+/** Minimal controls over a <video>: scrubber, clock, speed, mute and fullscreen. */
 export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: RefObject<HTMLVideoElement | null>; muted: boolean; onToggleMute: () => void }) {
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [speed, setSpeed] = useState(readSpeed);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -29,6 +31,25 @@ export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: Ref
     events.forEach((name) => video.addEventListener(name, sync));
     return () => events.forEach((name) => video.removeEventListener(name, sync));
   }, [videoRef]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // Loading a source resets playbackRate to defaultPlaybackRate, so set both.
+    const apply = () => {
+      video.defaultPlaybackRate = speed;
+      video.playbackRate = speed;
+    };
+    apply();
+    video.addEventListener("loadedmetadata", apply);
+    return () => video.removeEventListener("loadedmetadata", apply);
+  }, [videoRef, speed]);
+
+  function cycleSpeed() {
+    const next = nextSpeed(speed);
+    writeSpeed(next);
+    setSpeed(next);
+  }
 
   function toggle() {
     const video = videoRef.current;
@@ -91,6 +112,15 @@ export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: Ref
           {formatClock(time)} <span className="vc-sep">/</span> {formatClock(duration)}
         </span>
         <span className="toolbar-spacer" />
+        <button
+          type="button"
+          className={speed === 1 ? "vc-speed" : "vc-speed is-on"}
+          aria-label={t("播放速度 {s}，点一下换", { s: speedLabel(speed) })}
+          title={t("播放速度")}
+          onClick={cycleSpeed}
+        >
+          {speed === 1 ? t("倍速") : speedLabel(speed)}
+        </button>
         <button type="button" className="icon-btn icon-btn-sm" aria-label={muted ? t("取消静音") : t("静音")} onClick={onToggleMute}>
           {muted ? <SpeakerSlash size={18} /> : <SpeakerHigh size={18} />}
         </button>
