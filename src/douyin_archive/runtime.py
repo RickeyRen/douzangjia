@@ -36,6 +36,8 @@ from .creator_sync import CreatorSyncService
 from .db import Database
 from .diagnostics import log_asyncio_tasks
 from .downloader import MediaDownloader
+from .integrity import RUN_EVERY_SECONDS as INTEGRITY_EVERY_SECONDS
+from .integrity import ArchiveVerifier
 from .item_covers import SAVE_EVERY_SECONDS as ITEM_COVER_EVERY_SECONDS
 from .item_covers import ItemCoverPreserver
 from .library_models import CreatorRecord
@@ -569,6 +571,7 @@ class ArchiveRuntime:
         self.creator_media = CreatorMediaPreserver(database, settings.archive_root)
         self.creator_catalog = CreatorCatalogScanner(database, self.sync.scan_creator_catalog)
         self.item_covers = ItemCoverPreserver(database, settings.archive_root)
+        self.verifier = ArchiveVerifier(database, settings.archive_root)
         self._creator_backfill_task: asyncio.Task[int] | None = None
         self._probe_task: asyncio.Task[None] | None = None
         self._scheduler: Any = None
@@ -628,6 +631,7 @@ class ArchiveRuntime:
             (self.creator_media.run_batch, CREATOR_MEDIA_EVERY_SECONDS, "creator-media-preserve"),
             (self.creator_catalog.run_tick, CREATOR_CATALOG_EVERY_SECONDS, "creator-catalog-scan"),
             (self.item_covers.run_batch, ITEM_COVER_EVERY_SECONDS, "item-cover-preserve"),
+            (self.verifier.run_batch, INTEGRITY_EVERY_SECONDS, "archive-integrity-check"),
         ):
             self._scheduler.add_job(
                 job,

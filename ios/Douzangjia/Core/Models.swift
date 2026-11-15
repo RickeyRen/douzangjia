@@ -298,3 +298,21 @@ struct APIErrorBody: Decodable {
 }
 
 struct EmptyBody: Decodable {}
+
+/// Backup self-check: how much of the saved archive has been confirmed intact.
+struct ArchiveIntegrity: Decodable {
+    let totalFiles: Int
+    let verifiedFiles: Int
+    let allCheckedSince: Int?
+    let lastCheckedAt: Int?
+    let repairingFiles: Int
+    let repairedFiles: Int
+
+    var headline: String {
+        if totalFiles == 0 { return "还没有存下的文件" }
+        if allCheckedSince != nil { return "全部 \(Format.integer(totalFiles)) 个文件都完好" }
+        return "已检查 \(Format.integer(verifiedFiles)) / \(Format.integer(totalFiles)) 个文件"
+    }
+
+    var fraction: Double { totalFiles > 0 ? Double(verifiedFiles) / Double(totalFiles) : 0 }
+}

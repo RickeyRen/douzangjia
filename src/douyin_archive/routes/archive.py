@@ -18,6 +18,7 @@ from ..archive_service import (
     ArchiveService,
     ArchiveTargetNotFound,
 )
+from ..integrity import ArchiveVerifier
 from ..repositories import JobRepository
 
 PROGRESS_SHARE_SECONDS = 2.5
@@ -216,6 +217,11 @@ def queueing_plan(request: Request) -> dict[str, int] | None:
 def _log_queue_failure(task: asyncio.Task) -> None:
     if not task.cancelled() and task.exception() is not None:
         logger.error("queueing missing items failed", exc_info=task.exception())
+
+
+@router.get("/archive/integrity")
+async def archive_integrity(request: Request):
+    return await ArchiveVerifier(request.app.state.database, request.app.state.settings.archive_root).summary()
 
 
 @router.get("/archive/progress")

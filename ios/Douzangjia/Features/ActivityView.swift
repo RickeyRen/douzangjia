@@ -10,6 +10,7 @@ struct ActivityView: View {
 
     /// Only read for the storage summary in the header.
     @State private var stats: HomeStats?
+    @State private var integrity: ArchiveIntegrity?
 
     var body: some View {
         NavigationStack {
@@ -17,6 +18,7 @@ struct ActivityView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     storage
                     downloads
+                    integrityCard
                     SectionHeader(title: "同步")
                     syncPanel
                     history
@@ -80,6 +82,42 @@ struct ActivityView: View {
             }
         } else {
             ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+        }
+    }
+
+    /// Backup self-check: saved files confirmed still on disk and unchanged.
+    @ViewBuilder
+    private var integrityCard: some View {
+        if let integrity {
+            let warning = integrity.repairingFiles > 0
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    IconChip(
+                        systemImage: warning ? "exclamationmark.shield" : "checkmark.shield",
+                        tint: warning ? .orange : Theme.lime,
+                        fill: (warning ? Color.orange : Theme.lime).opacity(0.13)
+                    )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("备份自检").font(.system(size: 12)).foregroundStyle(Theme.muted)
+                        Text(integrity.headline).font(.system(size: 14, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(Theme.text)
+                    }
+                    Spacer(minLength: 0)
+                    if let since = integrity.allCheckedSince ?? integrity.lastCheckedAt {
+                        Text(Format.relative(since)).font(.system(size: 11)).foregroundStyle(Theme.muted)
+                    }
+                }
+                GlowBar(fraction: integrity.fraction, height: 5)
+                Text(warning
+                     ? "发现 \(Format.integer(integrity.repairingFiles)) 个文件丢失或损坏，已经在重新下载；损坏的旧文件留在 quarantine 文件夹，没有删除。"
+                     : integrity.repairedFiles > 0
+                        ? "后台慢慢核对每个已存文件，已自动补回 \(Format.integer(integrity.repairedFiles)) 个。"
+                        : "后台慢慢核对每个已存文件还在、没有损坏，出问题会自动重新下载。")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(warning ? .orange : Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .card()
         }
     }
 
@@ -201,6 +239,8 @@ struct ActivityView: View {
         if health == nil { health = model.client.cachedSyncHealth() }
         if runs == nil { runs = model.client.cachedSyncRuns() }
         if stats == nil { stats = model.client.cachedHome()?.stats }
+        if integrity == nil { integrity = model.client.cachedIntegrity() }
+        if let fresh = try? await model.client.integrity() { integrity = fresh }
         do {
             async let healthValue = model.client.syncHealth()
             async let runValues = model.client.syncRuns()

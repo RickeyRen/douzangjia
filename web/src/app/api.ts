@@ -798,3 +798,16 @@ export function linkRefusalNotice(active: { linkRefusal?: { retryAt: number | nu
   const clock = `${at.getHours().toString().padStart(2, "0")}:${at.getMinutes().toString().padStart(2, "0")}`;
   return `抖音暂时不给新的下载链接，已自动放慢，${clock} 自动再试，不用手动暂停。`;
 }
+
+export type ArchiveIntegrity = {
+  totalFiles: number;
+  verifiedFiles: number;
+  /** Every saved file has been confirmed intact at least since then. */
+  allCheckedSince: number | null;
+  lastCheckedAt: number | null;
+  /** Found missing or damaged; being downloaded again. */
+  repairingFiles: number;
+  repairedFiles: number;
+};
+
+export const fetchArchiveIntegrity = () => request<ArchiveIntegrity>("/api/archive/integrity");

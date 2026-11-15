@@ -52,6 +52,7 @@ final class APIClient {
         let page: Page<SyncRun>? = cached("/api/sync/runs", query: [URLQueryItem(name: "limit", value: "50")])
         return page?.items
     }
+    func cachedIntegrity() -> ArchiveIntegrity? { cached("/api/archive/integrity") }
     func cachedFeed(filter: LibraryFilter) -> Page<FeedItem>? {
         cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: ""))
     }
@@ -154,6 +155,8 @@ final class APIClient {
     }
 
     func progress() async throws -> ArchiveProgress { try await get("/api/archive/progress") }
+
+    func integrity() async throws -> ArchiveIntegrity { try await get("/api/archive/integrity") }
 
     func controlBatch(_ batchId: Int, action: String) async throws {
         let _: EmptyBody = try await send("POST", "/api/archive/batches/\(batchId)/\(action)")

@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+import hashlib
+import logging
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import anyio
+
+from .db import Database
+from .worker import MEDIA_URL_EXPIRED
+
+logger = logging.getLogger(__name__)
+
+RUN_EVERY_SECONDS = 60
+# Hashing reads every byte, and the NAS disk is shared with downloads and other
+# services: a few hundred MB a minute walks a 300 GB archive in about a day.
+MAX_FILES_PER_RUN = 40
+MAX_BYTES_PER_RUN = 400 * 1024 * 1024
+# A full re-check of everything this often; new files are checked first.
+RECHECK_AFTER_SECONDS = 30 * 24 * 3600
+QUARANTINE_DIR = "quarantine"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+class ArchiveVerifier:
+    """Slowly confirm every saved file is still on disk and unchanged.
+
+    A file that went missing or no longer matches its checksum is moved aside
+    (never deleted), marked unsaved and its download is queued again; the link
+    refresher fetches a fresh URL for it like any other expired download.
+    """
+
+    def __init__(
+        self,
+        database: Database,
+        archive_root: Path,
+        *,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.db = database
+        self.archive_root = archive_root.resolve()
+        self.clock = clock
+
+    async def run_batch(self) -> int:
+        now = int(self.clock())
+        rows = await self.db.fetchall(
+            "SELECT id, item_id, relative_path, byte_size, checksum_sha256 FROM media_files "
+            "WHERE status='ready' AND relative_path IS NOT NULL "
+            "AND (verified_at IS NULL OR verified_at < ?) "
+            "ORDER BY verified_at IS NOT NULL, verified_at, id LIMIT ?",
+            (now - RECHECK_AFTER_SECONDS, MAX_FILES_PER_RUN),
+        )
+        checked = 0
+        budget = MAX_BYTES_PER_RUN
+        for row in rows:
+            if budget <= 0:
+                break
+            problem = await self._check(row)
+            budget -= int(row["byte_size"] or 0)
+            checked += 1
+            stamp = int(self.clock())
+            if problem is None:
+                await self.db.execute(
+                    "UPDATE media_files SET verified_at=?, verify_status='ok' WHERE id=?",
+                    (stamp, row["id"]),
+                )
+            else:
+                await self._repair(row, problem, stamp)
+        return checked
+
+    async def _check(self, row: Any) -> str | None:
+        path = self.archive_root / str(row["relative_path"])
+        if not path.is_file():
+            return "missing"
+        if row["byte_size"] is not None and path.stat().st_size != int(row["byte_size"]):
+            return "corrupt"
+        if row["checksum_sha256"]:
+            actual = await anyio.to_thread.run_sync(_sha256, path)
+            if actual != row["checksum_sha256"]:
+                return "corrupt"
+        return None
+
+    async def _repair(self, row: Any, problem: str, now: int) -> None:
+        path = self.archive_root / str(row["relative_path"])
+        if problem == "corrupt" and path.is_file():
+            # Keep the damaged copy for the owner to inspect; the downloader
+            # would otherwise take the existing file as already saved.
+            target = self.archive_root / QUARANTINE_DIR / f"{row['relative_path']}.{now}"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            path.rename(target)
+        logger.warning(
+            "saved file %s for item %s is %s; downloading it again",
+            row["relative_path"],
+            row["item_id"],
+            problem,
+        )
+        await self.db.execute(
+            # verified_at is cleared so the fresh copy is checked as soon as it lands.
+            "UPDATE media_files SET status='pending', verify_status=?, verify_failed_at=?, "
+            "verified_at=NULL, downloaded_bytes=0, updated_at=? WHERE id=?",
+            (problem, now, now, row["id"]),
+        )
+        # The old link has long expired; queue it as one so a fresh URL is fetched.
+        await self.db.execute(
+            "UPDATE download_jobs SET status='retry', attempts=0, claimed_by=NULL, "
+            "last_error_code=?, next_attempt_at=?, updated_at=? "
+            "WHERE kind='download' AND remote_id=? AND status IN ('completed', 'failed')",
+            (MEDIA_URL_EXPIRED, now, now, row["item_id"]),
+        )
+
+    async def summary(self) -> dict[str, Any]:
+        row = await self.db.fetchone(
+            "SELECT COUNT(*) AS total, "
+            "COALESCE(SUM(verified_at IS NOT NULL), 0) AS verified, "
+            "MIN(verified_at) AS oldest, MAX(verified_at) AS latest, "
+            "COALESCE(SUM(verify_failed_at IS NOT NULL), 0) AS repaired "
+            "FROM media_files WHERE status='ready' AND relative_path IS NOT NULL"
+        )
+        broken = await self.db.fetchone(
+            "SELECT COUNT(*) AS broken FROM media_files "
+            "WHERE status!='ready' AND verify_status IN ('missing', 'corrupt')"
+        )
+        total = int(row["total"]) if row else 0
+        verified = int(row["verified"]) if row else 0
+        return {
+            "totalFiles": total,
+            "verifiedFiles": verified,
+            # Only meaningful once every file has been looked at once.
+            "allCheckedSince": int(row["oldest"]) if row and verified == total and total else None,
+            "lastCheckedAt": int(row["latest"]) if row and row["latest"] is not None else None,
+            "repairingFiles": int(broken["broken"]) if broken else 0,
+            "repairedFiles": int(row["repaired"]) if row else 0,
+        }

@@ -28,6 +28,7 @@ import { useDashboardStream } from "../lib/useDashboardStream";
 import { sourceLabel } from "../shell/sourceMeta";
 import { PageHeader, Progress, Spinner, Switch } from "../ui/primitives";
 import { DownloadProgress } from "./DownloadProgress";
+import { IntegrityPanel } from "./IntegrityPanel";
 import { t } from "../i18n/t";
 
 const JOB_STATUS: Record<string, { text: string; tone: string }> = {
@@ -241,6 +242,8 @@ export function ActivityPage() {
         </div>
 
         <div className="stack">
+          <IntegrityPanel />
+
           <section className="panel">
             <div className="panel-head">
               <div>
