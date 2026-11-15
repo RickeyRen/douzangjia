@@ -437,7 +437,12 @@ async def test_browser_launch_failure_does_not_take_the_web_app_down(caplog) -> 
 class HangingSource(FakeSource):
     """A source whose first browser call never returns, like a wedged page close."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered = False
+
     async def fetch_collections(self) -> dict:
+        self.entered = True
         await asyncio.Event().wait()
         return {}
 
@@ -455,7 +460,10 @@ async def test_sync_run_that_hangs_is_abandoned_and_browser_discarded(tmp_path: 
         FakeAuth(),
         browser_coordinator,
         source_factory=lambda: source,
-        run_timeout_seconds=0.05,
+        # Long enough that a busy machine still reaches the hanging call before the
+        # budget runs out; 0.05 s sometimes cancelled the run while it was still
+        # opening the database, before the source existed, and the test flaked.
+        run_timeout_seconds=1.0,
     )
 
     run_id = await coordinator.trigger_sync(full_scan=False)
@@ -467,6 +475,7 @@ async def test_sync_run_that_hangs_is_abandoned_and_browser_discarded(tmp_path: 
     assert row is not None
     assert (row["status"], row["error_code"]) == ("failed", "SYNC_TIMEOUT")
     assert row["finished_at"] is not None
+    assert source.entered is True
     assert source.closed is True
     assert browser_coordinator.discards == 1
     account = await database.fetchone("SELECT health_status, last_error_code FROM douyin_account")
