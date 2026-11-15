@@ -33,6 +33,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photo-and-video
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "把作品存到手机相册时需要这个权限，抖藏家只会写入你选择保存的视频或图片。"
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "抖藏家需要访问局域网，才能连上你 NAS 上的收藏库。"
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic

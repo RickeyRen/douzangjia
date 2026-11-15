@@ -274,6 +274,27 @@ final class APIClient {
         return report.results
     }
 
+    /// Copies one archived file to a temporary file named `name`, ready to share.
+    func downloadFile(_ url: URL, named name: String) async throws -> URL {
+        let (temporary, response): (URL, URLResponse)
+        do {
+            (temporary, response) = try await session.download(from: url)
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw APIError(status: 0, code: "NETWORK", message: "从 NAS 取文件失败，请确认手机和 NAS 在同一网络。")
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            throw APIError(status: status, code: "HTTP_\(status)", message: "NAS 上读不到这个文件（\(status)）")
+        }
+        let folder = FileManager.default.temporaryDirectory.appending(path: "share-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let target = folder.appending(path: name)
+        try FileManager.default.moveItem(at: temporary, to: target)
+        return target
+    }
+
     func storage() async throws -> StorageUsage { try await get("/api/storage") }
 
     func review() async throws -> ReviewResponse { try await get("/api/review") }

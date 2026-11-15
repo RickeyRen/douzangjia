@@ -74,6 +74,9 @@ private struct PlayerPage: View {
     @State private var message: String?
     @State private var video = VideoController()
     @State private var organizing = false
+    @State private var preparingShare = false
+    @State private var shareFiles: ShareFiles?
+    @State private var shareError: String?
 
     private var playableURL: URL? {
         guard !item.isGallery, let file = item.media.first(where: \.isVideo) else { return nil }
@@ -213,6 +216,7 @@ private struct PlayerPage: View {
                 }
                 .accessibilityLabel("整理：相册、标签、备注")
                 if playableURL != nil { speedMenu }
+                if item.isSaved { shareButton }
             }
         }
         .foregroundStyle(.white)
@@ -222,6 +226,14 @@ private struct PlayerPage: View {
         .background(LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
         .sheet(isPresented: $organizing) {
             OrganizeSheet(item: $item, onItemChange: onItemChange)
+        }
+        .sheet(item: $shareFiles, onDismiss: { shareFiles?.cleanUp() }) { files in
+            ShareSheet(items: files.urls)
+                .ignoresSafeArea()
+                .presentationDetents([.medium, .large])
+        }
+        .alert(shareError ?? "", isPresented: Binding(get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
+            Button("好") {}
         }
     }
 
@@ -241,6 +253,69 @@ private struct PlayerPage: View {
                 .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
         }
         .accessibilityLabel("播放速度 \(Self.speedText(video.speed)) 倍")
+    }
+
+    private var shareButton: some View {
+        Button {
+            Task { await prepareShare() }
+        } label: {
+            Group {
+                if preparingShare {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "square.and.arrow.up").font(.title3)
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(width: 48, height: 48)
+            .background(.black.opacity(0.35), in: Circle())
+            .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
+        }
+        .disabled(preparingShare)
+        .accessibilityLabel(preparingShare ? "正在从 NAS 取文件" : "分享或存到手机")
+    }
+
+    /// The saved files themselves (video, or each gallery picture), named after the work.
+    private func prepareShare() async {
+        let files = item.isGallery ? galleryImages : Array(item.media.filter(\.isVideo).prefix(1))
+        guard !files.isEmpty else { return }
+        preparingShare = true
+        defer { preparingShare = false }
+        let base = Self.fileBase(author: item.creator?.nickname ?? item.author, title: item.title)
+        do {
+            var urls: [URL] = []
+            for (index, file) in files.enumerated() {
+                guard let remote = model.client.resolve(file.url) else { continue }
+                let suffix = files.count > 1 ? " \(index + 1)" : ""
+                let name = base + suffix + "." + Self.fileExtension(file)
+                urls.append(try await model.client.downloadFile(remote, named: name))
+            }
+            if !urls.isEmpty { shareFiles = ShareFiles(urls: urls) }
+        } catch is CancellationError {
+            return
+        } catch {
+            model.handle(error)
+            shareError = (error as? APIError)?.message ?? "取文件失败"
+        }
+    }
+
+    private static func fileBase(author: String, title: String) -> String {
+        let short = title.count > 40 ? String(title.prefix(40)) : title
+        let raw = "\(author) - \(short)"
+        let banned = CharacterSet(charactersIn: "/\\:*?\"<>|\n\r")
+        return raw.components(separatedBy: banned).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func fileExtension(_ file: MediaFile) -> String {
+        switch file.mimeType ?? "" {
+        case "video/quicktime": "mov"
+        case let mime where mime.hasPrefix("video/"): "mp4"
+        case "image/webp": "webp"
+        case "image/png": "png"
+        case "image/heic": "heic"
+        case let mime where mime.hasPrefix("image/"): "jpg"
+        default: file.isVideo ? "mp4" : "jpg"
+        }
     }
 
     private static func speedText(_ value: Float) -> String {
@@ -614,4 +689,27 @@ private struct VideoProgressBar: View {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
     }
+}
+
+/// Files fetched from the NAS for one share; removed again once the sheet closes.
+struct ShareFiles: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+
+    func cleanUp() {
+        for folder in Set(urls.map { $0.deletingLastPathComponent() }) {
+            try? FileManager.default.removeItem(at: folder)
+        }
+    }
+}
+
+/// The system share sheet: 存储视频 / 存储图像, AirDrop, WeChat…
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

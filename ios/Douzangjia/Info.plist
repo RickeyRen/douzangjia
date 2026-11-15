@@ -10,6 +10,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>抖藏家需要访问局域网里的 NAS，才能读取你存下的作品。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>把作品存到手机相册时需要这个权限，抖藏家只会写入你选择保存的视频或图片。</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
