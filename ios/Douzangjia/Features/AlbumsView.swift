@@ -4,6 +4,7 @@ import SwiftUI
 struct AlbumsView: View {
     @Environment(AppModel.self) private var model
     @State private var albums: [Album] = []
+    @State private var tags: [TagCount] = []
     @State private var loaded = false
     @State private var error: String?
     @State private var naming: AlbumNaming?
@@ -15,6 +16,7 @@ struct AlbumsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+              VStack(spacing: 0) {
                 if albums.isEmpty {
                     emptyState
                 } else {
@@ -34,6 +36,8 @@ struct AlbumsView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 24)
                 }
+                if !tags.isEmpty { tagSection }
+              }
             }
             .scrollIndicators(.hidden)
             .screenBackground()
@@ -50,6 +54,7 @@ struct AlbumsView: View {
             .navigationDestination(for: Album.self) { album in
                 AlbumDetailView(album: album) { await load() }
             }
+            .navigationDestination(for: TagRoute.self) { TagWorksView(tag: $0.tag) }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
                 TextField("相册名", text: $nameDraft)
@@ -100,8 +105,39 @@ struct AlbumsView: View {
         }
     }
 
+    /// The owner's own tags, most used first; each opens the works carrying it.
+    private var tagSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("我的标签").font(.system(size: 20, weight: .bold))
+                Spacer()
+                Text("\(tags.count) 个").font(.system(size: 13)).foregroundStyle(Theme.muted)
+            }
+            FlowLayout(spacing: 8) {
+                ForEach(tags, id: \.tag) { entry in
+                    NavigationLink(value: TagRoute(tag: entry.tag)) {
+                        HStack(spacing: 6) {
+                            Text("#\(entry.tag)").font(.system(size: 14, weight: .medium)).foregroundStyle(Theme.text)
+                            Text("\(entry.itemCount)").font(.system(size: 12).monospacedDigit()).foregroundStyle(Theme.muted)
+                        }
+                        .padding(.horizontal, 12).frame(height: 34)
+                        .background(Theme.panel2, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.line2, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("标签 \(entry.tag)，\(entry.itemCount) 个作品")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.pageInset)
+        .padding(.bottom, 32)
+    }
+
     private func load() async {
         if albums.isEmpty, let cached = model.client.cachedAlbums() { albums = cached }
+        if tags.isEmpty, let cached = model.client.cachedTags() { tags = cached }
+        if let fresh = try? await model.client.tags() { tags = fresh }
         do {
             albums = try await model.client.albums()
             error = nil

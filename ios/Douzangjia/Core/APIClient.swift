@@ -208,6 +208,21 @@ final class APIClient {
         let _: EmptyBody = try await send(contains ? "PUT" : "DELETE", "/api/albums/\(albumId)/items", body: ["itemIds": [itemId]])
     }
 
+    /// Works the owner tagged, newest first.
+    func tagFeed(_ tag: String, cursor: String?) async throws -> Page<FeedItem> {
+        try await get("/api/feed", query: tagQuery(tag, cursor: cursor))
+    }
+    func cachedTagFeed(_ tag: String) -> Page<FeedItem>? { cached("/api/feed", query: tagQuery(tag, cursor: nil)) }
+    private func tagQuery(_ tag: String, cursor: String?) -> [URLQueryItem] {
+        var query = [URLQueryItem(name: "limit", value: "30"), URLQueryItem(name: "tag", value: tag)]
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return query
+    }
+    func cachedTags() -> [TagCount]? {
+        let page: Page<TagCount>? = cached("/api/tags")
+        return page?.items
+    }
+
     func tags() async throws -> [TagCount] {
         let page: Page<TagCount> = try await get("/api/tags")
         return page.items
