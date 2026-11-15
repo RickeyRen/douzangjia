@@ -13,6 +13,9 @@ struct SettingsView: View {
     @State private var settingsNote: String?
     @State private var notifyNote: String?
     @State private var testing = false
+    @State private var exporting = false
+    @State private var exportNote: String?
+    @State private var exportFiles: ShareFiles?
 
     private static let intervals: [(seconds: Int, title: String)] = [
         (300, "每 5 分钟"), (900, "每 15 分钟"), (1800, "每 30 分钟"), (3600, "每小时"), (21_600, "每 6 小时"),
@@ -56,6 +59,21 @@ struct SettingsView: View {
                          ?? "相册、标签、备注和精选只存在这个数据库里。NAS 每天自动备份一份并检查能正常打开，放在归档目录的 data/backups/ 下。")
                 }
                 Section {
+                    Button {
+                        Task { await exportCatalog() }
+                    } label: {
+                        HStack {
+                            Text("导出全部作品清单")
+                            if exporting { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(exporting)
+                } header: {
+                    Text("带走数据")
+                } footer: {
+                    Text(exportNote ?? "一张表格（CSV）：每个作品的标题、博主、链接、标签、备注，以及存在 NAS 哪个文件。不含视频本身，可以存到“文件”或发给自己。")
+                }
+                Section {
                     Text("扫码登录抖音、相册整理和来源设置请在电脑上打开抖藏家网页操作。")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
@@ -75,6 +93,11 @@ struct SettingsView: View {
                 settings = await serverSettings
                 storage = await usage
                 barkURL = settings?.values.notifications["bark"]?["url"]?.stringValue ?? ""
+            }
+            .sheet(item: $exportFiles, onDismiss: { exportFiles?.cleanUp() }) { files in
+                ShareSheet(items: files.urls)
+                    .ignoresSafeArea()
+                    .presentationDetents([.medium, .large])
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -290,6 +313,22 @@ struct SettingsView: View {
             }
         } catch {
             notifyNote = "发送失败：\((error as? APIError)?.message ?? error.localizedDescription)"
+        }
+    }
+
+    private func exportCatalog() async {
+        guard let url = model.client.resolve("/api/export/catalog.csv") else { return }
+        exporting = true
+        exportNote = nil
+        defer { exporting = false }
+        let day = Date().formatted(.verbatim("\(year: .defaultDigits)\(month: .twoDigits)\(day: .twoDigits)",
+                                             timeZone: .current, calendar: .current))
+        do {
+            let file = try await model.client.downloadFile(url, named: "抖藏家作品清单-\(day).csv")
+            exportFiles = ShareFiles(urls: [file])
+        } catch is CancellationError {
+        } catch {
+            exportNote = "导出没有完成：\(error.localizedDescription)"
         }
     }
 
