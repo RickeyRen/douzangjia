@@ -53,8 +53,8 @@ final class APIClient {
         return page?.items
     }
     func cachedIntegrity() -> ArchiveIntegrity? { cached("/api/archive/integrity") }
-    func cachedFeed(filter: LibraryFilter, sourceId: String? = nil) -> Page<FeedItem>? {
-        cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: "", sourceId: sourceId))
+    func cachedFeed(filter: LibraryFilter, sourceId: String? = nil, options: FeedOptions = FeedOptions()) -> Page<FeedItem>? {
+        cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: "", sourceId: sourceId, options: options))
     }
     func cachedLibrarySources() -> [LibrarySource]? {
         let page: Page<LibrarySource>? = cached("/api/library/sources")
@@ -84,8 +84,8 @@ final class APIClient {
 
     func home() async throws -> HomeSnapshot { try await get("/api/home") }
 
-    func feed(filter: LibraryFilter, cursor: String?, search: String = "", sourceId: String? = nil) async throws -> Page<FeedItem> {
-        try await get("/api/feed", query: feedQuery(filter: filter, cursor: cursor, search: search, sourceId: sourceId))
+    func feed(filter: LibraryFilter, cursor: String?, search: String = "", sourceId: String? = nil, options: FeedOptions = FeedOptions()) async throws -> Page<FeedItem> {
+        try await get("/api/feed", query: feedQuery(filter: filter, cursor: cursor, search: search, sourceId: sourceId, options: options))
     }
 
     func librarySources() async throws -> [LibrarySource] {
@@ -93,8 +93,9 @@ final class APIClient {
         return page.items
     }
 
-    private func feedQuery(filter: LibraryFilter, cursor: String?, search: String, sourceId: String? = nil) -> [URLQueryItem] {
+    private func feedQuery(filter: LibraryFilter, cursor: String?, search: String, sourceId: String? = nil, options: FeedOptions = FeedOptions()) -> [URLQueryItem] {
         var query = [URLQueryItem(name: "limit", value: "30")]
+        query += options.queryItems
         if let sourceId { query.append(URLQueryItem(name: "sourceId", value: sourceId)) }
         if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         switch filter {
@@ -343,6 +344,66 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         case .all: "全部"
         case .saved: "已存到 NAS"
         case .starred: "精选"
+        }
+    }
+}
+
+/// Sort and narrowing on top of 全部 / 已存 / 精选, the same choices the web offers.
+struct FeedOptions: Hashable {
+    enum Sort: String, CaseIterable { case standard, published, random }
+    enum Kind: String, CaseIterable { case all, video, gallery }
+    enum Length: String, CaseIterable { case all, short, medium, long }
+
+    var sort: Sort = .standard
+    var kind: Kind = .all
+    var length: Length = .all
+    /// Keeps a random order stable while paging; a new one reshuffles.
+    var seed = 1
+
+    var isNarrowed: Bool { kind != .all || length != .all }
+
+    var queryItems: [URLQueryItem] {
+        var items: [URLQueryItem] = []
+        switch sort {
+        case .standard: break
+        case .published: items.append(URLQueryItem(name: "sort", value: "published"))
+        case .random:
+            items.append(URLQueryItem(name: "sort", value: "random"))
+            items.append(URLQueryItem(name: "seed", value: String(seed)))
+        }
+        if kind != .all { items.append(URLQueryItem(name: "type", value: kind.rawValue)) }
+        // Galleries have no length; the bucket only narrows videos.
+        if kind != .gallery {
+            switch length {
+            case .all: break
+            case .short: items.append(URLQueryItem(name: "maxDuration", value: "60"))
+            case .medium:
+                items.append(URLQueryItem(name: "minDuration", value: "60"))
+                items.append(URLQueryItem(name: "maxDuration", value: "300"))
+            case .long: items.append(URLQueryItem(name: "minDuration", value: "300"))
+            }
+        }
+        return items
+    }
+}
+
+extension FeedOptions.Kind {
+    var title: String {
+        switch self {
+        case .all: "全部类型"
+        case .video: "视频"
+        case .gallery: "图集"
+        }
+    }
+}
+
+extension FeedOptions.Length {
+    var title: String {
+        switch self {
+        case .all: "任意时长"
+        case .short: "1 分钟内"
+        case .medium: "1–5 分钟"
+        case .long: "5 分钟以上"
         }
     }
 }

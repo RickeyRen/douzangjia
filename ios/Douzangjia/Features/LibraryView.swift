@@ -14,14 +14,16 @@ final class LibraryFeed {
     var creators: [Creator] = []
     private var search = ""
     private var sourceId: String?
+    private var options = FeedOptions()
 
-    func reload(client: APIClient, filter: LibraryFilter, search: String = "", sourceId: String? = nil, onError: (Error) -> Void) async {
+    func reload(client: APIClient, filter: LibraryFilter, search: String = "", sourceId: String? = nil, options: FeedOptions = FeedOptions(), onError: (Error) -> Void) async {
         generation += 1
         cursor = nil
         exhausted = false
         // Show this filter's last first page until the fresh one arrives.
         self.sourceId = sourceId
-        if search.isEmpty, let saved = client.cachedFeed(filter: filter, sourceId: sourceId) {
+        self.options = options
+        if search.isEmpty, let saved = client.cachedFeed(filter: filter, sourceId: sourceId, options: options) {
             items = saved.items
         } else if !search.isEmpty {
             items = []
@@ -45,7 +47,7 @@ final class LibraryFeed {
         let started = generation
         defer { loading = false }
         do {
-            let page = try await client.feed(filter: filter, cursor: cursor, search: search, sourceId: sourceId)
+            let page = try await client.feed(filter: filter, cursor: cursor, search: search, sourceId: sourceId, options: options)
             guard started == generation else { return }
             if replaceOnNextPage {
                 items = page.items
@@ -78,6 +80,7 @@ struct LibraryView: View {
     @State private var search = ""
     @State private var sources: [LibrarySource] = []
     @State private var sourceId: String?
+    @State private var options = FeedOptions()
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -94,10 +97,10 @@ struct LibraryView: View {
                     if !feed.creators.isEmpty {
                         creatorResults
                     }
-                    if !feed.items.isEmpty {
+                    // Stays up when a narrowing finds nothing, so it can be undone.
+                    if !feed.items.isEmpty || options != FeedOptions() {
                         SectionHeader(title: "作品", count: query.isEmpty ? nil : "\(feed.items.count)\(feed.loading ? "+" : "")") {
-                            Label(filter == .starred ? "精选" : "最近收藏", systemImage: "arrow.up.arrow.down")
-                                .labelStyle(.titleAndIcon)
+                            optionsMenu
                         }
                     }
                     LazyVGrid(columns: columns, spacing: 6) {
@@ -156,7 +159,7 @@ struct LibraryView: View {
                 if sources.isEmpty { sources = (model.client.cachedLibrarySources() ?? []).filter(\.browsable) }
                 if let fresh = try? await model.client.librarySources() { sources = fresh.filter(\.browsable) }
             }
-            .task(id: "\(filter.rawValue)|\(query)|\(sourceId ?? "")") {
+            .task(id: "\(filter.rawValue)|\(query)|\(sourceId ?? "")|\(options.hashValue)") {
                 if !query.isEmpty { try? await Task.sleep(for: .milliseconds(350)) }
                 if Task.isCancelled { return }
                 await reload()
@@ -172,6 +175,65 @@ struct LibraryView: View {
                 PlayerView(items: selection.items, startIndex: selection.index) { feed.update($0) }
             }
         }
+    }
+
+    /// What the standard order means here: the list's own order, or when it was starred / collected.
+    private var standardSortTitle: String {
+        if sourceId != nil && query.isEmpty { return "收藏顺序" }
+        return filter == .starred ? "精选时间" : "最近收藏"
+    }
+
+    private func sortTitle(_ sort: FeedOptions.Sort) -> String {
+        switch sort {
+        case .standard: standardSortTitle
+        case .published: "最新发布"
+        case .random: "随机"
+        }
+    }
+
+    private var optionsMenu: some View {
+        Menu {
+            Picker("排序", selection: Binding(get: { options.sort }, set: { sort in
+                options.sort = sort
+                if sort == .random { options.seed = Int.random(in: 1...999_999) }
+            })) {
+                ForEach(FeedOptions.Sort.allCases, id: \.self) { Text(sortTitle($0)).tag($0) }
+            }
+            if options.sort == .random {
+                Button("换一批", systemImage: "shuffle") { options.seed = Int.random(in: 1...999_999) }
+            }
+            Section("类型") {
+                Picker("类型", selection: $options.kind) {
+                    ForEach(FeedOptions.Kind.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            }
+            if options.kind != .gallery {
+                Section("时长") {
+                    Picker("时长", selection: $options.length) {
+                        ForEach(FeedOptions.Length.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                }
+            }
+            if options != FeedOptions() {
+                Button("恢复默认", systemImage: "arrow.counterclockwise") { options = FeedOptions() }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: options.isNarrowed ? "line.3.horizontal.decrease.circle.fill" : "arrow.up.arrow.down")
+                    .foregroundStyle(options.isNarrowed ? Theme.violet4 : Theme.muted)
+                Text(optionsSummary)
+                    .foregroundStyle(options == FeedOptions() ? Theme.muted : Theme.violet4)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("排序和筛选：\(optionsSummary)")
+    }
+
+    private var optionsSummary: String {
+        var parts = [sortTitle(options.sort)]
+        if options.kind != .all { parts.append(options.kind.title) }
+        if options.kind != .gallery && options.length != .all { parts.append(options.length.title) }
+        return parts.joined(separator: " · ")
     }
 
     private var filterPicker: some View {
@@ -233,7 +295,8 @@ struct LibraryView: View {
     }
 
     private var emptyTitle: String {
-        switch filter {
+        if options.isNarrowed { return "没有符合筛选的作品" }
+        return switch filter {
         case .all: "还没有收藏"
         case .saved: "还没有存到 NAS 的作品"
         case .starred: "还没有精选，在播放时点星标加入"
@@ -241,7 +304,7 @@ struct LibraryView: View {
     }
 
     private func reload() async {
-        await feed.reload(client: model.client, filter: filter, search: query, sourceId: query.isEmpty ? sourceId : nil, onError: model.handle)
+        await feed.reload(client: model.client, filter: filter, search: query, sourceId: query.isEmpty ? sourceId : nil, options: options, onError: model.handle)
     }
 
     private var creatorResults: some View {
