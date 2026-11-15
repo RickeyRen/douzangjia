@@ -208,7 +208,8 @@ struct CreatorArchiveView: View {
     @State private var message: String?
     @State private var segment: ArchiveSegment = .all
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var columns: [GridItem] { GridColumns.media(sizeClass) }
 
     /// Filters what is already loaded; more pages load as the grid scrolls.
     private var shown: [FeedItem] {

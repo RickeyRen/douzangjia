@@ -14,7 +14,8 @@ struct GoneWorksView: View {
     @State private var generation = 0
     @State private var player: PlayerSelection?
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var columns: [GridItem] { GridColumns.media(sizeClass) }
 
     var body: some View {
         ScrollView {

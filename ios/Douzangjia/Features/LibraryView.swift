@@ -84,7 +84,8 @@ struct LibraryView: View {
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var columns: [GridItem] { GridColumns.media(sizeClass) }
 
     var body: some View {
         NavigationStack {

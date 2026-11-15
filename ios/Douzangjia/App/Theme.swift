@@ -261,3 +261,18 @@ extension EnvironmentValues {
         set { self[SelectTabKey.self] = newValue }
     }
 }
+
+/// Grid columns: three tiles across on a phone, as many ~150 pt tiles as fit on an iPad.
+enum GridColumns {
+    static func media(_ sizeClass: UserInterfaceSizeClass?) -> [GridItem] {
+        sizeClass == .regular
+            ? [GridItem(.adaptive(minimum: 150, maximum: 240), spacing: 10)]
+            : Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+    }
+
+    static func albums(_ sizeClass: UserInterfaceSizeClass?) -> [GridItem] {
+        sizeClass == .regular
+            ? [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 18)]
+            : Array(repeating: GridItem(.flexible(), spacing: 14), count: 2)
+    }
+}

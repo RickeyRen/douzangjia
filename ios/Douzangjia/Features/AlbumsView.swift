@@ -11,7 +11,8 @@ struct AlbumsView: View {
     @State private var nameDraft = ""
     @State private var deleting: Album?
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: 2)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var columns: [GridItem] { GridColumns.albums(sizeClass) }
 
     var body: some View {
         NavigationStack {
@@ -255,7 +256,8 @@ struct AlbumDetailView: View {
     @State private var loading = false
     @State private var player: PlayerSelection?
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var columns: [GridItem] { GridColumns.media(sizeClass) }
 
     var body: some View {
         ScrollView {
