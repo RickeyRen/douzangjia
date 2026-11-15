@@ -13,13 +13,15 @@ final class LibraryFeed {
 
     var creators: [Creator] = []
     private var search = ""
+    private var sourceId: String?
 
-    func reload(client: APIClient, filter: LibraryFilter, search: String = "", onError: (Error) -> Void) async {
+    func reload(client: APIClient, filter: LibraryFilter, search: String = "", sourceId: String? = nil, onError: (Error) -> Void) async {
         generation += 1
         cursor = nil
         exhausted = false
         // Show this filter's last first page until the fresh one arrives.
-        if search.isEmpty, let saved = client.cachedFeed(filter: filter) {
+        self.sourceId = sourceId
+        if search.isEmpty, let saved = client.cachedFeed(filter: filter, sourceId: sourceId) {
             items = saved.items
         } else if !search.isEmpty {
             items = []
@@ -43,7 +45,7 @@ final class LibraryFeed {
         let started = generation
         defer { loading = false }
         do {
-            let page = try await client.feed(filter: filter, cursor: cursor, search: search)
+            let page = try await client.feed(filter: filter, cursor: cursor, search: search, sourceId: sourceId)
             guard started == generation else { return }
             if replaceOnNextPage {
                 items = page.items
@@ -74,6 +76,8 @@ struct LibraryView: View {
     @State private var feed = LibraryFeed()
     @State private var player: PlayerSelection?
     @State private var search = ""
+    @State private var sources: [LibrarySource] = []
+    @State private var sourceId: String?
 
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -84,6 +88,9 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     filterPicker
+                    if query.isEmpty && !sources.isEmpty {
+                        sourceChips
+                    }
                     if !feed.creators.isEmpty {
                         creatorResults
                     }
@@ -145,7 +152,11 @@ struct LibraryView: View {
             .autocorrectionDisabled()
             .refreshable { await reload() }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
-            .task(id: "\(filter.rawValue)|\(query)") {
+            .task {
+                if sources.isEmpty { sources = (model.client.cachedLibrarySources() ?? []).filter(\.browsable) }
+                if let fresh = try? await model.client.librarySources() { sources = fresh.filter(\.browsable) }
+            }
+            .task(id: "\(filter.rawValue)|\(query)|\(sourceId ?? "")") {
                 if !query.isEmpty { try? await Task.sleep(for: .milliseconds(350)) }
                 if Task.isCancelled { return }
                 await reload()
@@ -173,6 +184,46 @@ struct LibraryView: View {
         .padding(.top, 4)
     }
 
+    /// Likes, favourites, each folder…: one tap narrows the grid to that list.
+    private var sourceChips: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 6) {
+                chip(title: "全部来源", systemImage: "square.grid.2x2", count: nil, selected: sourceId == nil) {
+                    sourceId = nil
+                }
+                ForEach(sources) { source in
+                    chip(title: source.title, systemImage: source.systemImage, count: source.discoveredCount,
+                         selected: sourceId == source.id) {
+                        sourceId = sourceId == source.id ? nil : source.id
+                    }
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        // Run edge to edge so the row reads as scrollable instead of cut off.
+        .contentMargins(.horizontal, Theme.pageInset, for: .scrollContent)
+        .padding(.horizontal, -Theme.pageInset)
+    }
+
+    private func chip(title: String, systemImage: String, count: Int?, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage).font(.system(size: 11, weight: .semibold))
+                Text(title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                if let count {
+                    Text(Format.integer(count)).font(.system(size: 11)).monospacedDigit()
+                        .foregroundStyle(selected ? Theme.text.opacity(0.8) : Theme.muted)
+                }
+            }
+            .foregroundStyle(selected ? Theme.text : Theme.muted)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(selected ? Theme.violet2.opacity(0.35) : Color.white.opacity(0.06), in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? Theme.violet3.opacity(0.7) : Color.white.opacity(0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
     private static var initialFilter: LibraryFilter {
         #if DEBUG
         return UserDefaults.standard.string(forKey: "devFilter").flatMap(LibraryFilter.init(rawValue:)) ?? .all
@@ -190,7 +241,7 @@ struct LibraryView: View {
     }
 
     private func reload() async {
-        await feed.reload(client: model.client, filter: filter, search: query, onError: model.handle)
+        await feed.reload(client: model.client, filter: filter, search: query, sourceId: query.isEmpty ? sourceId : nil, onError: model.handle)
     }
 
     private var creatorResults: some View {

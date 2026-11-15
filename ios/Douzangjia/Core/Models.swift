@@ -341,3 +341,44 @@ struct BackupStatus: Decodable {
     let lastError: String?
     let backups: [Copy]
 }
+
+/// A Douyin list the library is synced from (likes, a favourites folder, …).
+struct LibrarySource: Decodable, Identifiable, Hashable {
+    let id: String
+    let kind: String
+    let name: String
+    let discoveredCount: Int
+    let archivedCount: Int
+
+    /// Lists worth browsing on the phone: passing feeds and music are left out.
+    var browsable: Bool {
+        discoveredCount > 0 && !["recommend", "watch_history", "favorite_music"].contains(kind)
+    }
+
+    var title: String {
+        switch kind {
+        case "favorite_video": "全部收藏"
+        case "like": "喜欢"
+        case "favorite_series": "收藏合集"
+        case "favorite_drama": "短剧"
+        case "following": "关注的人"
+        case "post": "我的作品"
+        case "watch_later": "稍后再看"
+        case "reservation": "预约"
+        default: name
+        }
+    }
+
+    var systemImage: String {
+        switch kind {
+        case "favorite_video": "bookmark"
+        case "like": "heart"
+        case "favorite_series": "square.stack"
+        case "favorite_drama": "film"
+        case "following": "person.badge.plus"
+        case "post": "video"
+        case "watch_later": "clock"
+        default: "folder"
+        }
+    }
+}

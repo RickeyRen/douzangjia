@@ -53,8 +53,12 @@ final class APIClient {
         return page?.items
     }
     func cachedIntegrity() -> ArchiveIntegrity? { cached("/api/archive/integrity") }
-    func cachedFeed(filter: LibraryFilter) -> Page<FeedItem>? {
-        cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: ""))
+    func cachedFeed(filter: LibraryFilter, sourceId: String? = nil) -> Page<FeedItem>? {
+        cached("/api/feed", query: feedQuery(filter: filter, cursor: nil, search: "", sourceId: sourceId))
+    }
+    func cachedLibrarySources() -> [LibrarySource]? {
+        let page: Page<LibrarySource>? = cached("/api/library/sources")
+        return page?.items
     }
     func cachedVanished(sort: String) -> VanishedPage? {
         cached("/api/creators/vanished", query: vanishedQuery(cursor: nil, search: "", sort: sort))
@@ -80,12 +84,18 @@ final class APIClient {
 
     func home() async throws -> HomeSnapshot { try await get("/api/home") }
 
-    func feed(filter: LibraryFilter, cursor: String?, search: String = "") async throws -> Page<FeedItem> {
-        try await get("/api/feed", query: feedQuery(filter: filter, cursor: cursor, search: search))
+    func feed(filter: LibraryFilter, cursor: String?, search: String = "", sourceId: String? = nil) async throws -> Page<FeedItem> {
+        try await get("/api/feed", query: feedQuery(filter: filter, cursor: cursor, search: search, sourceId: sourceId))
     }
 
-    private func feedQuery(filter: LibraryFilter, cursor: String?, search: String) -> [URLQueryItem] {
+    func librarySources() async throws -> [LibrarySource] {
+        let page: Page<LibrarySource> = try await get("/api/library/sources")
+        return page.items
+    }
+
+    private func feedQuery(filter: LibraryFilter, cursor: String?, search: String, sourceId: String? = nil) -> [URLQueryItem] {
         var query = [URLQueryItem(name: "limit", value: "30")]
+        if let sourceId { query.append(URLQueryItem(name: "sourceId", value: sourceId)) }
         if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
         switch filter {
         case .all: break
