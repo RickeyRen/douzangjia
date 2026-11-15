@@ -7,6 +7,7 @@ import { t } from "../i18n/t";
 import { ARCHIVE_STATUS_LABEL } from "../lib/creatorArchive";
 import { formatDate, formatInteger } from "../lib/format";
 import { Avatar, EmptyState, ErrorState, PageHeader, Segmented, Spinner } from "../ui/primitives";
+import { useNow } from "../lib/useNow";
 
 type Filter = "all" | Exclude<CreatorArchiveStatus, "active">;
 
@@ -131,7 +132,8 @@ const REFUSED_AFTER = 5;
 
 function MonitorLine({ monitor }: { monitor: CreatorMonitor }) {
   const refused = monitor.consecutiveFailures >= REFUSED_AFTER;
-  const paused = Boolean(monitor.catalogPausedUntil && monitor.catalogPausedUntil * 1000 > Date.now());
+  const now = useNow();
+  const paused = Boolean(monitor.catalogPausedUntil && monitor.catalogPausedUntil * 1000 > now);
   return (
     <div className="vanished-monitor">
       <p>
