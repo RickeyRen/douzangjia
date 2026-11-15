@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var saveAllNotice: String?
     @State private var showSettings = false
     @State private var player: PlayerSelection?
+    @State private var shuffling = false
 
     @Environment(\.selectTab) private var selectTab
 
@@ -36,6 +37,9 @@ struct HomeView: View {
                     hero
                     kpis
                     reviewLink
+                    if (home?.stats.downloadedItems ?? 0) > 0 {
+                        shuffleButton
+                    }
                     downloadSection
                     if let vanished = home?.vanishedCreators, !vanished.isEmpty {
                         vanishedShelf(vanished, total: home?.stats.vanishedCreators ?? vanished.count)
@@ -203,6 +207,50 @@ struct HomeView: View {
             .card(radius: Theme.radiusInner, padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 14))
         }
         .buttonStyle(.plain)
+    }
+
+    /// Same as the web's 随便看看: a random run of works already on the NAS, opened straight in the player.
+    private var shuffleButton: some View {
+        Button { Task { await shuffle() } } label: {
+            HStack(spacing: 12) {
+                IconChip(systemImage: "shuffle", tint: Theme.lime, fill: Theme.lime.opacity(0.16))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("随便看看").font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.text)
+                    Text("从存到 NAS 的作品里随机放一串，翻出忘了的收藏")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }
+                Spacer(minLength: 6)
+                if shuffling {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.dim)
+                }
+            }
+            .contentShape(Rectangle())
+            .card(radius: Theme.radiusInner, padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(shuffling)
+        .accessibilityHint("随机播放已存到 NAS 的作品")
+    }
+
+    private func shuffle() async {
+        shuffling = true
+        defer { shuffling = false }
+        var options = FeedOptions()
+        options.sort = .random
+        options.seed = Int.random(in: 1...999_999)
+        do {
+            let page = try await model.client.feed(filter: .saved, cursor: nil, options: options)
+            guard !page.items.isEmpty else { return }
+            player = PlayerSelection(items: page.items, index: 0)
+        } catch {
+            model.handle(error)
+        }
     }
 
     @ViewBuilder
