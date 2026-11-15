@@ -21,7 +21,10 @@ from .library_scope import TRANSIENT_SOURCE_KINDS
 logger = logging.getLogger(__name__)
 
 CHECK_EVERY_SECONDS = 30 * 60
-REBUILD_AFTER_SECONDS = 24 * 3600
+# The pass reads every collected work; on the busy NAS it can slow a sync
+# running at the same time, so daily rebuilds wait for the small hours.
+REBUILD_AFTER_SECONDS = 20 * 3600
+QUIET_HOURS = range(3, 6)  # Shanghai time
 TOP_CREATORS = 12
 SHANGHAI = timezone(timedelta(hours=8))
 # Followed accounts are people, not works the owner chose to keep.
@@ -45,10 +48,14 @@ class CollectionReview:
         return {**json.loads(str(row["body_json"])), "builtAt": int(row["built_at"])}
 
     async def run_tick(self) -> bool:
-        """Rebuild when there is no snapshot yet or it is a day old."""
+        """Build the first snapshot at once; refresh it nightly after that."""
         row = await self.db.fetchone("SELECT built_at FROM review_snapshots WHERE id=1")
-        if row is not None and self.clock() - int(row["built_at"]) < REBUILD_AFTER_SECONDS:
-            return False
+        if row is not None:
+            now = self.clock()
+            if now - int(row["built_at"]) < REBUILD_AFTER_SECONDS:
+                return False
+            if datetime.fromtimestamp(now, SHANGHAI).hour not in QUIET_HOURS:
+                return False
         await self.rebuild()
         return True
 

@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,7 +9,7 @@ from douyin_archive import review as review_module
 from douyin_archive.api import create_app
 from douyin_archive.config import Settings
 from douyin_archive.db import Database
-from douyin_archive.review import CollectionReview
+from douyin_archive.review import SHANGHAI, CollectionReview
 
 AUG = 1_786_000_000  # 2026-08 in Shanghai time
 SEP = 1_788_700_000  # 2026-09
@@ -112,10 +113,17 @@ def test_snapshot_is_rebuilt_once_a_day_and_served_by_the_api(tmp_path: Path, ma
 
     async def ticks() -> None:
         database = await Database(tmp_path / "data" / "archive.sqlite3").open()
-        clock = [body["builtAt"] + 60.0]
+        built = body["builtAt"]
+        clock = [built + 60.0]
         review = CollectionReview(database, clock=lambda: clock[0])
         assert await review.run_tick() is False
-        clock[0] += review_module.REBUILD_AFTER_SECONDS
+        # Old enough, but in the middle of the day: wait for the quiet hours.
+        noon = built + review_module.REBUILD_AFTER_SECONDS
+        while datetime.fromtimestamp(noon, SHANGHAI).hour != 12:
+            noon += 3600
+        clock[0] = noon
+        assert await review.run_tick() is False
+        clock[0] = noon + 16 * 3600  # 04:00 Shanghai
         assert await review.run_tick() is True
         await database.close()
 
