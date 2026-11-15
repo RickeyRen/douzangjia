@@ -53,6 +53,7 @@ struct MainTabView: View {
         TabView(selection: $tab) {
             Tab("首页", systemImage: "house", value: 0) { HomeView() }
             Tab("作品", systemImage: "square.grid.2x2", value: 1) { LibraryView() }
+            Tab("相册", systemImage: "rectangle.stack", value: 3) { AlbumsView() }
             Tab("下载", systemImage: "arrow.down.to.line", value: 2) { ActivityView() }
         }
         .environment(\.selectTab) { tab = $0 }

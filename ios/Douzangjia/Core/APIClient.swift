@@ -152,6 +152,25 @@ final class APIClient {
         return page.items
     }
 
+    func cachedAlbums() -> [Album]? {
+        let page: Page<Album>? = cached("/api/albums")
+        return page?.items
+    }
+
+    func albumFeed(_ albumId: Int, cursor: String?) async throws -> Page<FeedItem> {
+        var query = [URLQueryItem(name: "limit", value: "30"), URLQueryItem(name: "albumId", value: String(albumId))]
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return try await get("/api/feed", query: query)
+    }
+
+    func renameAlbum(_ albumId: Int, to name: String) async throws -> Album {
+        try await send("PATCH", "/api/albums/\(albumId)", body: ["name": name])
+    }
+
+    func deleteAlbum(_ albumId: Int) async throws {
+        let _: EmptyBody = try await send("DELETE", "/api/albums/\(albumId)")
+    }
+
     func createAlbum(_ name: String) async throws -> Album {
         try await send("POST", "/api/albums", body: ["name": name])
     }
