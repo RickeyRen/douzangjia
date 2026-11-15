@@ -61,6 +61,7 @@ struct HomeView: View {
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .navigationDestination(for: VanishedListRoute.self) { _ in VanishedCreatorsView() }
             .navigationDestination(for: ReviewRoute.self) { _ in ReviewView() }
+            .navigationDestination(for: GoneWorksRoute.self) { _ in GoneWorksView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .fullScreenCover(item: $player) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
@@ -157,14 +158,19 @@ struct HomeView: View {
             KPITile(title: "已存到 NAS", value: stats.map { Format.integer($0.downloadedItems) },
                     detail: stats.map { "占用 \(Format.bytes($0.archivedBytes))" })
             KPITile(title: "博主", value: stats.map { Format.integer($0.creators) }, detail: "收藏涉及")
-            if let vanished = stats?.vanishedCreators {
-                KPITile(title: "已在抖音消失", value: Format.integer(vanished), unit: "位",
-                        detail: stats.map { "\(Format.integer($0.gone)) 个作品没了" },
-                        detailColor: (stats?.gone ?? 0) > 0 ? Theme.redText : Theme.muted)
-            } else {
-                KPITile(title: "已在抖音消失", value: stats.map { Format.integer($0.gone) }, unit: "个",
-                        detail: "删除或私密", detailColor: (stats?.gone ?? 0) > 0 ? Theme.redText : Theme.muted)
+            // Opens the list of works Douyin no longer shows.
+            NavigationLink(value: GoneWorksRoute()) {
+                if let vanished = stats?.vanishedCreators {
+                    KPITile(title: "已在抖音消失", value: Format.integer(vanished), unit: "位",
+                            detail: stats.map { "\(Format.integer($0.gone)) 个作品没了 ›" },
+                            detailColor: (stats?.gone ?? 0) > 0 ? Theme.redText : Theme.muted)
+                } else {
+                    KPITile(title: "已在抖音消失", value: stats.map { Format.integer($0.gone) }, unit: "个",
+                            detail: "删除或私密 ›", detailColor: (stats?.gone ?? 0) > 0 ? Theme.redText : Theme.muted)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("查看已在抖音消失的作品")
         }
     }
 

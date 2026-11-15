@@ -107,6 +107,20 @@ final class APIClient {
         return query
     }
 
+    /// Works Douyin no longer shows (deleted or made private), newest first.
+    func goneFeed(cursor: String?, savedOnly: Bool) async throws -> Page<FeedItem> {
+        try await get("/api/feed", query: goneQuery(cursor: cursor, savedOnly: savedOnly))
+    }
+    func cachedGoneFeed(savedOnly: Bool) -> Page<FeedItem>? {
+        cached("/api/feed", query: goneQuery(cursor: nil, savedOnly: savedOnly))
+    }
+    private func goneQuery(cursor: String?, savedOnly: Bool) -> [URLQueryItem] {
+        var query = [URLQueryItem(name: "limit", value: "30"), URLQueryItem(name: "remote", value: "deleted,private")]
+        if savedOnly { query.append(URLQueryItem(name: "downloaded", value: "true")) }
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return query
+    }
+
     func creatorFeed(_ creatorId: String, cursor: String?) async throws -> Page<FeedItem> {
         var query = [URLQueryItem(name: "limit", value: "30"), URLQueryItem(name: "creatorId", value: creatorId),
                      URLQueryItem(name: "sort", value: "published")]

@@ -163,6 +163,18 @@ struct ReviewView: View {
                 }
                 .font(.system(size: 12.5, weight: .medium))
                 .lineLimit(1).minimumScaleFactor(0.8)
+                if vanished.total > 0 {
+                    NavigationLink(value: GoneWorksRoute()) {
+                        HStack(spacing: 3) {
+                            Text("去看看")
+                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.violet4)
+                        .padding(.top, 2)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()
