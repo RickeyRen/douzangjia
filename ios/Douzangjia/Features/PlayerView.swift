@@ -281,13 +281,13 @@ private struct PlayerPage: View {
         guard !files.isEmpty else { return }
         preparingShare = true
         defer { preparingShare = false }
-        let base = Self.fileBase(author: item.creator?.nickname ?? item.author, title: item.title)
+        let base = ShareNaming.base(author: item.creator?.nickname ?? item.author, title: item.title)
         do {
             var urls: [URL] = []
             for (index, file) in files.enumerated() {
                 guard let remote = model.client.resolve(file.url) else { continue }
                 let suffix = files.count > 1 ? " \(index + 1)" : ""
-                let name = base + suffix + "." + Self.fileExtension(file)
+                let name = base + suffix + "." + ShareNaming.fileExtension(file)
                 urls.append(try await model.client.downloadFile(remote, named: name))
             }
             if !urls.isEmpty { shareFiles = ShareFiles(urls: urls) }
@@ -296,25 +296,6 @@ private struct PlayerPage: View {
         } catch {
             model.handle(error)
             shareError = (error as? APIError)?.message ?? "取文件失败"
-        }
-    }
-
-    private static func fileBase(author: String, title: String) -> String {
-        let short = title.count > 40 ? String(title.prefix(40)) : title
-        let raw = "\(author) - \(short)"
-        let banned = CharacterSet(charactersIn: "/\\:*?\"<>|\n\r")
-        return raw.components(separatedBy: banned).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-    }
-
-    private static func fileExtension(_ file: MediaFile) -> String {
-        switch file.mimeType ?? "" {
-        case "video/quicktime": "mov"
-        case let mime where mime.hasPrefix("video/"): "mp4"
-        case "image/webp": "webp"
-        case "image/png": "png"
-        case "image/heic": "heic"
-        case let mime where mime.hasPrefix("image/"): "jpg"
-        default: file.isVideo ? "mp4" : "jpg"
         }
     }
 
@@ -712,4 +693,26 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+/// File names for shared works: "博主 - 标题.mp4", safe for Files and AirDrop.
+enum ShareNaming {
+    static func base(author: String, title: String) -> String {
+        let short = title.count > 40 ? String(title.prefix(40)) : title
+        let raw = "\(author) - \(short)"
+        let banned = CharacterSet(charactersIn: "/\\:*?\"<>|\n\r")
+        return raw.components(separatedBy: banned).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    }
+
+    static func fileExtension(_ file: MediaFile) -> String {
+        switch file.mimeType ?? "" {
+        case "video/quicktime": "mov"
+        case let mime where mime.hasPrefix("video/"): "mp4"
+        case "image/webp": "webp"
+        case "image/png": "png"
+        case "image/heic": "heic"
+        case let mime where mime.hasPrefix("image/"): "jpg"
+        default: file.isVideo ? "mp4" : "jpg"
+        }
+    }
 }
