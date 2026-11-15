@@ -72,6 +72,7 @@ it("shows the running version and a database backup link", async () => {
 
   expect(screen.getByText("版本 0.2.0 · 构建 deadbee · MIT 开源")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "下载" })).toHaveAttribute("href", "/api/backup/database");
+  expect(screen.getByRole("link", { name: "导出" })).toHaveAttribute("href", "/api/export/catalog.csv");
 });
 
 it("signs out of Douyin only after confirming", async () => {

@@ -338,6 +338,8 @@ export const en: Record<string, string> = {
   "需要登录才能查看": "Login required to view",
   "静音": "Mute",
   "倍速": "Speed",
+  "导出全部作品清单": "Export the full library list",
+  "一张表格（CSV，Excel 和 Numbers 都能打开）：每个作品的标题、博主、链接、标签、备注，以及存在 NAS 哪个文件。不含视频本身。": "One spreadsheet (CSV, opens in Excel or Numbers): every work's title, creator, link, tags and notes, plus which file on the NAS holds it. Videos are not included.",
   "继续观看": "Continue watching",
   "没看完的长视频，点开从上次的位置接着播": "Longer videos you left part-way; open one to pick up where you stopped",
   "已看到": "Watched so far",

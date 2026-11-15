@@ -20,6 +20,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from ..library_scope import library_item_sql
 from ..paths import sanitize_segment
 from ..sidecars import SHANGHAI, build_nfo, display_title, find_poster, load_works
 
@@ -75,6 +76,81 @@ async def export_zip(
             "Cache-Control": "no-store",
         },
     )
+
+
+CATALOG_HEADER = [
+    "作品 ID", "类型", "标题", "博主", "发布时间", "收藏时间", "时长（秒）", "话题", "我的标签",
+    "相册", "备注", "原链接", "是否已存到 NAS", "NAS 上的文件",
+]
+CATALOG_CHUNK = 500
+
+
+@router.get("/export/catalog.csv")
+async def export_catalog(request: Request):
+    """Every work in the library as one spreadsheet: text only, so it stays small enough to keep anywhere."""
+    database = request.app.state.database
+    rows = await database.fetchall(
+        f"SELECT remote_id, item_type FROM items i WHERE {library_item_sql('i')} "
+        "ORDER BY first_seen_at DESC, remote_id DESC"
+    )
+    order = [(str(row["remote_id"]), str(row["item_type"])) for row in rows]
+
+    async def body():
+        yield _csv_text([CATALOG_HEADER], bom=True)
+        for start in range(0, len(order), CATALOG_CHUNK):
+            chunk = order[start : start + CATALOG_CHUNK]
+            ids = [item_id for item_id, _ in chunk]
+            works = await load_works(database, ids)
+            marks = ",".join("?" * len(ids))
+            stored: dict[str, list[str]] = {}
+            for row in await database.fetchall(
+                "SELECT item_id, relative_path FROM media_files "
+                f"WHERE item_id IN ({marks}) AND status='ready' AND relative_path IS NOT NULL "
+                "ORDER BY item_id, asset_index",
+                ids,
+            ):
+                stored.setdefault(str(row["item_id"]), []).append(str(row["relative_path"]))
+            lines = []
+            for item_id, kind in chunk:
+                work = works.get(item_id)
+                if work is None:
+                    continue
+                author = str(work.get("author_name") or "")
+                listing = _listing_row(work, display_title(str(work.get("description") or ""), author), "")
+                files = stored.get(item_id, [])
+                if kind == "gallery" and files:
+                    location = str(Path(files[0]).parent) + "/"
+                else:
+                    location = files[0] if files else ""
+                collected = work.get("first_seen_at")
+                lines.append(
+                    [
+                        item_id,
+                        "图集" if kind == "gallery" else "视频",
+                        *listing[:3],
+                        datetime.fromtimestamp(int(collected), SHANGHAI).strftime("%Y-%m-%d %H:%M") if collected else "",
+                        *listing[3:9],
+                        "是" if files else "否",
+                        location,
+                    ]
+                )
+            yield _csv_text(lines)
+
+    filename = f"抖藏家作品清单-{time.strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        body(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"douzangjia-catalog.csv\"; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+def _csv_text(rows: list[list[str]], *, bom: bool = False) -> bytes:
+    buffer = io.StringIO()
+    csv.writer(buffer).writerows(rows)
+    return (("\ufeff" if bom else "") + buffer.getvalue()).encode("utf-8")
 
 
 async def _plan(

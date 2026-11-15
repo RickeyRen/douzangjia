@@ -125,3 +125,32 @@ def test_zip_stream_opens_cleanly_and_skips_files_that_vanished(tmp_path: Path) 
     archive = zipfile.ZipFile(io.BytesIO(body))
     assert archive.namelist() == ["d/a.mp4", "d/list.csv"]
     assert archive.read("d/a.mp4") == b"x" * 3_000_000 and archive.testzip() is None
+
+
+def test_catalog_lists_every_work_with_where_it_is_stored(tmp_path: Path, master_key: str) -> None:
+    """Catches a whole-library listing that drops unsaved works or loses the NAS path."""
+    with TestClient(create_app(Settings(archive_root=tmp_path, master_key=master_key))) as client:
+        client.post("/api/setup", json={"username": "owner", "password": "a secure local passphrase"})
+        seed(tmp_path)
+        response = client.get("/api/export/catalog.csv")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "抖藏家作品清单" in unquote(response.headers["content-disposition"])
+    text = response.content.decode("utf-8")
+    assert text.startswith("﻿")
+    rows = list(csv.reader(io.StringIO(text.removeprefix("﻿"))))
+    assert rows[0][:4] == ["作品 ID", "类型", "标题", "博主"]
+    by_id = {row[0]: row for row in rows[1:]}
+    # Albums put all three in the library, saved or not.
+    assert set(by_id) == {"301", "302", "303"}
+    # Hashtags move out of the title into their own column; newest collected first.
+    assert by_id["301"][1:4] == ["视频", "山里的清晨", "示例博主"]
+    assert [row[0] for row in rows[1:]] == ["303", "302", "301"]
+    assert by_id["301"][7] == "#露营 #自然"
+    assert by_id["301"][8] == "想去"
+    assert by_id["301"][10] == "秋天再去一次"
+    assert by_id["301"][-2:] == ["是", "objects/301/000.mp4"]
+    assert by_id["302"][1] == "图集"
+    assert by_id["302"][-2:] == ["是", "objects/302/"]
+    assert by_id["303"][-2:] == ["否", ""]

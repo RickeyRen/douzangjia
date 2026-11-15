@@ -250,6 +250,16 @@ export function SettingsPage() {
               {t("下载")}
             </a>
           </div>
+          <div className="setting">
+            <div className="setting-text">
+              <strong>{t("导出全部作品清单")}</strong>
+              <small>{t("一张表格（CSV，Excel 和 Numbers 都能打开）：每个作品的标题、博主、链接、标签、备注，以及存在 NAS 哪个文件。不含视频本身。")}</small>
+            </div>
+            <a className="btn btn-secondary btn-sm" href="/api/export/catalog.csv" download>
+              <DownloadSimple size={15} weight="bold" />
+              {t("导出")}
+            </a>
+          </div>
         </section>
 
         <section className="panel">
