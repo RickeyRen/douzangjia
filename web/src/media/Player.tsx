@@ -34,6 +34,8 @@ const MUTED_KEY = "douzangjia.player.muted";
 const AUTOPLAY_KEY = "douzangjia.player.v2.autonext";
 const PANEL_KEY = "douzangjia.player.v2.panel";
 const WHEEL_GAP_MS = 220;
+/** How far Shift+←/→ jumps inside a video. */
+const SEEK_SECONDS = 10;
 
 function readFlag(key: string, fallback: boolean): boolean {
   try {
@@ -211,6 +213,13 @@ export function Player({
   );
 
   useEffect(() => {
+    /** Shift+←/→ inside a video; false when there is no video to move through. */
+    function seek(seconds: number): boolean {
+      const element = videoRef.current;
+      if (!element || !Number.isFinite(element.duration) || element.duration <= 0) return false;
+      element.currentTime = Math.min(Math.max(0, element.currentTime + seconds), Math.max(0, element.duration - 0.25));
+      return true;
+    }
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
@@ -234,10 +243,12 @@ export function Player({
           break;
         case "ArrowRight":
           event.preventDefault();
+          if (event.shiftKey && seek(SEEK_SECONDS)) break;
           if (!stepImage(1)) go(1);
           break;
         case "ArrowLeft":
           event.preventDefault();
+          if (event.shiftKey && seek(-SEEK_SECONDS)) break;
           if (!stepImage(-1)) go(-1);
           break;
         case " ": {
@@ -874,6 +885,8 @@ function DetailPanel({
           <span><span className="kbd">↑</span><span className="kbd">↓</span>{t("切换")}</span>
           <span><span className="kbd">←</span><span className="kbd">→</span>{t("翻图")}</span>
           <span><span className="kbd">{t("空格")}</span>{t("暂停")}</span>
+          <span><span className="kbd">Shift</span><span className="kbd">←</span><span className="kbd">→</span>{t("快退 / 快进")}</span>
+          <span><span className="kbd">&lt;</span><span className="kbd">&gt;</span>{t("倍速")}</span>
           <span><span className="kbd">S</span>{t("精选")}</span>
           <span><span className="kbd">M</span>{t("静音")}</span>
           <span><span className="kbd">I</span>{t("详情")}</span>

@@ -3,7 +3,7 @@ import { useEffect, useState, type PointerEvent, type RefObject } from "react";
 
 import { formatClock } from "../lib/format";
 import { t } from "../i18n/t";
-import { nextSpeed, readSpeed, speedLabel, writeSpeed } from "./playbackSpeed";
+import { nextSpeed, readSpeed, speedLabel, stepSpeed, writeSpeed } from "./playbackSpeed";
 
 /** Minimal controls over a <video>: scrubber, clock, speed, mute and fullscreen. */
 export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: RefObject<HTMLVideoElement | null>; muted: boolean; onToggleMute: () => void }) {
@@ -44,6 +44,24 @@ export function VideoControls({ videoRef, muted, onToggleMute }: { videoRef: Ref
     video.addEventListener("loadedmetadata", apply);
     return () => video.removeEventListener("loadedmetadata", apply);
   }, [videoRef, speed]);
+
+  useEffect(() => {
+    // "<" / ">" as on most video sites; arrows already move between works.
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key !== "<" && event.key !== ">") return;
+      event.preventDefault();
+      setSpeed((current) => {
+        const next = stepSpeed(current, event.key === ">" ? 1 : -1);
+        writeSpeed(next);
+        return next;
+      });
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   function cycleSpeed() {
     const next = nextSpeed(speed);

@@ -26,6 +26,13 @@ export function nextSpeed(speed: number): number {
   return SPEEDS[(index + 1) % SPEEDS.length];
 }
 
+/** One notch slower (-1) or faster (+1), stopping at the slowest and fastest. */
+export function stepSpeed(speed: number, direction: -1 | 1): number {
+  const ordered = [...SPEEDS].sort((a, b) => a - b);
+  const index = Math.max(0, ordered.indexOf(speed as (typeof SPEEDS)[number]));
+  return ordered[Math.min(ordered.length - 1, Math.max(0, index + direction))];
+}
+
 export function speedLabel(speed: number): string {
   return `${speed}×`;
 }

@@ -80,3 +80,22 @@ it("cycles playback speed, applies it to the video and remembers it", () => {
   expect(screen.getByRole("button", { name: /播放速度/ })).toHaveTextContent("倍速");
   expect(window.localStorage.getItem("douzangjia.speed.v1")).toBeNull();
 });
+
+it("steps speed with < and > and stops at the ends", () => {
+  window.localStorage.clear();
+  const ref = createRef<HTMLVideoElement>();
+  render(
+    <div>
+      <video ref={ref} />
+      <VideoControls videoRef={ref} muted={false} onToggleMute={vi.fn()} />
+    </div>,
+  );
+  const video = ref.current!;
+  fireEvent.keyDown(window, { key: ">" });
+  expect(video.playbackRate).toBe(1.25);
+  for (let press = 0; press < 5; press += 1) fireEvent.keyDown(window, { key: ">" });
+  expect(video.playbackRate).toBe(2);
+  for (let press = 0; press < 9; press += 1) fireEvent.keyDown(window, { key: "<" });
+  expect(video.playbackRate).toBe(0.75);
+  expect(window.localStorage.getItem("douzangjia.speed.v1")).toBe("0.75");
+});

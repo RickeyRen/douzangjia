@@ -160,3 +160,20 @@ it("moves one item per scroll gesture, however many wheel events it fires", () =
   expect(onIndexChange).toHaveBeenCalledTimes(1);
   expect(onIndexChange).toHaveBeenCalledWith(1);
 });
+
+it("jumps 10 seconds inside a video with Shift+arrows instead of changing works", () => {
+  const { onIndexChange } = renderPlayer();
+  const video = document.querySelector("video")!;
+  Object.defineProperty(video, "duration", { value: 300, configurable: true });
+  video.currentTime = 60;
+
+  fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true });
+  expect(video.currentTime).toBe(70);
+  fireEvent.keyDown(window, { key: "ArrowLeft", shiftKey: true });
+  fireEvent.keyDown(window, { key: "ArrowLeft", shiftKey: true });
+  expect(video.currentTime).toBe(50);
+  video.currentTime = 5;
+  fireEvent.keyDown(window, { key: "ArrowLeft", shiftKey: true });
+  expect(video.currentTime).toBe(0);
+  expect(onIndexChange).not.toHaveBeenCalled();
+});
