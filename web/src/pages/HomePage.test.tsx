@@ -5,6 +5,7 @@ import * as api from "../app/api";
 import { resetArchiveProgress } from "../lib/useArchiveProgress";
 import { WithAppData } from "../test/appData";
 import { makeHealth, makeItem } from "../test/fixtures";
+import { axeViolations } from "../test/axe";
 import { makeAppData } from "../test/makeAppData";
 import { heatmapGrid, savingStreak, speedSeries } from "./homeChartData";
 import { HomePage } from "./HomePage";
@@ -78,6 +79,17 @@ it("shows the progress, failure and save-everything cards together", async () =>
   expect(screen.getByText("+128")).toBeInTheDocument();
   expect(screen.getByText("是小周ya")).toBeInTheDocument();
   expect(screen.getByText("已封禁")).toBeInTheDocument();
+});
+
+it("has no automatically detectable accessibility problems", async () => {
+  render(
+    <WithAppData value={makeAppData({ health: makeHealth() })}>
+      <HomePage />
+    </WithAppData>,
+  );
+  await screen.findByRole("region", { name: "下载进度" });
+
+  expect(await axeViolations()).toEqual([]);
 });
 
 it("lays out ten weeks ending with today's week", () => {

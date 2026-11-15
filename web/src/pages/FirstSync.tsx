@@ -56,7 +56,7 @@ export function FirstSync({ onReady }: { onReady: () => void }) {
             ? t("第一次同步没有成功，可以重新开始，或者到状态页查看原因。")
             : t("点下面的按钮开始第一次全量同步，抖藏家会把你的收藏夹、喜欢和观看历史都整理进来。")}
       </p>
-      {running ? <Progress value={Math.min(95, 5 + Math.log10(1 + (run?.discovered ?? 0)) * 25)} tone="info" /> : (
+      {running ? <Progress value={Math.min(95, 5 + Math.log10(1 + (run?.discovered ?? 0)) * 25)} tone="info" label={t("同步进度")} /> : (
         <button type="button" className="btn btn-primary" disabled={starting} onClick={() => void start()}>
           {starting ? <Spinner size={16} /> : null}
           {t("开始整理")}

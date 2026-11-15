@@ -7,6 +7,7 @@ import { WithAppData } from "../test/appData";
 import { makeAppData } from "../test/makeAppData";
 import { resetArchiveProgress } from "../lib/useArchiveProgress";
 import { DownloadProgress } from "./DownloadProgress";
+import { axeViolations } from "../test/axe";
 
 vi.mock("../app/api", async (original) => ({
   ...(await original<typeof api>()),
@@ -44,7 +45,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it("shows overall percent, size, speed and what is downloading now", () => {
+it("shows overall percent, size, speed and what is downloading now", async () => {
   render(
     <WithAppData value={makeAppData()}>
       <DownloadProgress progress={active()} variant="full" />
@@ -55,6 +56,7 @@ it("shows overall percent, size, speed and what is downloading now", () => {
   expect(screen.getByText("已完成 50 / 200 个作品")).toBeInTheDocument();
   expect(screen.getByText("海边日落")).toBeInTheDocument();
   expect(screen.getByText("2 个作品下载失败")).toBeInTheDocument();
+  expect(await axeViolations()).toEqual([]);
 });
 
 it("shows the running batch and the failures side by side on home", async () => {

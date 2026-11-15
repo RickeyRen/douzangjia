@@ -51,7 +51,7 @@ export function IntegrityPanel({ initial = null }: { initial?: ArchiveIntegrity 
                   : t("马上开始")}
             </span>
           </div>
-          <Progress value={percent} tone={value.repairingFiles > 0 ? "warning" : "info"} />
+          <Progress value={percent} tone={value.repairingFiles > 0 ? "warning" : "info"} label={t("自检进度")} />
           {value.repairingFiles > 0 ? (
             <p className="integrity-note is-warning">
               {t("发现 {n} 个文件丢失或损坏，已经在重新下载；损坏的旧文件移到了 quarantine 文件夹，没有删除。", {

@@ -179,7 +179,7 @@ export function ActivityPage() {
                           {errorSuffix(job.errorCode)}
                           {job.status === "retry" ? t(" · 第 {n} 次尝试", { n: job.attempts }) : ""}
                         </small>
-                        {job.status === "running" ? <Progress value={percent} tone="info" /> : null}
+                        {job.status === "running" ? <Progress value={percent} tone="info" label={t("下载进度")} /> : null}
                       </div>
                       <div className="row-side">
                         <span className={`badge ${status.tone}`}>{status.text}</span>
@@ -260,7 +260,7 @@ export function ActivityPage() {
                   </strong>
                   <span>剩余 {formatBytes(snapshot.storage.freeBytes)}</span>
                 </div>
-                <Progress value={snapshot.storage.usedPercent} tone={snapshot.storage.usedPercent >= 90 ? "warning" : "info"} />
+                <Progress value={snapshot.storage.usedPercent} tone={snapshot.storage.usedPercent >= 90 ? "warning" : "info"} label={t("NAS 空间已用")} />
                 <div className="metric-row">
                   <div className="metric">
                     <span>CPU</span>
@@ -342,7 +342,7 @@ function SourcePolicyRow({ source }: { source: SourceProgress }) {
           {source.failed ? t(" · {n} 个失败", { n: source.failed }) : ""}
           {errorSuffix(source.errorCode)}
         </small>
-        <Progress value={percent} tone={percent >= 99.5 ? "success" : "info"} />
+        <Progress value={percent} tone={percent >= 99.5 ? "success" : "info"} label={t("已存比例")} />
       </div>
       <Switch checked={enabled} onChange={(next) => void change(next)} label={t("{name} 自动存到 NAS", { name: source.name })} />
     </div>

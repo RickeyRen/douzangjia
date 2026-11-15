@@ -209,7 +209,7 @@ function ActiveDownload({ progress }: { progress: ArchiveProgress }) {
         ) : null}
         {!paused && linkRefusalNotice(active) ? <small className="dl-queueing dl-refused">{linkRefusalNotice(active)}</small> : null}
       </div>
-      <Progress value={percent} tone={paused ? "warning" : "info"} />
+      <Progress value={percent} tone={paused ? "warning" : "info"} label={t("总进度")} />
 
       <dl className="download-facts">
         <div>
@@ -262,7 +262,7 @@ function CurrentItem({ item }: { item: ArchiveProgressItem }) {
           {formatBytes(item.downloadedBytes)}
           {item.totalBytes ? ` / ${formatBytes(item.totalBytes)}` : ""}
         </small>
-        <Progress value={percent} tone="info" />
+        <Progress value={percent} tone="info" label={t("这个作品的下载进度")} />
       </div>
     </div>
   );

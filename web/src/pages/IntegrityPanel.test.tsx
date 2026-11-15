@@ -2,14 +2,16 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 
 import { IntegrityPanel } from "./IntegrityPanel";
+import { axeViolations } from "../test/axe";
 
 afterEach(cleanup);
 
 const base = { totalFiles: 11_397, verifiedFiles: 3_200, allCheckedSince: null, lastCheckedAt: 1_800_000_000, repairingFiles: 0, repairedFiles: 0 };
 
-it("shows how far the self-check has got", () => {
+it("shows how far the self-check has got", async () => {
   render(<IntegrityPanel initial={base} />);
   expect(screen.getByText("已检查 3,200 / 11,397 个文件")).toBeInTheDocument();
+  expect(await axeViolations()).toEqual([]);
 });
 
 it("says everything is intact once every file was checked, and what it is repairing", () => {

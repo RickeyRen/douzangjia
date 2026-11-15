@@ -119,10 +119,18 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   );
 }
 
-export function Progress({ value, tone }: { value: number; tone?: "success" | "info" | "warning" }) {
+/** A bar from 0 to 100. `label` names it for screen readers ("下载进度"), which read it with the percentage. */
+export function Progress({ value, tone, label }: { value: number; tone?: "success" | "info" | "warning"; label: string }) {
   const width = `${Math.max(0, Math.min(100, value))}%`;
   return (
-    <div className={`progress${tone ? ` progress-${tone}` : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)}>
+    <div
+      className={`progress${tone ? ` progress-${tone}` : ""}`}
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value)}
+    >
       <span style={{ width }} />
     </div>
   );
