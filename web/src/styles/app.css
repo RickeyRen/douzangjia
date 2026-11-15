@@ -4895,6 +4895,38 @@ video {
   pointer-events: none;
 }
 
+.player-resume {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 8px 8px 16px;
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+  background: rgb(0 0 0 / 62%);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.player-resume button {
+  padding: 4px 12px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  background: rgb(255 255 255 / 18%);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.player-resume button:hover {
+  background: rgb(255 255 255 / 28%);
+}
+
 .player-rail-avatar {
   display: grid;
   place-items: center;

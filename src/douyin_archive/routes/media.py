@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -127,6 +128,7 @@ async def media(media_id: int, request: Request):
     return StreamingResponse(
         iter_file(path, start, end),
         status_code=status_code,
-        media_type=row["mime_type"] or "application/octet-stream",
+        # iOS players refuse octet-stream; fall back to the file's extension.
+        media_type=row["mime_type"] or mimetypes.guess_type(path.name)[0] or "application/octet-stream",
         headers=headers,
     )

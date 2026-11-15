@@ -719,6 +719,14 @@ export const setItemTags = (remoteId: string, tags: string[]) =>
   request<{ tags: string[] }>(`/api/items/${encodeURIComponent(remoteId)}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
 export const setItemNote = (remoteId: string, note: string) =>
   request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
+export const fetchPlayback = (remoteId: string) =>
+  request<{ positionMs: number | null; durationMs?: number; updatedAt?: number }>(`/api/items/${encodeURIComponent(remoteId)}/playback`);
+export const savePlayback = (remoteId: string, positionMs: number, durationMs: number) =>
+  request<{ positionMs: number | null }>(`/api/items/${encodeURIComponent(remoteId)}/playback`, {
+    method: "PUT",
+    body: JSON.stringify({ positionMs, durationMs }),
+    keepalive: true,
+  });
 export const archiveSelection = (itemIds: string[]) =>
   request<{ batch: ArchiveBatch; skipped: number }>("/api/archive/selection", { method: "POST", body: JSON.stringify({ itemIds }) });
 export const fetchArchiveProgress = () => request<ArchiveProgress>("/api/archive/progress");

@@ -196,6 +196,21 @@ final class APIClient {
         return result.note
     }
 
+    /// Where a long video was left, on any device; nil starts from the top.
+    func playback(_ itemId: String) async throws -> Int? {
+        struct Result: Decodable { let positionMs: Int? }
+        let result: Result = try await send("GET", "/api/items/\(itemId)/playback")
+        return result.positionMs
+    }
+
+    func savePlayback(_ itemId: String, positionMs: Int, durationMs: Int) async throws {
+        struct Result: Decodable { let positionMs: Int? }
+        let _: Result = try await send(
+            "PUT", "/api/items/\(itemId)/playback",
+            body: ["positionMs": positionMs, "durationMs": durationMs]
+        )
+    }
+
     func archiveItem(_ itemId: String) async throws {
         let _: EmptyBody = try await send("POST", "/api/archive/items/\(itemId)")
     }

@@ -21,9 +21,10 @@ import { useCallback, useEffect, useRef, useState, type RefObject, type TouchEve
 import { unsavedWorkRisk } from "../lib/creatorArchive";
 import { archiveItem, checkRemoteAvailability, type FeedItem, type RemoteAvailability } from "../app/api";
 import { useAppData } from "../app/appDataContext";
-import { formatBytes, formatCount, formatDate, formatDuration } from "../lib/format";
+import { formatBytes, formatClock, formatCount, formatDate, formatDuration } from "../lib/format";
 import { Avatar, Spinner } from "../ui/primitives";
 import { AddToAlbumButton, NoteEditor, TagEditor } from "./Organize";
+import { usePlaybackResume } from "./usePlaybackResume";
 import { VideoControls } from "./VideoControls";
 import { douyinUrl, itemDurationMs, itemTitle, thumbnailCandidates } from "./itemInfo";
 import { t } from "../i18n/t";
@@ -553,6 +554,9 @@ function PlayerSlide({
     }
   }, [current]);
 
+  // Declared after the effect above, so a saved position wins over "start over".
+  const resume = usePlaybackResume(item.awemeId, element, current && Boolean(video && downloaded), itemDurationMs(item));
+
   function togglePlay() {
     const node = element.current;
     if (!node || !current) return;
@@ -577,14 +581,27 @@ function PlayerSlide({
               loop={loop}
               onClick={togglePlay}
               onPlay={() => setPaused(false)}
-              onPause={(event) => setPaused(current && !event.currentTarget.ended)}
+              onPause={(event) => {
+                setPaused(current && !event.currentTarget.ended);
+                resume.onPause();
+              }}
+              onTimeUpdate={resume.onTimeUpdate}
               onVolumeChange={(event) => {
                 if (current && event.currentTarget.muted !== muted) onMutedChange(event.currentTarget.muted);
               }}
               onEnded={() => {
+                resume.onEnded();
                 if (current) onEnded();
               }}
             />
+            {current && resume.resumedAt !== null ? (
+              <div className="player-resume" role="status">
+                <span>{t("从 {time} 继续播放", { time: formatClock(resume.resumedAt / 1000) })}</span>
+                <button type="button" onClick={resume.restart}>
+                  {t("从头看")}
+                </button>
+              </div>
+            ) : null}
             {current && paused ? (
               <span className="player-paused" aria-hidden="true">
                 <Play size={64} weight="fill" />

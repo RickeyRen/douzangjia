@@ -444,4 +444,6 @@ export const en: Record<string, string> = {
   "一次最多导出 {n} 个，整个相册导出没有限制": "Export up to {n} at a time; whole albums have no limit",
   "打包下载相册里已存到 NAS 的作品，每个都附带标题、博主等信息": "Download the album's saved works as one ZIP, each with its title, creator and more",
   "打包下载已存到 NAS 的作品，每个都附带标题、博主等信息": "Download the saved works as one ZIP, each with its title, creator and more",
+  "从 {time} 继续播放": "Resumed at {time}",
+  "从头看": "Start over",
 };

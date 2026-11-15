@@ -96,7 +96,14 @@ private struct PlayerPage: View {
     @ViewBuilder
     private var content: some View {
         if let url = playableURL {
-            VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent)
+            VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent, loadResume: loadResume)
+                .onAppear {
+                    let client = model.client
+                    let itemId = item.id
+                    video.onSave = { position, duration in
+                        Task { try? await client.savePlayback(itemId, positionMs: position, durationMs: duration) }
+                    }
+                }
         } else if item.isGallery, !galleryImages.isEmpty {
             GalleryPager(images: galleryImages, zoomed: $galleryZoomed)
         } else {
@@ -229,6 +236,12 @@ private struct PlayerPage: View {
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
+    /// Only long videos are worth asking about; short clips always start over.
+    private func loadResume() async -> Int? {
+        if let known = item.douyin?.durationMs, Double(known) / 1000 < VideoController.resumeMinSeconds { return nil }
+        return try? await model.client.playback(item.id)
+    }
+
     private func toggleStar() async {
         let next = !(item.starred ?? false)
         item.starred = next
@@ -261,8 +274,16 @@ final class VideoController {
     private(set) var duration: Double = 0
     var progress: Double = 0
     var scrubbing = false
+    /// Seconds the video jumped to from a saved position; drives the "resumed" chip.
+    var resumedAt: Double?
+    /// Hands (position, duration) in ms to whoever keeps them on the NAS.
+    var onSave: ((Int, Int) -> Void)?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var lastSave = Date.distantPast
+
+    /// Same threshold as the server: shorter clips always start over.
+    static let resumeMinSeconds: Double = 120
 
     func prepare(url: URL, cookies: [HTTPCookie]) {
         guard player == nil else { return }
@@ -273,8 +294,9 @@ final class VideoController {
         next.actionAtItemEnd = .none
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
-        ) { [weak next] _ in
-            // Loops like Douyin until the user swipes on.
+        ) { [weak self, weak next] _ in
+            // Watched to the end: forget the spot, then loop like Douyin.
+            self?.save(ended: true)
             next?.seek(to: .zero)
             next?.play()
         }
@@ -287,6 +309,9 @@ final class VideoController {
                 self.duration = total
                 self.progress = min(1, max(0, time.seconds / total))
             }
+            if next.timeControlStatus == .playing, Date().timeIntervalSince(self.lastSave) >= 15 {
+                self.save()
+            }
         }
         player = next
     }
@@ -298,8 +323,30 @@ final class VideoController {
             player.play()
             paused = false
         } else {
+            if player.timeControlStatus != .paused { save() }
             player.pause()
         }
+    }
+
+    /// Continue a long video from where it was left.
+    func resume(at seconds: Double) {
+        guard let player else { return }
+        player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+        resumedAt = seconds
+    }
+
+    func restartFromTop() {
+        player?.seek(to: .zero)
+        resumedAt = nil
+    }
+
+    func save(ended: Bool = false) {
+        guard let player, let item = player.currentItem else { return }
+        let total = item.duration.seconds
+        guard total.isFinite, total >= Self.resumeMinSeconds else { return }
+        lastSave = Date()
+        let position = ended ? total : player.currentTime().seconds
+        onSave?(Int(position * 1000), Int(total * 1000))
     }
 
     func togglePlay() {
@@ -310,6 +357,7 @@ final class VideoController {
         } else {
             player.pause()
             paused = true
+            save()
         }
     }
 
@@ -329,10 +377,13 @@ final class VideoController {
 }
 
 private struct VideoPage: View {
+    @Environment(\.scenePhase) private var scenePhase
     let video: VideoController
     let url: URL
     let cookies: [HTTPCookie]
     let isCurrent: Bool
+    /// Saved position in ms for this video, if any; nil when it should start over.
+    let loadResume: () async -> Int?
 
     var body: some View {
         ZStack {
@@ -349,6 +400,9 @@ private struct VideoPage: View {
                     .allowsHitTesting(false)
                     .transition(.opacity.combined(with: .scale(scale: 1.3)))
             }
+            if isCurrent, let seconds = video.resumedAt {
+                resumeChip(seconds)
+            }
         }
         .contentShape(Rectangle())
         // Single tap pauses or resumes, like Douyin; no system controls appear.
@@ -361,10 +415,46 @@ private struct VideoPage: View {
             if isCurrent { video.setActive(true) }
         }
         .onChange(of: isCurrent) { _, current in
-            // Swiping back to a video starts it over.
+            // Swiping back to a short video starts it over; long ones resume below.
             video.setActive(current, restart: current)
+            if !current { video.resumedAt = nil }
+        }
+        // Long videos pick up where they were left, on any device.
+        .task(id: isCurrent) {
+            guard isCurrent, let position = await loadResume() else { return }
+            video.resume(at: Double(position) / 1000)
+            try? await Task.sleep(for: .seconds(6))
+            withAnimation { video.resumedAt = nil }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active, isCurrent { video.save() }
         }
         .onDisappear { video.setActive(false) }
+    }
+
+    private func resumeChip(_ seconds: Double) -> some View {
+        HStack(spacing: 12) {
+            Text("从 \(clock(seconds)) 继续播放")
+                .font(.subheadline)
+                .foregroundStyle(.white)
+            Button("从头看") { withAnimation { video.restartFromTop() } }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(.white.opacity(0.18), in: Capsule())
+        }
+        .padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 6)
+        .background(.black.opacity(0.6), in: Capsule())
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 150)
+        .transition(.opacity)
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        return total >= 3600
+            ? String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
+            : String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 
