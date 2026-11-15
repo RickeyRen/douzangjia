@@ -476,3 +476,37 @@ struct StorageUsage: Decodable {
     let backups: Sized
     let quarantine: Sized
 }
+
+/// Yearly-style look back at the owner's collection, built by the NAS once a day.
+struct CollectionReview: Decodable {
+    struct Totals: Decodable { let items: Int; let saved: Int; let since: Int? }
+    struct Month: Decodable, Identifiable { let month: String; let added: Int; let saved: Int; var id: String { month } }
+    struct Year: Decodable, Identifiable { let year: String; let count: Int; var id: String { year } }
+    struct TopCreator: Decodable, Identifiable { let id: String; let name: String; let count: Int; let vanished: Int; let avatarUrl: String? }
+    struct Vanished: Decodable { let total: Int; let saved: Int; let lost: Int }
+
+    let builtAt: Int
+    let totals: Totals
+    let firstMonth: String?
+    let months: [Month]
+    let publishedYears: [Year]
+    let topCreators: [TopCreator]
+    let vanished: Vanished
+}
+
+/// /api/review answers {"state": "building"} until the first snapshot exists.
+enum ReviewResponse: Decodable {
+    case building
+    case ready(CollectionReview)
+
+    private enum Keys: String, CodingKey { case state }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: Keys.self)
+        if container.contains(.state) {
+            self = .building
+        } else {
+            self = .ready(try CollectionReview(from: decoder))
+        }
+    }
+}

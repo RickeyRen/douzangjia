@@ -247,6 +247,12 @@ final class APIClient {
 
     func storage() async throws -> StorageUsage { try await get("/api/storage") }
 
+    func review() async throws -> ReviewResponse { try await get("/api/review") }
+    func cachedReview() -> CollectionReview? {
+        if case .ready(let review)? = cached("/api/review") as ReviewResponse? { return review }
+        return nil
+    }
+
     func backupStatus() async throws -> BackupStatus { try await get("/api/backup/status") }
 
     func backupNow() async throws -> BackupStatus { try await send("POST", "/api/backup/now") }

@@ -35,6 +35,7 @@ struct HomeView: View {
                     }
                     hero
                     kpis
+                    reviewLink
                     downloadSection
                     if let vanished = home?.vanishedCreators, !vanished.isEmpty {
                         vanishedShelf(vanished, total: home?.stats.vanishedCreators ?? vanished.count)
@@ -59,6 +60,7 @@ struct HomeView: View {
             .onDisappear { poller.stop() }
             .navigationDestination(for: CreatorRoute.self) { CreatorArchiveView(creatorId: $0.id) }
             .navigationDestination(for: VanishedListRoute.self) { _ in VanishedCreatorsView() }
+            .navigationDestination(for: ReviewRoute.self) { _ in ReviewView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .fullScreenCover(item: $player) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
@@ -164,6 +166,28 @@ struct HomeView: View {
                         detail: "删除或私密", detailColor: (stats?.gone ?? 0) > 0 ? Theme.redText : Theme.muted)
             }
         }
+    }
+
+    private var reviewLink: some View {
+        NavigationLink(value: ReviewRoute()) {
+            HStack(spacing: 12) {
+                IconChip(systemImage: "chart.bar.fill", tint: Theme.violet4, fill: Theme.violet.opacity(0.28))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("收藏回顾").font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.text)
+                    Text("每月新收藏、消失的作品、最爱的博主")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.dim)
+            }
+            .contentShape(Rectangle())
+            .card(radius: Theme.radiusInner, padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
