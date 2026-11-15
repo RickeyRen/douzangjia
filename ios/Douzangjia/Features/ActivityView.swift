@@ -103,7 +103,7 @@ struct ActivityView: View {
                             .foregroundStyle(Theme.text)
                     }
                     Spacer(minLength: 0)
-                    if let since = integrity.allCheckedSince ?? integrity.lastCheckedAt {
+                    if let since = integrity.allCheckedSince ?? integrity.allPresentSince ?? integrity.lastCheckedAt {
                         Text(Format.relative(since)).font(.system(size: 11)).foregroundStyle(Theme.muted)
                     }
                 }

@@ -25,7 +25,9 @@ export function IntegrityPanel({ initial = null }: { initial?: ArchiveIntegrity 
   }, [initial]);
 
   const Glyph = value && value.repairingFiles > 0 ? ShieldWarning : ShieldCheck;
-  const percent = value && value.totalFiles ? (value.verifiedFiles / value.totalFiles) * 100 : 0;
+  // The bar follows the slow part (hashing) once every file has been seen.
+  const done = value ? (value.allPresentSince ? value.verifiedFiles : (value.presentFiles ?? value.verifiedFiles)) : 0;
+  const percent = value && value.totalFiles ? (done / value.totalFiles) * 100 : 0;
   return (
     <section className="panel integrity">
       <div className="panel-head">
@@ -42,7 +44,9 @@ export function IntegrityPanel({ initial = null }: { initial?: ArchiveIntegrity 
             <span>
               {value.allCheckedSince
                 ? t("最早一次核对在 {when}", { when: formatRelative(value.allCheckedSince) })
-                : value.lastCheckedAt
+                : value.allPresentSince
+                  ? t("全部文件最近一次清点在 {when}", { when: formatRelative(value.allPresentSince) })
+                  : value.lastCheckedAt
                   ? t("最近核对 {when}", { when: formatRelative(value.lastCheckedAt) })
                   : t("马上开始")}
             </span>

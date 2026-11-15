@@ -303,6 +303,9 @@ struct EmptyBody: Decodable {}
 struct ArchiveIntegrity: Decodable {
     let totalFiles: Int
     let verifiedFiles: Int
+    /// Fast pass: seen on disk with the right size; optional for older servers.
+    let presentFiles: Int?
+    let allPresentSince: Int?
     let allCheckedSince: Int?
     let lastCheckedAt: Int?
     let repairingFiles: Int
@@ -311,8 +314,16 @@ struct ArchiveIntegrity: Decodable {
     var headline: String {
         if totalFiles == 0 { return "还没有存下的文件" }
         if allCheckedSince != nil { return "全部 \(Format.integer(totalFiles)) 个文件都完好" }
-        return "已检查 \(Format.integer(verifiedFiles)) / \(Format.integer(totalFiles)) 个文件"
+        if allPresentSince != nil {
+            return "全部 \(Format.integer(totalFiles)) 个文件都在，内容已核对 \(Format.integer(verifiedFiles)) 个"
+        }
+        return "已检查 \(Format.integer(presentFiles ?? verifiedFiles)) / \(Format.integer(totalFiles)) 个文件"
     }
 
-    var fraction: Double { totalFiles > 0 ? Double(verifiedFiles) / Double(totalFiles) : 0 }
+    /// Follows the slow part (hashing) once every file has been seen.
+    var fraction: Double {
+        guard totalFiles > 0 else { return 0 }
+        let done = allPresentSince != nil ? verifiedFiles : (presentFiles ?? verifiedFiles)
+        return Double(done) / Double(totalFiles)
+    }
 }

@@ -21,6 +21,10 @@ MAX_FILES_PER_RUN = 40
 MAX_BYTES_PER_RUN = 256 * 1024 * 1024
 # A full re-check of everything this often; new files are checked first.
 RECHECK_AFTER_SECONDS = 30 * 24 * 3600
+# Fast pass: only "is it there, is the size right". Stats are cheap, so the
+# whole archive is covered within the first hour, then again every day.
+PRESENCE_FILES_PER_RUN = 2000
+PRESENCE_RECHECK_SECONDS = 24 * 3600
 QUARANTINE_DIR = "quarantine"
 
 
@@ -52,6 +56,42 @@ class ArchiveVerifier:
         self.clock = clock
 
     async def run_batch(self) -> int:
+        await self.run_presence_pass()
+        return await self.run_checksum_pass()
+
+    async def run_presence_pass(self) -> int:
+        now = int(self.clock())
+        rows = await self.db.fetchall(
+            "SELECT id, item_id, relative_path, byte_size FROM media_files "
+            "WHERE status='ready' AND relative_path IS NOT NULL "
+            "AND (present_at IS NULL OR present_at < ?) "
+            "ORDER BY present_at IS NOT NULL, present_at, id LIMIT ?",
+            (now - PRESENCE_RECHECK_SECONDS, PRESENCE_FILES_PER_RUN),
+        )
+        if not rows:
+            return 0
+        results = await anyio.to_thread.run_sync(self._check_presence, [dict(row) for row in rows])
+        stamp = int(self.clock())
+        async with self.db.transaction(immediate=True):
+            for row, problem in results:
+                if problem is None:
+                    await self.db.execute(
+                        "UPDATE media_files SET present_at=? WHERE id=?", (stamp, row["id"])
+                    )
+                else:
+                    await self._mark_for_repair(row, problem, stamp)
+        return len(results)
+
+    def _check_presence(self, rows: list[dict[str, Any]]) -> list[tuple[dict[str, Any], str | None]]:
+        results: list[tuple[dict[str, Any], str | None]] = []
+        for row in rows:
+            problem = self._check(row, hash_contents=False)
+            if problem == "corrupt":
+                self._quarantine(row)
+            results.append((row, problem))
+        return results
+
+    async def run_checksum_pass(self) -> int:
         now = int(self.clock())
         rows = await self.db.fetchall(
             "SELECT id, item_id, relative_path, byte_size, checksum_sha256 FROM media_files "
@@ -70,8 +110,9 @@ class ArchiveVerifier:
             for row, problem in results:
                 if problem is None:
                     await self.db.execute(
-                        "UPDATE media_files SET verified_at=?, verify_status='ok' WHERE id=?",
-                        (stamp, row["id"]),
+                        "UPDATE media_files SET verified_at=?, present_at=?, verify_status='ok' "
+                        "WHERE id=?",
+                        (stamp, stamp, row["id"]),
                     )
                 else:
                     await self._mark_for_repair(row, problem, stamp)
@@ -90,13 +131,13 @@ class ArchiveVerifier:
             results.append((row, problem))
         return results
 
-    def _check(self, row: dict[str, Any]) -> str | None:
+    def _check(self, row: dict[str, Any], *, hash_contents: bool = True) -> str | None:
         path = self.archive_root / str(row["relative_path"])
         if not path.is_file():
             return "missing"
         if row["byte_size"] is not None and path.stat().st_size != int(row["byte_size"]):
             return "corrupt"
-        if row["checksum_sha256"] and _sha256(path) != row["checksum_sha256"]:
+        if hash_contents and row["checksum_sha256"] and _sha256(path) != row["checksum_sha256"]:
             return "corrupt"
         return None
 
@@ -119,7 +160,7 @@ class ArchiveVerifier:
         await self.db.execute(
             # verified_at is cleared so the fresh copy is checked as soon as it lands.
             "UPDATE media_files SET status='pending', verify_status=?, verify_failed_at=?, "
-            "verified_at=NULL, downloaded_bytes=0, updated_at=? WHERE id=?",
+            "verified_at=NULL, present_at=NULL, downloaded_bytes=0, updated_at=? WHERE id=?",
             (problem, now, now, row["id"]),
         )
         # The old link has long expired; queue it as one so a fresh URL is fetched.
@@ -134,6 +175,8 @@ class ArchiveVerifier:
         row = await self.db.fetchone(
             "SELECT COUNT(*) AS total, "
             "COALESCE(SUM(verified_at IS NOT NULL), 0) AS verified, "
+            "COALESCE(SUM(present_at IS NOT NULL OR verified_at IS NOT NULL), 0) AS present, "
+            "MIN(COALESCE(present_at, verified_at)) AS oldest_present, "
             "MIN(verified_at) AS oldest, MAX(verified_at) AS latest, "
             "COALESCE(SUM(verify_failed_at IS NOT NULL), 0) AS repaired "
             "FROM media_files WHERE status='ready' AND relative_path IS NOT NULL"
@@ -147,6 +190,11 @@ class ArchiveVerifier:
         return {
             "totalFiles": total,
             "verifiedFiles": verified,
+            # Fast pass: seen on disk with the right size, contents not yet hashed.
+            "presentFiles": int(row["present"]) if row else 0,
+            "allPresentSince": int(row["oldest_present"])
+            if row and total and int(row["present"]) == total and row["oldest_present"] is not None
+            else None,
             # Only meaningful once every file has been looked at once.
             "allCheckedSince": int(row["oldest"]) if row and verified == total and total else None,
             "lastCheckedAt": int(row["latest"]) if row and row["latest"] is not None else None,

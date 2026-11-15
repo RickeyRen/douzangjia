@@ -18,3 +18,8 @@ it("says everything is intact once every file was checked, and what it is repair
   expect(screen.getByText(/发现 2 个文件丢失或损坏，已经在重新下载/)).toBeInTheDocument();
   expect(screen.getByText("已自动补回 5 个文件。")).toBeInTheDocument();
 });
+
+it("says every file is there while contents are still being hashed", () => {
+  render(<IntegrityPanel initial={{ ...base, presentFiles: 11_397, allPresentSince: 1_800_000_000 }} />);
+  expect(screen.getByText("全部 11,397 个文件都在，内容已核对 3,200 个")).toBeInTheDocument();
+});

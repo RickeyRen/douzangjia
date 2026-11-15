@@ -802,6 +802,9 @@ export function linkRefusalNotice(active: { linkRefusal?: { retryAt: number | nu
 export type ArchiveIntegrity = {
   totalFiles: number;
   verifiedFiles: number;
+  /** Fast pass: seen on disk with the right size (contents not necessarily hashed yet). */
+  presentFiles?: number;
+  allPresentSince?: number | null;
   /** Every saved file has been confirmed intact at least since then. */
   allCheckedSince: number | null;
   lastCheckedAt: number | null;
