@@ -6,6 +6,7 @@ struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var items: [FeedItem]
     @State private var current: String?
+    @State private var galleryZoomed = false
     var onItemChange: (FeedItem) -> Void = { _ in }
 
     init(items: [FeedItem], startIndex: Int, onItemChange: @escaping (FeedItem) -> Void = { _ in }) {
@@ -29,7 +30,7 @@ struct PlayerView: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach($items) { $item in
-                        PlayerPage(item: $item, isCurrent: current == item.id, onItemChange: onItemChange)
+                        PlayerPage(item: $item, isCurrent: current == item.id, galleryZoomed: $galleryZoomed, onItemChange: onItemChange)
                             .containerRelativeFrame([.horizontal, .vertical])
                             .id(item.id)
                     }
@@ -37,6 +38,8 @@ struct PlayerView: View {
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.paging)
+            // A zoomed-in image pans instead of moving to the next item.
+            .scrollDisabled(galleryZoomed)
             .scrollPosition(id: $current)
             .scrollIndicators(.hidden)
             // The lazy stack ignores the initial position until it has laid out.
@@ -65,6 +68,7 @@ private struct PlayerPage: View {
     @Environment(AppModel.self) private var model
     @Binding var item: FeedItem
     let isCurrent: Bool
+    @Binding var galleryZoomed: Bool
     let onItemChange: (FeedItem) -> Void
     @State private var queued = false
     @State private var message: String?
@@ -93,13 +97,8 @@ private struct PlayerPage: View {
     private var content: some View {
         if let url = playableURL {
             VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent)
-        } else if item.isGallery, !item.media.isEmpty {
-            TabView {
-                ForEach(item.media, id: \.id) { file in
-                    RemoteImage(path: file.url, contentMode: .fit)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .always))
+        } else if item.isGallery, !galleryImages.isEmpty {
+            GalleryPager(images: galleryImages, zoomed: $galleryZoomed)
         } else {
             // Not on the NAS yet: show the Douyin cover and offer to save it.
             ZStack {
@@ -124,6 +123,11 @@ private struct PlayerPage: View {
                 .foregroundStyle(.white)
             }
         }
+    }
+
+    /// Gallery stills only; a gallery's soundtrack is saved as a separate file.
+    private var galleryImages: [MediaFile] {
+        item.media.filter { !$0.isVideo && !($0.mimeType ?? "").hasPrefix("audio/") && $0.type != "audio" }
     }
 
     private var statusText: String {
