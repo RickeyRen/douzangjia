@@ -617,6 +617,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     from .routes.library import router as library_router
     from .routes.media import router as media_router
     from .routes.playback import router as playback_router
+    from .routes.review import router as review_router
     from .routes.settings import router as settings_router
 
     app.include_router(albums_router)
@@ -631,6 +632,7 @@ def create_app(settings: Settings, *, auth_service=None, runtime_factory=None) -
     app.include_router(library_router)
     app.include_router(media_router)
     app.include_router(playback_router)
+    app.include_router(review_router)
     app.include_router(settings_router)
 
     if settings.web_dist is not None and (settings.web_dist / "index.html").is_file():

@@ -1,4 +1,4 @@
-import { ArrowClockwise, ArrowUpRight, CalendarBlank, CloudCheck, Ghost, HardDrives, Shuffle, Sparkle, SquaresFour, Users } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowUpRight, CalendarBlank, ChartBar, CloudCheck, Ghost, HardDrives, Shuffle, Sparkle, SquaresFour, Users } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
@@ -150,6 +150,10 @@ export function HomePage() {
             <CalendarBlank size={15} />
             {range}
           </span>
+          <a className="ghost-chip is-button" href={routeHref({ name: "review" })}>
+            <ChartBar size={15} />
+            {t("收藏回顾")}
+          </a>
           <button
             type="button"
             className="ghost-chip is-button"

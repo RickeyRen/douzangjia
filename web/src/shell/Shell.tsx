@@ -70,6 +70,7 @@ type Section = "home" | "works" | "creators" | "vanished" | "downloads" | "setti
 function sectionOf(route: Route): Section {
   switch (route.name) {
     case "home":
+    case "review":
       return "home";
     case "creators":
     case "creator":

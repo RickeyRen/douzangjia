@@ -22,6 +22,7 @@ export type Route =
   | { name: "tag"; tag: string; filters: LibraryFilters }
   | { name: "gone"; filters: LibraryFilters }
   | { name: "activity" }
+  | { name: "review" }
   | { name: "settings" };
 
 const SORTS = new Set<FeedSort>(["archived", "published", "source", "starred", "random", "album", "relevance"]);
@@ -69,6 +70,8 @@ export function parseRoute(hash: string): Route {
       return segments[1] ? { name: "creator", creatorId: segments[1], filters } : { name: "creators", query: "" };
     case "vanished":
       return { name: "vanished" };
+    case "review":
+      return { name: "review" };
     case "album": {
       const albumId = Number(segments[1]);
       return Number.isInteger(albumId) && albumId > 0 ? { name: "album", albumId, filters } : { name: "library", filters };
@@ -111,6 +114,9 @@ export function routeHref(route: Route): string {
       break;
     case "vanished":
       path = "/vanished";
+      break;
+    case "review":
+      path = "/review";
       break;
     case "creator":
       path = `/creator/${encodeURIComponent(route.creatorId)}`;

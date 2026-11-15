@@ -6,6 +6,7 @@ import { OwnerMigrationPage } from "../features/auth/OwnerMigrationPage";
 import { SetupPage } from "../features/setup/SetupPage";
 import { ActivityPage } from "../pages/ActivityPage";
 import { CreatorPage, CreatorsPage } from "../pages/CreatorsPage";
+import { ReviewPage } from "../pages/ReviewPage";
 import { VanishedPage } from "../pages/VanishedPage";
 import { HomePage } from "../pages/HomePage";
 import { LibraryPage } from "../pages/LibraryPage";
@@ -105,6 +106,8 @@ function RoutedPage() {
       return <CreatorPage route={route} />;
     case "vanished":
       return <VanishedPage />;
+    case "review":
+      return <ReviewPage />;
     case "activity":
       return <ActivityPage />;
     case "settings":

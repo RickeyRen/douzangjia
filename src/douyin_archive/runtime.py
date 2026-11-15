@@ -53,6 +53,8 @@ from .provider.base import ProviderError, SessionExpired
 from .provider.douyin import DouyinProvider, PlaywrightDouyinSource
 from .remote_sampler import RUN_EVERY_SECONDS, RemoteCheckSampler
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
+from .review import CHECK_EVERY_SECONDS as REVIEW_EVERY_SECONDS
+from .review import CollectionReview
 from .scheduler import configure_scheduler, reschedule_sync
 from .settings_store import RuntimeSettings, SettingsStore
 from .sidecars import RUN_EVERY_SECONDS as SIDECAR_EVERY_SECONDS
@@ -539,6 +541,8 @@ class ArchiveRuntime:
             database, settings.archive_root, self.media_probe
         )
         self.sidecars = SidecarWriter(database, settings.archive_root)
+        self.review = CollectionReview(database)
+        self._review_task: asyncio.Task[Any] | None = None
         handler = ArchiveJobHandler(
             database,
             MediaDownloader(self.store, self.http),
@@ -644,6 +648,7 @@ class ArchiveRuntime:
             (self.verifier.run_batch, INTEGRITY_EVERY_SECONDS, "archive-integrity-check"),
             (self.database_backups.run_tick, DB_BACKUP_EVERY_SECONDS, "database-backup"),
             (self.sidecars.run_batch, SIDECAR_EVERY_SECONDS, "media-server-sidecars"),
+            (self.review.run_tick, REVIEW_EVERY_SECONDS, "collection-review"),
         ):
             self._scheduler.add_job(
                 job,
@@ -690,6 +695,11 @@ class ArchiveRuntime:
             self._probe_task = None
         await self.sync.close()
         await self.http.aclose()
+
+    def build_review_soon(self) -> None:
+        """The review page was opened before any snapshot exists."""
+        if self._review_task is None or self._review_task.done():
+            self._review_task = asyncio.create_task(self.review.rebuild())
 
     async def apply_settings(self, values: RuntimeSettings) -> None:
         """Make UI changes effective now: reschedule syncs and resize the pool."""

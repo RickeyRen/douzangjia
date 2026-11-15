@@ -719,6 +719,16 @@ export const setItemTags = (remoteId: string, tags: string[]) =>
   request<{ tags: string[] }>(`/api/items/${encodeURIComponent(remoteId)}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
 export const setItemNote = (remoteId: string, note: string) =>
   request<{ note: string | null }>(`/api/items/${encodeURIComponent(remoteId)}/note`, { method: "PUT", body: JSON.stringify({ note }) });
+export type CollectionReview = {
+  builtAt: number;
+  totals: { items: number; saved: number; since: number | null };
+  firstMonth: string | null;
+  months: Array<{ month: string; added: number; saved: number }>;
+  publishedYears: Array<{ year: string; count: number }>;
+  topCreators: Array<{ id: string; name: string; count: number; vanished: number; avatarUrl?: string | null }>;
+  vanished: { total: number; saved: number; lost: number };
+};
+export const fetchReview = () => request<CollectionReview | { state: "building" }>("/api/review");
 export const fetchPlayback = (remoteId: string) =>
   request<{ positionMs: number | null; durationMs?: number; updatedAt?: number }>(`/api/items/${encodeURIComponent(remoteId)}/playback`);
 export const savePlayback = (remoteId: string, positionMs: number, durationMs: number) =>
