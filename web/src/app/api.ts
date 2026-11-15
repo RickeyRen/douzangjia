@@ -762,6 +762,10 @@ export const updateCreatorSubscription = (creatorId: string, enabled: boolean) =
 export const beginDouyinLogin = () =>
   request<LoginStatus>("/api/douyin/login", { method: "POST" });
 export const getDouyinLogin = (id: string) => request<LoginStatus>(`/api/douyin/login/${id}`);
+/** Most works one selection export may carry; the ids travel in the URL. Whole albums have no limit. */
+export const EXPORT_SELECTION_LIMIT = 300;
+export const exportUrl = (target: { albumId: number } | { itemIds: string[] }) =>
+  "albumId" in target ? `/api/export?albumId=${target.albumId}` : `/api/export?items=${target.itemIds.map(encodeURIComponent).join(",")}`;
 export const douyinQrUrl = (id: string) => `/api/douyin/login/${id}/qr.png`;
 export const douyinStreamUrl = (id: string) => `/api/douyin/login/${id}/stream.mjpeg`;
 export const submitDouyinDrag = (id: string, points: PointerPoint[]) =>

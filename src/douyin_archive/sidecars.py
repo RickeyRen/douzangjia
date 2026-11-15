@@ -144,8 +144,6 @@ class SidecarWriter:
     ) -> None:
         self.db = database
         self.archive_root = archive_root.resolve()
-        self.covers = ItemCoverStore(self.archive_root)
-        self.posters = self.archive_root / "cache" / "posters"
         self.projector = CollectionProjector(self.archive_root)
         self.clock = clock
 
@@ -192,53 +190,10 @@ class SidecarWriter:
         return await self._write_rows([dict(row) for row in rows]) if rows else 0
 
     async def _write_rows(self, rows: list[dict[str, Any]]) -> int:
-        works = await self._works({str(row["item_id"]) for row in rows})
+        works = await load_works(self.db, {str(row["item_id"]) for row in rows})
         jobs = [(row, works[str(row["item_id"])]) for row in rows if str(row["item_id"]) in works]
         # Disk work stays off the event loop: a stat on the busy NAS can stall.
         return await anyio.to_thread.run_sync(self._write_files, jobs)
-
-    async def _works(self, item_ids: set[str]) -> dict[str, dict[str, Any]]:
-        ids = sorted(item_ids)
-        marks = ",".join("?" * len(ids))
-        works = {
-            str(row["remote_id"]): {**dict(row), "tags": [], "genres": [], "collections": []}
-            for row in await self.db.fetchall(
-                "SELECT remote_id, author_name, description, published_at, first_seen_at, "
-                f"duration_ms, source_url, metadata_json FROM items WHERE remote_id IN ({marks})",
-                ids,
-            )
-        }
-        for work in works.values():
-            try:
-                metadata = json.loads(work.pop("metadata_json") or "{}")
-            except json.JSONDecodeError:
-                metadata = {}
-            hashtags = metadata.get("hashtags") if isinstance(metadata, dict) else None
-            if isinstance(hashtags, list):
-                work["tags"].extend(str(tag) for tag in hashtags if str(tag).strip())
-        for row in await self.db.fetchall(
-            f"SELECT item_id, tag FROM item_tags WHERE item_id IN ({marks}) ORDER BY item_id, tag", ids
-        ):
-            works[str(row["item_id"])]["tags"].append(str(row["tag"]))
-        for row in await self.db.fetchall(
-            f"SELECT item_id, note FROM item_notes WHERE item_id IN ({marks})", ids
-        ):
-            works[str(row["item_id"])]["note"] = str(row["note"])
-        for row in await self.db.fetchall(
-            "SELECT ai.item_id, a.name FROM album_items ai JOIN albums a ON a.id=ai.album_id "
-            f"WHERE ai.item_id IN ({marks}) ORDER BY a.position, a.name",
-            ids,
-        ):
-            works[str(row["item_id"])]["genres"].append(str(row["name"]))
-        for row in await self.db.fetchall(
-            "SELECT ci.item_id, c.name FROM collection_items ci "
-            "JOIN collections c ON c.remote_id=ci.collection_id "
-            f"WHERE ci.item_id IN ({marks}) ORDER BY c.first_seen_at, c.remote_id",
-            ids,
-        ):
-            works[str(row["item_id"])]["collections"].append(str(row["name"]))
-            works[str(row["item_id"])]["genres"].append(str(row["name"]))
-        return works
 
     def _write_files(self, jobs: list[tuple[dict[str, Any], dict[str, Any]]]) -> int:
         written = 0
@@ -261,17 +216,71 @@ class SidecarWriter:
         return written
 
     def _place_poster(self, video: Path, item_id: str, media_id: int) -> int:
-        """Douyin's own cover if kept, else the grid poster; never fetched here."""
-        for source in (self.covers.path_for(item_id), self.posters / f"{media_id}.jpg"):
-            extension = _image_extension(source)
-            if extension is None:
-                continue
-            target = video.with_name(f"{video.stem}-poster{extension}")
-            if target.exists():
-                return 0
-            try:
-                os.link(source, target)
-            except OSError:
-                shutil.copyfile(source, target)
-            return 1
-        return 0
+        found = find_poster(self.archive_root, item_id, media_id)
+        if found is None:
+            return 0
+        source, extension = found
+        target = video.with_name(f"{video.stem}-poster{extension}")
+        if target.exists():
+            return 0
+        try:
+            os.link(source, target)
+        except OSError:
+            shutil.copyfile(source, target)
+        return 1
+
+
+def find_poster(archive_root: Path, item_id: str, media_id: int) -> tuple[Path, str] | None:
+    """Douyin's own cover if kept, else the grid poster; never fetched here."""
+    covers = ItemCoverStore(archive_root)
+    for source in (covers.path_for(item_id), archive_root / "cache" / "posters" / f"{media_id}.jpg"):
+        extension = _image_extension(source)
+        if extension is not None:
+            return source, extension
+    return None
+
+
+async def load_works(db: Database, item_ids: set[str] | list[str]) -> dict[str, dict[str, Any]]:
+    """Everything a sidecar or an export says about each work, in a few queries."""
+    ids = sorted(item_ids)
+    marks = ",".join("?" * len(ids))
+    works = {
+        str(row["remote_id"]): {**dict(row), "tags": [], "user_tags": [], "genres": [], "collections": []}
+        for row in await db.fetchall(
+            "SELECT remote_id, author_name, description, published_at, first_seen_at, "
+            f"duration_ms, source_url, metadata_json FROM items WHERE remote_id IN ({marks})",
+            ids,
+        )
+    }
+    for work in works.values():
+        try:
+            metadata = json.loads(work.pop("metadata_json") or "{}")
+        except json.JSONDecodeError:
+            metadata = {}
+        hashtags = metadata.get("hashtags") if isinstance(metadata, dict) else None
+        if isinstance(hashtags, list):
+            work["tags"].extend(str(tag) for tag in hashtags if str(tag).strip())
+    for row in await db.fetchall(
+        f"SELECT item_id, tag FROM item_tags WHERE item_id IN ({marks}) ORDER BY item_id, tag", ids
+    ):
+        works[str(row["item_id"])]["tags"].append(str(row["tag"]))
+        works[str(row["item_id"])]["user_tags"].append(str(row["tag"]))
+    for row in await db.fetchall(
+        f"SELECT item_id, note FROM item_notes WHERE item_id IN ({marks})", ids
+    ):
+        works[str(row["item_id"])]["note"] = str(row["note"])
+    for row in await db.fetchall(
+        "SELECT ai.item_id, a.name FROM album_items ai JOIN albums a ON a.id=ai.album_id "
+        f"WHERE ai.item_id IN ({marks}) ORDER BY a.position, a.name",
+        ids,
+    ):
+        works[str(row["item_id"])]["genres"].append(str(row["name"]))
+    for row in await db.fetchall(
+        "SELECT ci.item_id, c.name FROM collection_items ci "
+        "JOIN collections c ON c.remote_id=ci.collection_id "
+        f"WHERE ci.item_id IN ({marks}) ORDER BY c.first_seen_at, c.remote_id",
+        ids,
+    ):
+        works[str(row["item_id"])]["collections"].append(str(row["name"]))
+        works[str(row["item_id"])]["genres"].append(str(row["name"]))
+    return works

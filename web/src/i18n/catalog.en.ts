@@ -438,4 +438,10 @@ export const en: Record<string, string> = {
   "正在存到 NAS {p}%": "Saving to NAS {p}%",
   "{done} / {total} 个作品": "{done} / {total} items",
   "{n} 个作品在排队，马上开始下载。": "{n} items are queued and will start shortly.",
+  "导出": "Export",
+  "导出 ({n})": "Export ({n})",
+  "选中的作品还没有存到 NAS": "None of the selected works are on the NAS yet",
+  "一次最多导出 {n} 个，整个相册导出没有限制": "Export up to {n} at a time; whole albums have no limit",
+  "打包下载相册里已存到 NAS 的作品，每个都附带标题、博主等信息": "Download the album's saved works as one ZIP, each with its title, creator and more",
+  "打包下载已存到 NAS 的作品，每个都附带标题、博主等信息": "Download the saved works as one ZIP, each with its title, creator and more",
 };

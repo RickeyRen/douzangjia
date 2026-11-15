@@ -54,3 +54,25 @@ it("stars the selection and queues the ones missing from the NAS", async () => {
   fireEvent.keyDown(window, { key: "Escape" });
   expect(onClear).toHaveBeenCalled();
 });
+
+it("exports only the selected works that are already on the NAS", () => {
+  const mixed = [items[0], items[1], { ...items[2], local: { ...items[2].local, state: "waiting" as const } }];
+  render(
+    <WithAppData value={makeAppData()}>
+      <SelectionBar items={mixed} selected={new Set(mixed.map((item) => item.awemeId))} onSelectAll={vi.fn()} onClear={vi.fn()} onItemsPatched={vi.fn()} />
+    </WithAppData>,
+  );
+
+  expect(screen.getByRole("link", { name: "导出 (2)" })).toHaveAttribute("href", `/api/export?items=${items[0].awemeId},${items[1].awemeId}`);
+});
+
+it("keeps export disabled until something is on the NAS", () => {
+  const waiting = [{ ...items[0], local: { ...items[0].local, state: "waiting" as const } }];
+  render(
+    <WithAppData value={makeAppData()}>
+      <SelectionBar items={waiting} selected={new Set([waiting[0].awemeId])} onSelectAll={vi.fn()} onClear={vi.fn()} onItemsPatched={vi.fn()} />
+    </WithAppData>,
+  );
+
+  expect(screen.getByRole("button", { name: "导出" })).toBeDisabled();
+});

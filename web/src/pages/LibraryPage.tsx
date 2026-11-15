@@ -1,10 +1,11 @@
-import { CaretDown, CaretUp, CloudArrowDown, CloudSlash, Images, MagnifyingGlass, MusicNotes, PencilSimple, Plus, Star, Tag, Trash } from "@phosphor-icons/react";
+import { CaretDown, CaretUp, CloudArrowDown, CloudSlash, Export, Images, MagnifyingGlass, MusicNotes, PencilSimple, Plus, Star, Tag, Trash } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
   archiveSource,
   createAlbum,
   deleteAlbum,
+  exportUrl,
   fetchCreators,
   renameAlbum,
   fetchSourceEntities,
@@ -176,6 +177,12 @@ function AlbumHeader({ albumId }: { albumId: number }) {
       actions={
         album ? (
           <>
+            {album.itemCount ? (
+              <a className="btn btn-secondary btn-sm" href={exportUrl({ albumId: album.id })} download title={t("打包下载相册里已存到 NAS 的作品，每个都附带标题、博主等信息")}>
+                <Export size={15} weight="bold" />
+                {t("导出")}
+              </a>
+            ) : null}
             <button
               type="button"
               className="btn btn-secondary btn-sm"

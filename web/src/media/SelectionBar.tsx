@@ -1,7 +1,7 @@
-import { CloudArrowDown, FolderPlus, Star, X } from "@phosphor-icons/react";
+import { CloudArrowDown, Export, FolderPlus, Star, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
-import { archiveSelection, bulkStar, type FeedItem } from "../app/api";
+import { EXPORT_SELECTION_LIMIT, archiveSelection, bulkStar, exportUrl, type FeedItem } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { Spinner } from "../ui/primitives";
 import { AlbumPicker } from "./Organize";
@@ -27,6 +27,7 @@ export function SelectionBar({
   const chosen = items.filter((item) => selected.has(item.awemeId));
   const allStarred = chosen.length > 0 && chosen.every((item) => item.starred);
   const notOnNas = chosen.filter((item) => item.local.state !== "downloaded").length;
+  const onNas = chosen.filter((item) => item.local.state === "downloaded").map((item) => item.awemeId);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -89,6 +90,23 @@ export function SelectionBar({
         {busy === "star" ? <Spinner size={14} /> : <Star size={15} weight={allStarred ? "fill" : "bold"} />}
         {allStarred ? t("取消精选") : t("精选")}
       </button>
+      {onNas.length && onNas.length <= EXPORT_SELECTION_LIMIT ? (
+        <a className="btn btn-secondary btn-sm" href={exportUrl({ itemIds: onNas })} download title={t("打包下载已存到 NAS 的作品，每个都附带标题、博主等信息")}>
+          <Export size={15} weight="bold" />
+          {t("导出 ({n})", { n: onNas.length })}
+        </a>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!onNas.length}
+          title={onNas.length ? undefined : t("选中的作品还没有存到 NAS")}
+          onClick={() => toast(t("一次最多导出 {n} 个，整个相册导出没有限制", { n: EXPORT_SELECTION_LIMIT }))}
+        >
+          <Export size={15} weight="bold" />
+          {onNas.length ? t("导出 ({n})", { n: onNas.length }) : t("导出")}
+        </button>
+      )}
       <button type="button" className="btn btn-primary btn-sm" disabled={!notOnNas || busy !== null} onClick={() => void download()}>
         {busy === "download" ? <Spinner size={14} /> : <CloudArrowDown size={15} weight="bold" />}
         存到 NAS{notOnNas ? ` (${notOnNas})` : ""}
