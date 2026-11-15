@@ -57,6 +57,10 @@ struct FeedItem: Decodable, Identifiable, Hashable {
     let coverUrl: String?
     let thumbnailUrl: String?
     var starred: Bool?
+    // Owner's own organisation; optional so older servers still decode.
+    var albums: [AlbumRef]?
+    var tags: [String]?
+    var note: String?
     let media: [MediaFile]
     let local: LocalArchiveState?
     let douyin: DouyinInfo?
@@ -77,6 +81,23 @@ struct FeedItem: Decodable, Identifiable, Hashable {
         let text = description.trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? "@\(author)" : text
     }
+}
+
+struct AlbumRef: Decodable, Hashable {
+    let id: Int
+    let name: String
+}
+
+struct Album: Decodable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let itemCount: Int
+    let covers: [String]
+}
+
+struct TagCount: Decodable, Hashable {
+    let tag: String
+    let itemCount: Int
 }
 
 struct HomeStats: Decodable {

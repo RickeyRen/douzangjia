@@ -69,6 +69,7 @@ private struct PlayerPage: View {
     @State private var queued = false
     @State private var message: String?
     @State private var video = VideoController()
+    @State private var organizing = false
 
     private var playableURL: URL? {
         guard !item.isGallery, let file = item.media.first(where: \.isVideo) else { return nil }
@@ -158,6 +159,17 @@ private struct PlayerPage: View {
                 if !item.description.isEmpty {
                     Text(item.description).font(.subheadline).lineLimit(3)
                 }
+                if let organized = organizedLine {
+                    Button { organizing = true } label: {
+                        Text(organized)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.violet4)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("打开整理")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 18) {
@@ -180,6 +192,15 @@ private struct PlayerPage: View {
                         .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
                 }
                 .accessibilityLabel(item.starred == true ? "取消精选" : "加入精选")
+                Button { organizing = true } label: {
+                    Image(systemName: isOrganized ? "tag.fill" : "tag")
+                        .font(.title3)
+                        .foregroundStyle(isOrganized ? Theme.violet4 : .white)
+                        .frame(width: 48, height: 48)
+                        .background(.black.opacity(0.35), in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.line2, lineWidth: 1))
+                }
+                .accessibilityLabel("整理：相册、标签、备注")
             }
         }
         .foregroundStyle(.white)
@@ -187,6 +208,21 @@ private struct PlayerPage: View {
         .padding(.bottom, 48)
         .padding(.top, 60)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .sheet(isPresented: $organizing) {
+            OrganizeSheet(item: $item, onItemChange: onItemChange)
+        }
+    }
+
+    private var isOrganized: Bool {
+        !(item.tags ?? []).isEmpty || !(item.albums ?? []).isEmpty || !(item.note ?? "").isEmpty
+    }
+
+    /// One quiet line under the caption: tags, albums, then the note.
+    private var organizedLine: String? {
+        var parts: [String] = (item.tags ?? []).map { "#\($0)" }
+        parts += (item.albums ?? []).map { "▣ \($0.name)" }
+        if let note = item.note, !note.isEmpty { parts.append("✎ \(note)") }
+        return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
     private func toggleStar() async {

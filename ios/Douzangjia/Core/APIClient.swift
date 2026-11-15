@@ -147,6 +147,36 @@ final class APIClient {
         let _: EmptyBody = try await send(starred ? "PUT" : "DELETE", "/api/items/\(itemId)/star")
     }
 
+    func albums() async throws -> [Album] {
+        let page: Page<Album> = try await get("/api/albums")
+        return page.items
+    }
+
+    func createAlbum(_ name: String) async throws -> Album {
+        try await send("POST", "/api/albums", body: ["name": name])
+    }
+
+    func setAlbum(_ albumId: Int, contains itemId: String, _ contains: Bool) async throws {
+        let _: EmptyBody = try await send(contains ? "PUT" : "DELETE", "/api/albums/\(albumId)/items", body: ["itemIds": [itemId]])
+    }
+
+    func tags() async throws -> [TagCount] {
+        let page: Page<TagCount> = try await get("/api/tags")
+        return page.items
+    }
+
+    func setTags(_ itemId: String, tags: [String]) async throws -> [String] {
+        struct Result: Decodable { let tags: [String] }
+        let result: Result = try await send("PUT", "/api/items/\(itemId)/tags", body: ["tags": tags])
+        return result.tags
+    }
+
+    func setNote(_ itemId: String, note: String) async throws -> String? {
+        struct Result: Decodable { let note: String? }
+        let result: Result = try await send("PUT", "/api/items/\(itemId)/note", body: ["note": note])
+        return result.note
+    }
+
     func archiveItem(_ itemId: String) async throws {
         let _: EmptyBody = try await send("POST", "/api/archive/items/\(itemId)")
     }
