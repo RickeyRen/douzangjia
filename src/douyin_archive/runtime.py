@@ -55,6 +55,8 @@ from .remote_sampler import RUN_EVERY_SECONDS, RemoteCheckSampler
 from .repositories import ArchiveRepository, DownloadProgressRepository, JobRepository
 from .scheduler import configure_scheduler, reschedule_sync
 from .settings_store import RuntimeSettings, SettingsStore
+from .sidecars import RUN_EVERY_SECONDS as SIDECAR_EVERY_SECONDS
+from .sidecars import SidecarWriter
 from .storage import CollectionProjector, ObjectStore
 from .sync_service import SyncResult, SyncService
 from .telemetry import TelemetrySampler
@@ -536,12 +538,14 @@ class ArchiveRuntime:
         self.media_probe_backfill = MediaProbeBackfill(
             database, settings.archive_root, self.media_probe
         )
+        self.sidecars = SidecarWriter(database, settings.archive_root)
         handler = ArchiveJobHandler(
             database,
             MediaDownloader(self.store, self.http),
             CollectionProjector(settings.archive_root),
             archive_root=settings.archive_root,
             media_probe=self.media_probe,
+            sidecars=self.sidecars,
         )
         worker_prefix = f"{socket.gethostname()}-{os.getpid()}"
         self._make_worker = lambda index: Worker(
@@ -639,6 +643,7 @@ class ArchiveRuntime:
             (self.item_covers.run_batch, ITEM_COVER_EVERY_SECONDS, "item-cover-preserve"),
             (self.verifier.run_batch, INTEGRITY_EVERY_SECONDS, "archive-integrity-check"),
             (self.database_backups.run_tick, DB_BACKUP_EVERY_SECONDS, "database-backup"),
+            (self.sidecars.run_batch, SIDECAR_EVERY_SECONDS, "media-server-sidecars"),
         ):
             self._scheduler.add_job(
                 job,

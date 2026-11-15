@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 from functools import partial
 from pathlib import Path
@@ -13,7 +14,10 @@ from .media_probe import MediaProbe
 from .models import DownloadJob, MediaAsset
 from .paths import asset_filename
 from .repositories import DownloadProgressRepository
+from .sidecars import SidecarWriter
 from .storage import CollectionProjector
+
+logger = logging.getLogger(__name__)
 
 
 class ArchiveJobHandler:
@@ -27,6 +31,7 @@ class ArchiveJobHandler:
         *,
         archive_root: Path,
         media_probe: MediaProbe | None = None,
+        sidecars: SidecarWriter | None = None,
     ) -> None:
         self.database = database
         self.downloader = downloader
@@ -34,6 +39,7 @@ class ArchiveJobHandler:
         self.archive_root = archive_root.resolve()
         self.progress = DownloadProgressRepository(database)
         self.media_probe = media_probe or MediaProbe()
+        self.sidecars = sidecars
 
     async def __call__(self, job: DownloadJob) -> None:
         if job.kind != "download":
@@ -109,6 +115,12 @@ class ArchiveJobHandler:
                 await self.projector.project(
                     str(collection["name"]), title, job.remote_id, object_file
                 )
+        if self.sidecars is not None:
+            # Media-server metadata is a nicety; the download itself succeeded.
+            try:
+                await self.sidecars.write_for_item(job.remote_id)
+            except Exception:
+                logger.exception("media-server sidecar failed for %s", job.remote_id)
 
     async def _persist_snapshot(
         self, asset: MediaAsset, snapshot: DownloadProgressSnapshot

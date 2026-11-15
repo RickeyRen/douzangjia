@@ -68,13 +68,10 @@ class CollectionProjector:
     def __init__(self, archive_root: Path) -> None:
         self.library = archive_root / "library"
 
-    async def project(
-        self,
-        collection_name: str,
-        title: str,
-        remote_id: str,
-        object_file: Path,
+    def destination(
+        self, collection_name: str, title: str, remote_id: str, object_file: Path
     ) -> Path:
+        """Where ``project`` puts (or put) this object for this collection."""
         extension = object_file.suffix.lower()
         asset_suffix = "" if object_file.stem == "000" else f"_{object_file.stem}"
         identity_suffix = f"_{sanitize_segment(remote_id)}{asset_suffix}{extension}"
@@ -83,7 +80,16 @@ class CollectionProjector:
         )
         safe_title = _truncate_utf8(sanitize_segment(title), max(1, title_budget))
         filename = f"{safe_title}{identity_suffix}"
-        destination = self.library / sanitize_segment(collection_name) / filename
+        return self.library / sanitize_segment(collection_name) / filename
+
+    async def project(
+        self,
+        collection_name: str,
+        title: str,
+        remote_id: str,
+        object_file: Path,
+    ) -> Path:
+        destination = self.destination(collection_name, title, remote_id, object_file)
 
         def create_projection() -> Path:
             destination.parent.mkdir(parents=True, exist_ok=True)
