@@ -19,6 +19,8 @@ async def _scenario(root: Path) -> dict[str, tuple]:
             ("5", "running", None, None),
             ("6", "completed", None, None),
             ("7", "pending", None, 5),
+            ("8", "failed", "MEDIA_URL_UNAVAILABLE", None),
+            ("9", "failed", "MEDIA_GONE", None),
         ]
         for remote_id, status, code, paused in rows:
             await database.execute(
@@ -32,10 +34,11 @@ async def _scenario(root: Path) -> dict[str, tuple]:
         assert await jobs.refresh_links("1", {"remote_id": "1", "assets": []}) is False
         result = {}
         for row in await database.fetchall(
-            "SELECT remote_id, status, next_attempt_at, last_error_code, payload_json FROM download_jobs"
+            "SELECT remote_id, status, next_attempt_at, attempts, payload_json FROM download_jobs"
         ):
             fresh = "fresh.test" in json.loads(row["payload_json"])["assets"][0]["url"]
             result[row["remote_id"]] = (changed[row["remote_id"]], row["status"], row["next_attempt_at"], fresh)
+            result[row["remote_id"] + ":attempts"] = row["attempts"]
         return result
     finally:
         await database.close()
@@ -51,3 +54,9 @@ def test_list_pages_hand_fresh_links_to_waiting_downloads(tmp_path: Path) -> Non
     assert result["5"][:2] == (False, "running")
     assert result["6"][:2] == (False, "completed")
     assert result["7"] == (False, "pending", 9999999999, False)
+    # Given up only because the detail API left it out: the list shows it, so it starts over.
+    assert result["8"] == (True, "pending", 0, True)
+    assert result["8:attempts"] == 0
+    assert result["1:attempts"] == 1
+    # Douyin said the media is gone: that verdict stands.
+    assert result["9"][:2] == (False, "failed")

@@ -234,17 +234,23 @@ class JobRepository:
         expired; the detail API re-signs only a third of them. A sync walking the
         lists sees fresh URLs for every item, so waiting downloads take those.
         Paused or cancelled jobs are the user's choice and keep their place.
+
+        A job given up as MEDIA_URL_UNAVAILABLE only means the detail API kept
+        leaving it out of its answers; a list page showing it with links proves
+        it is still there, so it starts over with a fresh retry budget.
         """
         if not payload.get("assets"):
             return False
         now = int(time.time())
         row = await self.db.fetchone(
             "UPDATE download_jobs SET payload_json=?, status='pending', next_attempt_at=0, "
+            "attempts=CASE WHEN status='failed' THEN 0 ELSE attempts END, "
             "last_error_code=NULL, updated_at=? "
             "WHERE kind='download' AND remote_id=? AND paused_at IS NULL "
             "AND cancel_requested_at IS NULL AND (status='pending' OR (status='retry' "
             "AND last_error_code IN ('MEDIA_URL_EXPIRED', 'MEDIA_HTTP_ERROR', "
-            "'MEDIA_URL_UNAVAILABLE'))) RETURNING id",
+            "'MEDIA_URL_UNAVAILABLE')) OR (status='failed' "
+            "AND last_error_code='MEDIA_URL_UNAVAILABLE')) RETURNING id",
             (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), now, remote_id),
         )
         return row is not None
