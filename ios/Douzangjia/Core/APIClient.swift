@@ -139,6 +139,20 @@ final class APIClient {
         return query
     }
 
+    /// Every creator in the library; sort is "items" (most works) or "recent".
+    func creators(search: String, sort: String, cursor: String?) async throws -> Page<Creator> {
+        try await get("/api/creators", query: creatorsQuery(search: search, sort: sort, cursor: cursor))
+    }
+    func cachedCreators(sort: String) -> Page<Creator>? {
+        cached("/api/creators", query: creatorsQuery(search: "", sort: sort, cursor: nil))
+    }
+    private func creatorsQuery(search: String, sort: String, cursor: String?) -> [URLQueryItem] {
+        var query = [URLQueryItem(name: "limit", value: "40"), URLQueryItem(name: "sort", value: sort)]
+        if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
+        if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return query
+    }
+
     func searchCreators(_ search: String) async throws -> [Creator] {
         let page: Page<Creator> = try await get(
             "/api/creators",

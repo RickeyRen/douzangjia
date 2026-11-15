@@ -62,6 +62,7 @@ struct HomeView: View {
             .navigationDestination(for: VanishedListRoute.self) { _ in VanishedCreatorsView() }
             .navigationDestination(for: ReviewRoute.self) { _ in ReviewView() }
             .navigationDestination(for: GoneWorksRoute.self) { _ in GoneWorksView() }
+            .navigationDestination(for: CreatorsRoute.self) { _ in CreatorsView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .fullScreenCover(item: $player) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
@@ -157,7 +158,11 @@ struct HomeView: View {
         return HStack(spacing: 8) {
             KPITile(title: "已存到 NAS", value: stats.map { Format.integer($0.downloadedItems) },
                     detail: stats.map { "占用 \(Format.bytes($0.archivedBytes))" })
-            KPITile(title: "博主", value: stats.map { Format.integer($0.creators) }, detail: "收藏涉及")
+            NavigationLink(value: CreatorsRoute()) {
+                KPITile(title: "博主", value: stats.map { Format.integer($0.creators) }, detail: "收藏涉及 ›")
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("查看全部博主")
             // Opens the list of works Douyin no longer shows.
             NavigationLink(value: GoneWorksRoute()) {
                 if let vanished = stats?.vanishedCreators {
