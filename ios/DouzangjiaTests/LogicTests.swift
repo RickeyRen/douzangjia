@@ -129,3 +129,17 @@ final class PlaybackSpeedTests: XCTestCase {
         XCTAssertEqual(controller.speed, 1.5)
     }
 }
+
+final class ChunkedTests: XCTestCase {
+    func testSplitsIntoCappedSlicesInOrder() {
+        let ids = (1...1201).map(String.init)
+        let chunks = ids.chunked(500).map(Array.init)
+        XCTAssertEqual(chunks.map(\.count), [500, 500, 201])
+        XCTAssertEqual(chunks.flatMap { $0 }, ids)
+    }
+
+    func testEmptyAndExactSizes() {
+        XCTAssertTrue([String]().chunked(500).isEmpty)
+        XCTAssertEqual(Array(repeating: "a", count: 500).chunked(500).count, 1)
+    }
+}

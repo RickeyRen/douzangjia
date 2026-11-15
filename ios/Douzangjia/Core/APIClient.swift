@@ -176,6 +176,28 @@ final class APIClient {
         let _: EmptyBody = try await send(starred ? "PUT" : "DELETE", "/api/items/\(itemId)/star")
     }
 
+    /// Stars or unstars many works at once; answers which of them are starred afterwards.
+    func bulkStar(_ itemIds: [String], starred: Bool) async throws -> Set<String> {
+        struct Result: Decodable { let starred: [String] }
+        var result = Set<String>()
+        for chunk in itemIds.chunked(2000).map(Array.init) {
+            let page: Result = try await send("POST", "/api/items/bulk-star", body: ["itemIds": chunk, "starred": starred])
+            result.formUnion(page.starred)
+        }
+        return result
+    }
+
+    /// Puts many works into one album; answers how many were new to it.
+    func addToAlbum(_ albumId: Int, itemIds: [String]) async throws -> Int {
+        struct Result: Decodable { let added: Int }
+        var added = 0
+        for chunk in itemIds.chunked(500).map(Array.init) {
+            let page: Result = try await send("PUT", "/api/albums/\(albumId)/items", body: ["itemIds": chunk])
+            added += page.added
+        }
+        return added
+    }
+
     func albums() async throws -> [Album] {
         let page: Page<Album> = try await get("/api/albums")
         return page.items
@@ -501,5 +523,12 @@ extension FeedOptions.Length {
         case .medium: "1–5 分钟"
         case .long: "5 分钟以上"
         }
+    }
+}
+
+extension Array {
+    /// Consecutive slices of at most `size` elements, for endpoints that cap a request's list.
+    func chunked(_ size: Int) -> [ArraySlice<Element>] {
+        stride(from: 0, to: count, by: size).map { self[$0..<Swift.min($0 + size, count)] }
     }
 }
