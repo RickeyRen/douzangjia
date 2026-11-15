@@ -255,6 +255,10 @@ struct AlbumDetailView: View {
     @State private var exhausted = false
     @State private var loading = false
     @State private var player: PlayerSelection?
+    @State private var selecting = false
+    @State private var selected: Set<String> = []
+    @State private var confirmingRemove = false
+    @State private var removing = false
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     private var columns: [GridItem] { GridColumns.media(sizeClass) }
@@ -264,13 +268,21 @@ struct AlbumDetailView: View {
             LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     Button {
-                        player = PlayerSelection(items: items, index: index)
+                        if selecting {
+                            if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
+                        } else {
+                            player = PlayerSelection(items: items, index: index)
+                        }
                     } label: {
                         Color.clear
                             .aspectRatio(3 / 4, contentMode: .fit)
                             .overlay { MediaTile(item: item, showTitle: false) }
+                            .overlay(alignment: .topTrailing) {
+                                if selecting { SelectionMark(on: selected.contains(item.id)) }
+                            }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selecting && selected.contains(item.id) ? .isSelected : [])
                     .contextMenu {
                         Button("从相册移出", systemImage: "minus.circle", role: .destructive) {
                             Task { await remove(item) }
@@ -295,6 +307,19 @@ struct AlbumDetailView: View {
         .navigationTitle(album.name)
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if !items.isEmpty || selecting {
+                    Button(selecting ? "完成" : "选择") {
+                        withAnimation(.snappy) { selecting.toggle(); selected = [] }
+                    }
+                    .fontWeight(selecting ? .semibold : .regular)
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if selecting { removeBar }
+        }
         .task { if items.isEmpty { await reload() } }
         .fullScreenCover(item: $player, onDismiss: { Task { await onChange() } }) { selection in
             PlayerView(items: selection.items, startIndex: selection.index) { changed in
@@ -326,6 +351,58 @@ struct AlbumDetailView: View {
             cursor = page.nextCursor
             exhausted = page.nextCursor == nil
         } catch is CancellationError {
+        } catch {
+            model.handle(error)
+        }
+    }
+
+    private var removeBar: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(selected.isEmpty ? "点作品来选择" : "已选 \(selected.count) 个")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                let all = !items.isEmpty && items.allSatisfy { selected.contains($0.id) }
+                Button(all ? "全不选" : "全选已加载的 \(items.count) 个") {
+                    selected = all ? [] : Set(items.map(\.id))
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.violet4)
+                .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            if removing { ProgressView().controlSize(.small) }
+            Button("移出相册", systemImage: "minus.circle", role: .destructive) { confirmingRemove = true }
+                .buttonStyle(.glass)
+                .tint(.red)
+                .disabled(selected.isEmpty || removing)
+                .confirmationDialog("把 \(selected.count) 个作品移出「\(album.name)」？", isPresented: $confirmingRemove, titleVisibility: .visible) {
+                    Button("移出相册", role: .destructive) { Task { await removeSelected() } }
+                } message: {
+                    Text("只是从这个相册里拿掉，作品本身和 NAS 上的文件都还在。")
+                }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .padding(.horizontal, Theme.pageInset)
+        .padding(.bottom, 6)
+    }
+
+    private func removeSelected() async {
+        let ids = items.map(\.id).filter(selected.contains)
+        guard !ids.isEmpty else { return }
+        removing = true
+        defer { removing = false }
+        do {
+            _ = try await model.client.removeFromAlbum(album.id, itemIds: ids)
+            withAnimation(.snappy) {
+                items.removeAll { selected.contains($0.id) }
+                selected = []
+                if items.isEmpty { selecting = false }
+            }
+            await onChange()
         } catch {
             model.handle(error)
         }

@@ -519,7 +519,7 @@ struct LibraryView: View {
 }
 
 /// The tick in a tile's corner while picking works.
-private struct SelectionMark: View {
+struct SelectionMark: View {
     let on: Bool
 
     var body: some View {

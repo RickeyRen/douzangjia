@@ -198,6 +198,17 @@ final class APIClient {
         return added
     }
 
+    /// Takes many works out of one album; answers how many were in it.
+    func removeFromAlbum(_ albumId: Int, itemIds: [String]) async throws -> Int {
+        struct Result: Decodable { let removed: Int }
+        var removed = 0
+        for chunk in itemIds.chunked(500).map(Array.init) {
+            let page: Result = try await send("DELETE", "/api/albums/\(albumId)/items", body: ["itemIds": chunk])
+            removed += page.removed
+        }
+        return removed
+    }
+
     func albums() async throws -> [Album] {
         let page: Page<Album> = try await get("/api/albums")
         return page.items
