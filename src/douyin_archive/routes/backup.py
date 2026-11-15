@@ -3,20 +3,15 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-import sqlite3
 import time
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse
 
+from ..db_backup import snapshot
+
 router = APIRouter(prefix="/api")
-
-
-def _snapshot(source: Path, target: Path) -> None:
-    """Consistent copy via the SQLite backup API; safe while the app writes."""
-    with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as origin, sqlite3.connect(target) as copy:
-        origin.backup(copy)
 
 
 def _backups(request: Request):
@@ -126,7 +121,9 @@ async def download_database(request: Request, background: BackgroundTasks):
     stamp = time.strftime("%Y%m%d-%H%M%S")
     temporary = root / "tmp" / f"backup-{stamp}.sqlite3"
     temporary.parent.mkdir(parents=True, exist_ok=True)
-    await asyncio.to_thread(_snapshot, source, temporary)
+    # The same self-contained copy as the daily backup: no -wal/-shm left in tmp,
+    # and the file opens on its own on the owner's computer.
+    await asyncio.to_thread(snapshot, source, temporary, check=False)
     background.add_task(temporary.unlink, missing_ok=True)
     return FileResponse(
         temporary,

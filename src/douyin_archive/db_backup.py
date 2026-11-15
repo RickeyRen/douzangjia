@@ -20,7 +20,12 @@ PREFIX = "auto-"
 PAGES_PER_STEP = 4096
 
 
-def _copy(source: Path, target: Path) -> None:
+def snapshot(source: Path, target: Path, *, check: bool = True) -> None:
+    """Copy a live database into one self-contained file, safe while the app writes.
+
+    Written under a ``.part`` name and renamed when complete, so a reader never
+    sees half a copy.
+    """
     partial = target.with_name(target.name + ".part")
     partial.unlink(missing_ok=True)
     # closing(): a sqlite3 connection used as a context manager only commits, it
@@ -34,7 +39,7 @@ def _copy(source: Path, target: Path) -> None:
         # One self-contained file that can be copied off the NAS as it is.
         copy.execute("PRAGMA journal_mode=DELETE")
         # A backup nobody can open is worse than none: prove it reads back.
-        verdict = copy.execute("PRAGMA quick_check").fetchone()[0]
+        verdict = copy.execute("PRAGMA quick_check").fetchone()[0] if check else "ok"
     if verdict != "ok":
         partial.unlink(missing_ok=True)
         raise RuntimeError(f"database backup failed its check: {verdict}")
@@ -96,7 +101,7 @@ class DatabaseBackups:
         stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(self.clock()))
         target = self.backup_dir / f"{PREFIX}{stamp}.sqlite3"
         try:
-            await anyio.to_thread.run_sync(_copy, self.database_path, target)
+            await anyio.to_thread.run_sync(snapshot, self.database_path, target)
         except Exception as error:  # a failed backup must not take the worker down
             self.last_error = str(error)
             logger.warning("database backup failed", exc_info=True)

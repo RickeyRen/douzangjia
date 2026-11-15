@@ -20,7 +20,10 @@ def test_database_backup_streams_a_consistent_copy(tmp_path: Path, master_key: s
     with sqlite3.connect(copy) as database:
         assert database.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert database.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] > 0
-    assert not list((tmp_path / "tmp").glob("backup-*.sqlite3"))
+        # Opens on its own on another computer: no WAL file needed beside it.
+        assert database.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+    # Nothing left behind, sidecars included.
+    assert not list((tmp_path / "tmp").glob("backup-*"))
 
 
 def test_backup_requires_login(tmp_path: Path, master_key: str) -> None:
