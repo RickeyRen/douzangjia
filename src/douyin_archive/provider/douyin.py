@@ -1138,7 +1138,16 @@ class PlaywrightDouyinSource:
                       misses.push(`http ${response.status}`);
                       return null;
                     }
-                    const data = JSON.parse(text);
+                    let data;
+                    try {
+                      data = JSON.parse(text);
+                    } catch {
+                      // An empty or HTML body is Douyin turning the request away;
+                      // asking again at once only adds to the load it is refusing.
+                      const head = text.slice(0, 40).replace(/\s+/g, ' ');
+                      misses.push(`nonjson len=${text.length} ${head}`);
+                      return null;
+                    }
                     const record = data?.aweme_detail || data?.aweme_list?.[0] || null;
                     const verdict = data?.filter_detail?.filter_reason;
                     if (!record && verdict) unavailable[id] = String(verdict);
