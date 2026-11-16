@@ -138,8 +138,11 @@ private struct PlayerPage: View {
                 .task(id: isCurrent) {
                     guard isCurrent, streaming else { return }
                     streamed = true
-                    // Opening a work that is not saved yet also saves it.
-                    if !queued, item.local?.state != "waiting", item.local?.state != "downloading" {
+                    // Opening a work that is not saved yet also saves it. "waiting" also
+                    // means "no download yet", and a queued one may sit behind hours of
+                    // retries: asking again moves it to the front, so only skip one that
+                    // is already downloading.
+                    if !queued, item.local?.state != "downloading" {
                         await save()
                     }
                     await watchDownload()
@@ -216,7 +219,11 @@ private struct PlayerPage: View {
                 item = fresh
                 onItemChange(fresh)
             }
-            if fresh.isSaved { return }
+            if fresh.isSaved {
+                // The green chip says it on screen; a tap in the hand says it too.
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                return
+            }
         }
     }
 

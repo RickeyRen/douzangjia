@@ -142,6 +142,13 @@ it("plays an item that is not on the NAS yet from Douyin and saves it", async ()
   expect(onItemPatch).toHaveBeenCalledWith(failed.awemeId, { local: { ...failed.local, state: "waiting" } });
 });
 
+it("saves a streamed work the NAS reports as waiting, which also means no download yet", async () => {
+  const waiting = makeItem({ awemeId: "7000000000000000106", media: [], local: { state: "waiting", readyAssets: 0, totalAssets: 1, downloadedBytes: 0, totalBytes: null } });
+  renderPlayer({ items: [waiting], index: 0 });
+
+  await vi.waitFor(() => expect(api.archiveItem).toHaveBeenCalledWith(waiting.awemeId));
+});
+
 it("says so once a streamed work has landed on the NAS, without restarting it", async () => {
   vi.useFakeTimers();
   try {

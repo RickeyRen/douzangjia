@@ -355,9 +355,11 @@ export function Player({
   // Opening a work that is not saved yet plays it from Douyin and saves it.
   useEffect(() => {
     if (!item || !canStream(item) || autoSaved.current.has(item.awemeId)) return;
-    if (item.local.state === "waiting" || item.local.state === "downloading") return;
     autoSaved.current.add(item.awemeId);
     setWatching(item.awemeId);
+    // "waiting" also means "no download yet", and a queued one may sit behind
+    // hours of retries: asking again moves it to the front.
+    if (item.local.state === "downloading") return;
     const target = item;
     archiveItem(target.awemeId)
       .then(() => onItemPatch?.(target.awemeId, { local: { ...target.local, state: "waiting" } }))
