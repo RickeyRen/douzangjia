@@ -91,6 +91,8 @@ private struct PlayerPage: View {
     @Binding var galleryZoomed: Bool
     let onItemChange: (FeedItem) -> Void
     @State private var queued = false
+    /// This page started out playing from Douyin; it keeps that stream once saved.
+    @State private var streamed = false
     @State private var message: String?
     @State private var video = VideoController()
     @State private var organizing = false
@@ -127,13 +129,20 @@ private struct PlayerPage: View {
         if let url = playableURL {
             VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent, loadResume: loadResume)
                 .overlay(alignment: .top) {
-                    if streaming && isCurrent { streamingChip }
+                    if isCurrent && streaming {
+                        streamingChip
+                    } else if isCurrent && streamed && item.isSaved {
+                        savedChip
+                    }
                 }
                 .task(id: isCurrent) {
+                    guard isCurrent, streaming else { return }
+                    streamed = true
                     // Opening a work that is not saved yet also saves it.
-                    guard isCurrent, streaming, !queued,
-                          item.local?.state != "waiting", item.local?.state != "downloading" else { return }
-                    await save()
+                    if !queued, item.local?.state != "waiting", item.local?.state != "downloading" {
+                        await save()
+                    }
+                    await watchDownload()
                 }
                 .onAppear {
                     let client = model.client
@@ -184,6 +193,31 @@ private struct PlayerPage: View {
             .background(.black.opacity(0.55), in: Capsule())
             .padding(.top, 60)
             .allowsHitTesting(false)
+    }
+
+    private var savedChip: some View {
+        Label("已存到 NAS，下次直接从 NAS 播放", systemImage: "checkmark.icloud")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Color.green.opacity(0.55), in: Capsule())
+            .padding(.top, 60)
+            .allowsHitTesting(false)
+    }
+
+    /// Checks every few seconds until the streamed work lands on the NAS. The
+    /// player keeps the stream it is playing, so nothing starts over.
+    private func watchDownload() async {
+        for _ in 0..<120 {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            guard let fresh = try? await model.client.item(item.id) else { continue }
+            if fresh.isSaved || fresh.local?.state != item.local?.state {
+                item = fresh
+                onItemChange(fresh)
+            }
+            if fresh.isSaved { return }
+        }
     }
 
     private var statusText: String {

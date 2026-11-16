@@ -290,6 +290,11 @@ final class APIClient {
         return result.note
     }
 
+    /// One work as the library lists it, e.g. to see whether its download landed.
+    func item(_ itemId: String) async throws -> FeedItem {
+        try await send("GET", "/api/items/\(itemId)")
+    }
+
     /// Where a long video was left, on any device; nil starts from the top.
     func playback(_ itemId: String) async throws -> Int? {
         struct Result: Decodable { let positionMs: Int? }
