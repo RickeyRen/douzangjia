@@ -611,6 +611,9 @@ async def test_item_detail_fetch_retries_a_truncated_json_response() -> None:
             assert "await Promise.all(workers)" in script
             assert "const controller = new AbortController()" in script
             assert "controller.abort()" in script
+            # Douyin answers an empty body unless the web client's query comes along.
+            assert arguments["query"]["channel"] == "channel_pc_web"
+            assert arguments["query"]["version_code"]
             self.calls += 1
             if self.calls < 3:
                 raise RuntimeError("Unexpected end of JSON input")

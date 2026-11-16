@@ -331,6 +331,21 @@ class PlaywrightDouyinSource:
     COLLECTS_LIST_PATH = "/aweme/v1/web/collects/list/"
     COLLECTS_ITEMS_PATH = "/aweme/v1/web/collects/video/list/"
     DETAIL_PATH = "/aweme/v1/web/aweme/detail/"
+    # The query Douyin's own web client sends; without it the detail endpoint
+    # started answering 200 with an empty body.
+    WEB_QUERY: ClassVar[dict[str, str]] = {
+        "device_platform": "webapp",
+        "aid": "6383",
+        "channel": "channel_pc_web",
+        "pc_client_type": "1",
+        "version_code": "170400",
+        "version_name": "17.4.0",
+        "cookie_enabled": "true",
+        "browser_name": "Chrome",
+        "engine_name": "Blink",
+        "os_name": "Linux",
+        "platform": "PC",
+    }
 
     def __init__(
         self, coordinator: BrowserCoordinator, *, serialized_page: bool = True
@@ -488,11 +503,13 @@ class PlaywrightDouyinSource:
         try:
             result = await self._page.evaluate(
                 """
-                async ({itemId, path}) => { // __douzangjiaRemoteAvailability
+                async ({itemId, path, query}) => { // __douzangjiaRemoteAvailability
                   const url = new URL(path, window.location.origin);
+                  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+                  url.searchParams.set('browser_language', navigator.language || 'zh-CN');
+                  url.searchParams.set('browser_platform', navigator.platform || 'Linux x86_64');
+                  url.searchParams.set('browser_online', String(navigator.onLine));
                   url.searchParams.set('aweme_id', itemId);
-                  url.searchParams.set('aid', '6383');
-                  url.searchParams.set('device_platform', 'webapp');
                   const controller = new AbortController();
                   const timeout = window.setTimeout(() => controller.abort(), 8_000);
                   try {
@@ -518,7 +535,7 @@ class PlaywrightDouyinSource:
                   }
                 }
                 """,
-                {"itemId": item_id, "path": self.DETAIL_PATH},
+                {"itemId": item_id, "path": self.DETAIL_PATH, "query": self.WEB_QUERY},
             )
         except Exception:  # noqa: BLE001 - browser failures are uncertain evidence
             return "NETWORK_TIMEOUT"
@@ -1113,15 +1130,17 @@ class PlaywrightDouyinSource:
             try:
                 payload = await self._page.evaluate(
                     """
-            async ({ids, path}) => { // __yingcangFetchDetails
+            async ({ids, path, query}) => { // __yingcangFetchDetails
               const misses = [];
               // Douyin's own verdict on a work it will not show: deleted, private...
               const unavailable = {};
               const fetchOne = async (id) => {
                 const url = new URL(path, window.location.origin);
+                for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+                url.searchParams.set('browser_language', navigator.language || 'zh-CN');
+                url.searchParams.set('browser_platform', navigator.platform || 'Linux x86_64');
+                url.searchParams.set('browser_online', String(navigator.onLine));
                 url.searchParams.set('aweme_id', id);
-                url.searchParams.set('aid', '6383');
-                url.searchParams.set('device_platform', 'webapp');
                 for (let attempt = 0; attempt < 3; attempt += 1) {
                   const controller = new AbortController();
                   // A busy NAS renders slowly; 5 s aborted good answers as "refused".
@@ -1182,7 +1201,7 @@ class PlaywrightDouyinSource:
               return {status_code: 0, aweme_list: records.filter(Boolean), misses: misses.slice(0, 5), unavailable};
             }
             """,
-                    {"ids": missing_ids, "path": self.DETAIL_PATH},
+                    {"ids": missing_ids, "path": self.DETAIL_PATH, "query": self.WEB_QUERY},
                 )
                 if isinstance(payload, dict):
                     if payload.get("misses"):
