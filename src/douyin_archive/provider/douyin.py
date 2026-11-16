@@ -1107,6 +1107,7 @@ class PlaywrightDouyinSource:
                 payload = await self._page.evaluate(
                     """
             async ({ids, path}) => { // __yingcangFetchDetails
+              const misses = [];
               const fetchOne = async (id) => {
                 const url = new URL(path, window.location.origin);
                 url.searchParams.set('aweme_id', id);
@@ -1123,10 +1124,20 @@ class PlaywrightDouyinSource:
                       signal: controller.signal,
                       headers: {Accept: 'application/json, text/plain, */*'},
                     });
-                    if (!response.ok) return null;
-                    const data = JSON.parse(await response.text());
-                    return data?.aweme_detail || data?.aweme_list?.[0] || null;
-                  } catch {
+                    const text = await response.text();
+                    if (!response.ok) {
+                      misses.push(`http ${response.status}`);
+                      return null;
+                    }
+                    const data = JSON.parse(text);
+                    const record = data?.aweme_detail || data?.aweme_list?.[0] || null;
+                    if (!record) {
+                      misses.push(data?.filter_detail?.filter_reason
+                        || `empty status=${data?.status_code} len=${text.length}`);
+                    }
+                    return record;
+                  } catch (error) {
+                    if (attempt === 2) misses.push(`error ${error?.name || error}`);
                     if (attempt < 2) {
                       await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
                     }
@@ -1148,12 +1159,18 @@ class PlaywrightDouyinSource:
               const workerCount = Math.min(4, ids.length);
               const workers = Array.from({length: workerCount}, () => worker());
               await Promise.all(workers);
-              return {status_code: 0, aweme_list: records.filter(Boolean)};
+              return {status_code: 0, aweme_list: records.filter(Boolean), misses: misses.slice(0, 5)};
             }
             """,
                     {"ids": missing_ids, "path": self.DETAIL_PATH},
                 )
                 if isinstance(payload, dict):
+                    if payload.get("misses"):
+                        logger.warning(
+                            "Douyin item detail misses page=%s reasons=%s",
+                            urlsplit(str(self._page.url)).path or "/",
+                            payload["misses"],
+                        )
                     self._remember_item_records(payload)
                     return {
                         **payload,
