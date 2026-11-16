@@ -89,6 +89,7 @@ class MediaUrlRefresher:
                 break
             ids = [str(row["remote_id"]) for row in rows]
             asked += len(ids)
+            started = time.monotonic()
             try:
                 records = await self.fetch_records(ids)
             except Exception:
@@ -102,6 +103,12 @@ class MediaUrlRefresher:
             }
             answered += len(fresh)
             if not fresh:
+                logger.warning(
+                    "media URL refresh got %s records, none with media, for %s items in %.1fs",
+                    len(records),
+                    len(ids),
+                    time.monotonic() - started,
+                )
                 # Nothing at all came back: a refusal, not a verdict on these
                 # items. Leave them untouched so they keep their retry budget.
                 break

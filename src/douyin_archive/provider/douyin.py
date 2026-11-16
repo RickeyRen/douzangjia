@@ -1114,7 +1114,8 @@ class PlaywrightDouyinSource:
                 url.searchParams.set('device_platform', 'webapp');
                 for (let attempt = 0; attempt < 3; attempt += 1) {
                   const controller = new AbortController();
-                  const timeout = window.setTimeout(() => controller.abort(), 5_000);
+                  // A busy NAS renders slowly; 5 s aborted good answers as "refused".
+                  const timeout = window.setTimeout(() => controller.abort(), 15_000);
                   try {
                     const response = await fetch(url.toString(), {
                       credentials: 'include',
