@@ -4959,6 +4959,10 @@ video {
   transform: translateX(-50%);
 }
 
+.player-streaming.is-saved {
+  background: rgb(22 101 52 / 75%);
+}
+
 .player-resume {
   position: absolute;
   bottom: 96px;

@@ -12,6 +12,7 @@ vi.mock("../app/api", async (original) => ({
   ...(await original<typeof api>()),
   archiveItem: vi.fn(async () => ({ id: 1, kind: "item", targetId: "x", status: "queued" })),
   checkRemoteAvailability: vi.fn(),
+  fetchItem: vi.fn(),
 }));
 
 const items = [
@@ -139,6 +140,24 @@ it("plays an item that is not on the NAS yet from Douyin and saves it", async ()
   expect(screen.getByText("从抖音播放，同时存到 NAS")).toBeInTheDocument();
   await vi.waitFor(() => expect(api.archiveItem).toHaveBeenCalledWith(failed.awemeId));
   expect(onItemPatch).toHaveBeenCalledWith(failed.awemeId, { local: { ...failed.local, state: "waiting" } });
+});
+
+it("says so once a streamed work has landed on the NAS, without restarting it", async () => {
+  vi.useFakeTimers();
+  try {
+    const waiting = makeItem({ awemeId: "7000000000000000105", media: [], local: { state: "failed", readyAssets: 0, totalAssets: 1, downloadedBytes: 0, totalBytes: null } });
+    const saved = { ...waiting, local: { state: "downloaded" as const, readyAssets: 1, totalAssets: 1, downloadedBytes: 10, totalBytes: 10 }, media: [{ id: 9, index: 0, type: "video" as const, byteSize: 10, mimeType: "video/mp4", url: "/api/media/9", posterUrl: "/api/media/9/poster" }] };
+    vi.mocked(api.fetchItem).mockResolvedValue(saved);
+    const handlers = { onIndexChange: vi.fn(), onClose: vi.fn(), onLoadMore: vi.fn() };
+    const { rerender } = render(<WithAppData value={makeAppData()}><Player items={[waiting]} index={0} {...handlers} onItemPatch={vi.fn()} /></WithAppData>);
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(api.fetchItem).toHaveBeenCalledWith(waiting.awemeId);
+    rerender(<WithAppData value={makeAppData()}><Player items={[saved]} index={0} {...handlers} onItemPatch={vi.fn()} /></WithAppData>);
+    expect(screen.getByText("已存到 NAS，下次直接从 NAS 播放")).toBeInTheDocument();
+    expect(document.querySelector("video")!.getAttribute("src")).toBe(`/api/items/${waiting.awemeId}/stream`);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("falls back to the download offer when Douyin will not hand the video over", async () => {

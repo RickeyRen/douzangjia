@@ -5,6 +5,7 @@ import {
   CaretRight,
   CaretUp,
   CloudArrowDown,
+  CloudCheck,
   DownloadSimple,
   Info,
   LinkSimple,
@@ -19,7 +20,7 @@ import {
 import { useCallback, useEffect, useRef, useState, type RefObject, type TouchEvent, type WheelEvent } from "react";
 
 import { unsavedWorkRisk } from "../lib/creatorArchive";
-import { archiveItem, checkRemoteAvailability, type FeedItem, type RemoteAvailability } from "../app/api";
+import { archiveItem, checkRemoteAvailability, fetchItem, type FeedItem, type RemoteAvailability } from "../app/api";
 import { useAppData } from "../app/appDataContext";
 import { formatBytes, formatClock, formatCount, formatDate, formatDuration } from "../lib/format";
 import { Avatar, Spinner } from "../ui/primitives";
@@ -110,6 +111,8 @@ export function Player({
   const [imageIndex, setImageIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const autoSaved = useRef(new Set<string>());
+  // The streamed work whose download the player is waiting on.
+  const [watching, setWatching] = useState<string | null>(null);
   // Works Douyin would not hand over just now; they fall back to the cover page.
   const [streamFailed, setStreamFailed] = useState<ReadonlySet<string>>(() => new Set());
   const stageRef = useRef<HTMLDivElement>(null);
@@ -354,11 +357,38 @@ export function Player({
     if (!item || !canStream(item) || autoSaved.current.has(item.awemeId)) return;
     if (item.local.state === "waiting" || item.local.state === "downloading") return;
     autoSaved.current.add(item.awemeId);
+    setWatching(item.awemeId);
     const target = item;
     archiveItem(target.awemeId)
       .then(() => onItemPatch?.(target.awemeId, { local: { ...target.local, state: "waiting" } }))
       .catch(() => autoSaved.current.delete(target.awemeId));
   }, [item, onItemPatch]);
+
+  // While a streamed work downloads, watch for it to land on the NAS.
+  const watchedId = item && watching === item.awemeId && item.local.state !== "downloaded" ? item.awemeId : null;
+  useEffect(() => {
+    if (!watchedId) return;
+    let stopped = false;
+    let checks = 0;
+    const timer = window.setInterval(() => {
+      checks += 1;
+      if (checks > 120) window.clearInterval(timer); // ten minutes is plenty for one work
+      fetchItem(watchedId)
+        .then((fresh) => {
+          if (stopped) return;
+          if (fresh.local.state === "downloaded" || fresh.local.state !== item?.local.state) {
+            onItemPatch?.(watchedId, { local: fresh.local, media: fresh.media });
+          }
+        })
+        .catch(() => undefined);
+    }, 5000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+    // item.local.state is read fresh on each tick through the closure's item.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedId, onItemPatch]);
 
   async function downloadNow(target: FeedItem | undefined = item) {
     if (!target) return;
@@ -565,7 +595,12 @@ function PlayerSlide({
   const backdrop = thumbnailCandidates(item)[0];
   const risk = unsavedWorkRisk(item);
   const streaming = !downloaded && canStream(item) && !streamFailed;
-  const source = video && downloaded ? video.url : streaming ? streamUrl(item.awemeId) : null;
+  const wanted = video && downloaded ? video.url : streaming ? streamUrl(item.awemeId) : null;
+  // Keep the stream that is already playing when the download lands; switching
+  // to the NAS file mid-play would start the video over.
+  const [firstSource] = useState(wanted);
+  const playingStream = firstSource !== null && firstSource === streamUrl(item.awemeId);
+  const source = playingStream && downloaded ? firstSource : wanted;
 
   const setVideo = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -635,6 +670,12 @@ function PlayerSlide({
                   {t("从头看")}
                 </button>
               </div>
+            ) : null}
+            {current && playingStream && downloaded ? (
+              <span className="player-streaming is-saved" role="status">
+                <CloudCheck size={14} weight="bold" />
+                {t("已存到 NAS，下次直接从 NAS 播放")}
+              </span>
             ) : null}
             {current && streaming ? (
               <span className="player-streaming" role="status">
