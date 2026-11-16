@@ -130,6 +130,35 @@ async def test_source_archive_expands_every_known_item_without_duplicate_jobs(
     assert batch.status == "running"
 
 
+async def test_source_archive_skips_works_without_media_details(archive_components) -> None:
+    database, archive, jobs, _batches, service = archive_components
+    library = LibraryRepository(database)
+    await library.upsert_source(
+        LibrarySource(
+            id="account:likes",
+            kind=LibrarySourceKind.LIKE,
+            remote_id="self",
+            name="喜欢",
+        )
+    )
+    await seed_item(archive, jobs, "734")
+    await archive.upsert_item(
+        remote_id="broken-liked-item",
+        author_name="作者",
+        description="无媒体详情",
+        item_type="video",
+    )
+    await library.link_source_item("account:likes", "734", "2")
+    await library.link_source_item(
+        "account:likes", "broken-liked-item", "1", {"remote_id": "wrong"}
+    )
+
+    batch = await service.archive_source("account:likes")
+
+    assert await jobs.count() == 1
+    assert batch.discovered_count == 1
+
+
 async def test_creator_archive_uses_stable_creator_identity(archive_components) -> None:
     database, archive, jobs, _batches, service = archive_components
     library = LibraryRepository(database)

@@ -52,9 +52,12 @@ class ArchiveService:
             "ORDER BY remote_order DESC, item_id DESC",
             (source_id,),
         )
-        return await self._archive_ids(
-            "source", source_id, (str(row["item_id"]) for row in rows)
+        # A list can hold ten thousand works: one without media details must not
+        # sink the rest, and chunked commits keep the request from timing out.
+        batch, _skipped = await self._archive_ids(
+            "source", source_id, (str(row["item_id"]) for row in rows), strict=False
         )
+        return batch
 
     async def archive_creator(self, creator_id: str) -> ArchiveBatch:
         creator = await self.db.fetchone(

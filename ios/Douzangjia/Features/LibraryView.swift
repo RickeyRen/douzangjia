@@ -80,6 +80,9 @@ struct LibraryView: View {
     @State private var search = ""
     @State private var sources: [LibrarySource] = []
     @State private var sourceId: String?
+    @State private var confirmingSourceSave = false
+    @State private var sourceSaveNotice: String?
+    @State private var sourceSaveError: String?
     @State private var options = FeedOptions()
     // Multi-select: tap tiles to pick, then star or file them all at once.
     @State private var selecting = false
@@ -105,6 +108,7 @@ struct LibraryView: View {
                     filterPicker
                     if query.isEmpty && !sources.isEmpty {
                         sourceChips
+                        if let source = selectedSource { sourceSaveRow(source) }
                     }
                     if !feed.creators.isEmpty {
                         creatorResults
@@ -462,6 +466,60 @@ struct LibraryView: View {
         }
         .pickerStyle(.segmented)
         .padding(.top, 4)
+    }
+
+    private var selectedSource: LibrarySource? {
+        sources.first { $0.id == sourceId }
+    }
+
+    /// How much of the chosen list is on the NAS, and a way to save the rest.
+    private func sourceSaveRow(_ source: LibrarySource) -> some View {
+        let missing = max(0, source.discoveredCount - source.archivedCount)
+        return HStack(spacing: 10) {
+            Text(sourceSaveError ?? sourceSaveNotice ?? "已存 \(Format.integer(source.archivedCount)) / \(Format.integer(source.discoveredCount))")
+                .font(.footnote)
+                .foregroundStyle(sourceSaveError != nil ? Color.orange : Theme.muted)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if missing > 0 && sourceSaveNotice == nil {
+                Button {
+                    confirmingSourceSave = true
+                } label: {
+                    Label("全部存到 NAS", systemImage: "icloud.and.arrow.down")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.glass)
+                .confirmationDialog(
+                    "把「\(source.title)」里还没存的 \(Format.integer(missing)) 个作品都存到 NAS？",
+                    isPresented: $confirmingSourceSave,
+                    titleVisibility: .visible
+                ) {
+                    Button("全部存到 NAS") { Task { await saveSource(source) } }
+                } message: {
+                    Text("会按现有下载节奏慢慢排队，可以在“下载”页看进度。")
+                }
+            }
+        }
+        .padding(.top, 2)
+        .onChange(of: sourceId) { _, _ in
+            sourceSaveNotice = nil
+            sourceSaveError = nil
+        }
+    }
+
+    private func saveSource(_ source: LibrarySource) async {
+        do {
+            let queued = try await model.client.archiveSource(source.id)
+            if queued == 0 {
+                sourceSaveError = "这些作品还没同步到下载信息，同步后再试"
+            } else {
+                sourceSaveError = nil
+                sourceSaveNotice = "已加入下载队列，可在“下载”页看进度"
+            }
+        } catch {
+            sourceSaveError = (error as? APIError)?.message ?? "没能加入下载队列，请稍后再试"
+            model.handle(error)
+        }
     }
 
     /// Likes, favourites, each folder…: one tap narrows the grid to that list.

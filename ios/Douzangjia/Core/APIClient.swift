@@ -314,6 +314,15 @@ final class APIClient {
         let _: EmptyBody = try await send("POST", "/api/archive/items/\(itemId)")
     }
 
+    /// Queues every work of one list (likes, a folder…) that is not on the NAS yet.
+    /// Answers how many works the batch took in; works Douyin gave no details for are skipped.
+    func archiveSource(_ sourceId: String) async throws -> Int {
+        struct Batch: Decodable { let discoveredCount: Int }
+        // appending(path:) escapes the id itself; escaping here too would double it.
+        let batch: Batch = try await send("POST", "/api/archive/sources/\(sourceId)")
+        return batch.discoveredCount
+    }
+
     func missingSummary() async throws -> MissingSummary { try await get("/api/archive/missing") }
 
     struct MissingQueued: Decodable {
