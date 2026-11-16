@@ -219,3 +219,35 @@ def test_refusals_pause_refresh_then_probe_and_resume(tmp_path: Path) -> None:
         await database.close()
 
     asyncio.run(scenario())
+
+
+def test_works_douyin_hides_are_settled_instead_of_read_as_a_refusal(tmp_path: Path) -> None:
+    """Catches ten deleted or private works at the head of the queue pausing all refreshes."""
+    from douyin_archive.media_refresh import BATCH_SIZE
+    from douyin_archive.provider.base import UNAVAILABLE_KEY
+
+    async def scenario() -> None:
+        database = await Database(tmp_path / "archive.sqlite3").open()
+        hidden = [str(1000 + index) for index in range(BATCH_SIZE)]
+        for remote_id in hidden:
+            await queue(database, remote_id, attempts=3, code="MEDIA_URL_EXPIRED")
+
+        async def fetch(ids: list[str]) -> list[dict]:
+            return [
+                {"aweme_id": item_id, UNAVAILABLE_KEY: "status_deleted" if item_id == hidden[0] else "status_self_see"}
+                for item_id in ids
+            ]
+
+        refresher = MediaUrlRefresher(database, fetch)
+        await refresher.run_batch()
+        await refresher.run_batch()
+        assert refresher.status() is None  # Douyin answered; nothing to cool down from
+        rows = {
+            row["remote_id"]: (row["status"], row["last_error_code"])
+            for row in await database.fetchall("SELECT remote_id, status, last_error_code FROM download_jobs")
+        }
+        assert rows[hidden[0]] == ("failed", "MEDIA_GONE")
+        assert rows[hidden[1]] == ("failed", "MEDIA_PRIVATE")
+        await database.close()
+
+    asyncio.run(scenario())

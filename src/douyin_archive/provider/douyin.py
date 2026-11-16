@@ -14,6 +14,7 @@ from ..browser_coordinator import BrowserCoordinator, CoordinatorPageLease
 from ..library_models import CreatorRecord
 from ..remote_availability import evidence_for_probe_response
 from .base import (
+    UNAVAILABLE_KEY,
     ProviderChanged,
     ProviderError,
     ProviderUnavailable,
@@ -364,8 +365,14 @@ class PlaywrightDouyinSource:
         if "douyin.com" not in str(self._page.url):
             await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         payload = await self._fetch_aweme_details(item_ids)
-        records = payload.get("aweme_list", [])
-        return [record for record in records if isinstance(record, dict)]
+        records = [record for record in payload.get("aweme_list", []) if isinstance(record, dict)]
+        # Works Douyin answered for but will not show come back as markers, so
+        # callers can tell "deleted / private" from "no answer at all".
+        verdicts = payload.get("unavailable") or {}
+        return records + [
+            {"aweme_id": str(item_id), UNAVAILABLE_KEY: str(reason)}
+            for item_id, reason in verdicts.items()
+        ]
 
     async def fetch_creator_profile_payload(self, creator_id: str) -> dict[str, Any]:
         """Douyin's own profile record, which also states bans and closed accounts."""
@@ -1108,6 +1115,8 @@ class PlaywrightDouyinSource:
                     """
             async ({ids, path}) => { // __yingcangFetchDetails
               const misses = [];
+              // Douyin's own verdict on a work it will not show: deleted, private...
+              const unavailable = {};
               const fetchOne = async (id) => {
                 const url = new URL(path, window.location.origin);
                 url.searchParams.set('aweme_id', id);
@@ -1131,6 +1140,8 @@ class PlaywrightDouyinSource:
                     }
                     const data = JSON.parse(text);
                     const record = data?.aweme_detail || data?.aweme_list?.[0] || null;
+                    const verdict = data?.filter_detail?.filter_reason;
+                    if (!record && verdict) unavailable[id] = String(verdict);
                     if (!record) {
                       misses.push(data?.filter_detail?.filter_reason
                         || `empty status=${data?.status_code} len=${text.length}`);
@@ -1159,7 +1170,7 @@ class PlaywrightDouyinSource:
               const workerCount = Math.min(4, ids.length);
               const workers = Array.from({length: workerCount}, () => worker());
               await Promise.all(workers);
-              return {status_code: 0, aweme_list: records.filter(Boolean), misses: misses.slice(0, 5)};
+              return {status_code: 0, aweme_list: records.filter(Boolean), misses: misses.slice(0, 5), unavailable};
             }
             """,
                     {"ids": missing_ids, "path": self.DETAIL_PATH},
@@ -1174,6 +1185,7 @@ class PlaywrightDouyinSource:
                     self._remember_item_records(payload)
                     return {
                         **payload,
+                        "unavailable": dict(payload.get("unavailable") or {}),
                         "status_code": 0,
                         "aweme_list": [
                             self._captured_item_payloads[item_id]

@@ -9,6 +9,7 @@ from typing import Any
 
 from .archive_repository import ArchiveBatchRepository
 from .db import Database
+from .provider.base import UNAVAILABLE_KEY
 from .provider.normalizers import normalize_page
 from .worker import MEDIA_URL_EXPIRED
 
@@ -96,13 +97,22 @@ class MediaUrlRefresher:
                 logger.warning("media URL refresh failed for %s items", len(ids), exc_info=True)
                 failed = True
                 break
+            unavailable = {
+                str(record.get("aweme_id")): str(record[UNAVAILABLE_KEY])
+                for record in records
+                if isinstance(record, dict) and UNAVAILABLE_KEY in record
+            }
             fresh = {
                 item.remote_id: item
-                for item in normalize_page({"aweme_list": list(records)}).items
+                for item in normalize_page(
+                    {"aweme_list": [r for r in records if UNAVAILABLE_KEY not in r]}
+                ).items
                 if item.assets
             }
-            answered += len(fresh)
-            if not fresh:
+            # A work Douyin says is deleted or private is an answer, not a refusal:
+            # ten of those at the head of the queue paused refreshing for days.
+            answered += len(fresh) + len(unavailable)
+            if not fresh and not unavailable:
                 logger.warning(
                     "media URL refresh got %s records, none with media, for %s items in %.1fs",
                     len(records),
@@ -126,6 +136,14 @@ class MediaUrlRefresher:
                         (json.dumps(asdict(item), separators=(",", ":")), now, row["id"]),
                     )
                     refreshed += 1
+                elif str(row["remote_id"]) in unavailable:
+                    reason = unavailable[str(row["remote_id"])]
+                    await self.db.execute(
+                        "UPDATE download_jobs SET status='failed', claimed_by=NULL, "
+                        "last_error_code=?, updated_at=? WHERE id=? AND status='retry'",
+                        ("MEDIA_GONE" if reason == "status_deleted" else "MEDIA_PRIVATE", now, row["id"]),
+                    )
+                    await self._refresh_batch(row["id"])
                 elif int(row["attempts"]) >= MAX_UNAVAILABLE_ATTEMPTS:
                     await self.db.execute(
                         "UPDATE download_jobs SET status='failed', claimed_by=NULL, "

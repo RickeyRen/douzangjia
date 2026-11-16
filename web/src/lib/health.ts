@@ -29,6 +29,7 @@ const ERROR_TEXT: Record<string, string> = {
   MEDIA_URL_UNAVAILABLE: "暂时拿不到新的下载链接",
   MEDIA_HTTP_ERROR: "抖音服务器拒绝了下载",
   MEDIA_GONE: "抖音上已找不到这个作品",
+  MEDIA_PRIVATE: "作者把作品设成了仅自己可见",
   CREATOR_SYNC_FAILED: "博主作品同步失败",
   DOUYIN_PAGE_CRASHED: "后台页面多次崩溃，已重开仍未完成",
   SYNC_FAILED: "同步意外中断",

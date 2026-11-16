@@ -6,6 +6,10 @@ from typing import Protocol
 
 from ..models import RemoteItem
 
+# Marks a detail record standing in for a work Douyin answered for but will
+# not show; the value is Douyin's reason, e.g. "status_deleted".
+UNAVAILABLE_KEY = "__unavailable"
+
 
 class ProviderError(Exception):
     code = "PROVIDER_ERROR"
