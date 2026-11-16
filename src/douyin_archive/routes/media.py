@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import mimetypes
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
+from ..live_stream import PASS_HEADERS, LiveStreamResolver, StreamUnavailable
 from ..posters import PosterCache
 
 router = APIRouter(prefix="/api")
@@ -131,4 +132,60 @@ async def media(media_id: int, request: Request):
         # iOS players refuse octet-stream; fall back to the file's extension.
         media_type=row["mime_type"] or mimetypes.guess_type(path.name)[0] or "application/octet-stream",
         headers=headers,
+    )
+
+
+def _live_stream(request: Request) -> LiveStreamResolver | None:
+    state = request.app.state
+    resolver = getattr(state, "live_stream", None)
+    if resolver is not None:
+        return resolver
+    runtime = getattr(state, "runtime", None)
+    if runtime is None or not hasattr(runtime, "http"):
+        return None
+    resolver = LiveStreamResolver(
+        state.database,
+        runtime.http,
+        fetch_records=runtime.sync.fetch_item_records,
+        refresh_links=runtime.jobs.refresh_links,
+    )
+    state.live_stream = resolver
+    return resolver
+
+
+@router.get("/items/{remote_id}/stream")
+async def item_stream(remote_id: str, request: Request):
+    """A work not saved yet, relayed from Douyin so it plays while it downloads."""
+    database = request.app.state.database
+    if await database.fetchone("SELECT 1 FROM items WHERE remote_id=?", (remote_id,)) is None:
+        return JSONResponse(
+            status_code=404, content={"code": "ITEM_NOT_FOUND", "message": "归档作品不存在"}
+        )
+    resolver = _live_stream(request)
+    if resolver is None:
+        return JSONResponse(
+            status_code=503, content={"code": "STREAM_UNAVAILABLE", "message": "在线播放暂不可用"}
+        )
+    try:
+        upstream = await resolver.open(remote_id, request.headers.get("Range"))
+    except StreamUnavailable:
+        return JSONResponse(
+            status_code=409,
+            content={"code": "STREAM_UNAVAILABLE", "message": "抖音暂时没给出这个视频，存好后就能播放"},
+        )
+    headers = {name: upstream.headers[name] for name in PASS_HEADERS if name in upstream.headers}
+    headers.setdefault("Accept-Ranges", "bytes")
+    headers["Cache-Control"] = "private, no-store"
+
+    async def body() -> AsyncIterator[bytes]:
+        try:
+            # Mock and already-buffered responses only replay through aiter_bytes.
+            chunks = upstream.aiter_bytes() if upstream.is_stream_consumed else upstream.aiter_raw()
+            async for chunk in chunks:
+                yield chunk
+        finally:
+            await upstream.aclose()
+
+    return StreamingResponse(
+        body(), status_code=upstream.status_code, media_type="video/mp4", headers=headers
     )

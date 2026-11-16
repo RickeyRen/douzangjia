@@ -4941,6 +4941,24 @@ video {
   pointer-events: none;
 }
 
+.player-streaming {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+  background: rgb(0 0 0 / 55%);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
 .player-resume {
   position: absolute;
   bottom: 96px;

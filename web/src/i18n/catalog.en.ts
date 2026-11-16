@@ -259,6 +259,8 @@ export const en: Record<string, string> = {
   "相册还是空的": "This album is empty",
   "空格": "Space",
   "立即下载": "Download now",
+  "边看边存到 NAS…": "Saving to your NAS while you watch…",
+  "从抖音播放，同时存到 NAS": "Playing from Douyin, saving to your NAS",
   "立即同步": "Sync now",
   "第一次同步没有成功，可以重新开始，或者到状态页查看原因。": "The first sync did not finish; start again or see why on the status page.",
   "等待重试": "Waiting to retry",

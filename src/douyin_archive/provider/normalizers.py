@@ -85,6 +85,27 @@ def _asset_url(container: Any) -> tuple[str | None, int | None]:
     return url, size
 
 
+# Douyin's own player endpoint: given a video's uri it redirects to a freshly
+# signed CDN link, so a queued download never meets an expired signature. The
+# signed links in list answers expire within hours, and some list answers now
+# carry "web-prime" links that refuse every client outside Douyin's page.
+STABLE_PLAY_ENDPOINT = "https://www.douyin.com/aweme/v1/play/"
+
+
+def stable_play_url(address: Any) -> str | None:
+    if not isinstance(address, dict):
+        return None
+    uri = str(address.get("uri") or "").strip()
+    # Galleries carry their soundtrack here; that uri is already a full URL.
+    if not uri or "/" in uri or not uri.isascii() or not uri.replace("_", "").isalnum():
+        return None
+    return f"{STABLE_PLAY_ENDPOINT}?video_id={uri}&ratio=1080p&line=0"
+
+
+def is_stable_play_url(url: str) -> bool:
+    return url.startswith(STABLE_PLAY_ENDPOINT + "?")
+
+
 def _first_cover(video: dict[str, Any]) -> str | None:
     for cover_key in ("cover", "origin_cover", "originCover", "dynamic_cover"):
         cover_url, _ = _asset_url(video.get(cover_key))
@@ -152,6 +173,11 @@ def _normalize_item(record: dict[str, Any]) -> RemoteItem | None:
         item_type = "video"
         address = video.get("play_addr", video.get("playAddr"))
         url, size = _asset_url(address)
+        stable = stable_play_url(address)
+        if stable:
+            # The player endpoint picks the rendition itself, so the list's
+            # byte count may describe another one; trust the response instead.
+            url, size = stable, None
         if url:
             assets.append(MediaAsset(remote_id, 0, "video", url, "video/mp4", size))
         cover_url = _first_cover(video)

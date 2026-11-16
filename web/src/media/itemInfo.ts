@@ -1,4 +1,5 @@
 import type { FeedItem } from "../app/api";
+import { unsavedWorkRisk } from "../lib/creatorArchive";
 
 /** A stable, pleasant hue per item so cover-less tiles look designed, not broken. */
 export function placeholderStyle(id: string): { background: string } {
@@ -38,4 +39,13 @@ export function aspectOf(item: FeedItem): number {
   const technical = item.media[0]?.technical;
   if (technical?.width && technical.height) return Math.min(1.78, Math.max(0.56, technical.width / technical.height));
   return 0.75;
+}
+
+/** A video not on the NAS yet that the NAS can relay from Douyin while saving it. */
+export function canStream(item: FeedItem): boolean {
+  return item.type === "video" && item.local.state !== "downloaded" && unsavedWorkRisk(item) !== "lost";
+}
+
+export function streamUrl(awemeId: string): string {
+  return `/api/items/${encodeURIComponent(awemeId)}/stream`;
 }

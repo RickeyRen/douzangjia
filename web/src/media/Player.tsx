@@ -26,7 +26,7 @@ import { Avatar, Spinner } from "../ui/primitives";
 import { AddToAlbumButton, NoteEditor, TagEditor } from "./Organize";
 import { usePlaybackResume } from "./usePlaybackResume";
 import { VideoControls } from "./VideoControls";
-import { douyinUrl, itemDurationMs, itemTitle, thumbnailCandidates } from "./itemInfo";
+import { canStream, douyinUrl, itemDurationMs, itemTitle, streamUrl, thumbnailCandidates } from "./itemInfo";
 import { t } from "../i18n/t";
 
 const MUTED_KEY = "douzangjia.player.muted";
@@ -109,6 +109,9 @@ export function Player({
   const [panelOpen, setPanelOpen] = useState(() => isDesktop() && readFlag(PANEL_KEY, false));
   const [imageIndex, setImageIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const autoSaved = useRef(new Set<string>());
+  // Works Douyin would not hand over just now; they fall back to the cover page.
+  const [streamFailed, setStreamFailed] = useState<ReadonlySet<string>>(() => new Set());
   const stageRef = useRef<HTMLDivElement>(null);
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<number | undefined>(undefined);
@@ -346,6 +349,17 @@ export function Player({
     }
   }
 
+  // Opening a work that is not saved yet plays it from Douyin and saves it.
+  useEffect(() => {
+    if (!item || !canStream(item) || autoSaved.current.has(item.awemeId)) return;
+    if (item.local.state === "waiting" || item.local.state === "downloading") return;
+    autoSaved.current.add(item.awemeId);
+    const target = item;
+    archiveItem(target.awemeId)
+      .then(() => onItemPatch?.(target.awemeId, { local: { ...target.local, state: "waiting" } }))
+      .catch(() => autoSaved.current.delete(target.awemeId));
+  }, [item, onItemPatch]);
+
   async function downloadNow(target: FeedItem | undefined = item) {
     if (!target) return;
     try {
@@ -369,7 +383,7 @@ export function Player({
 
   const name = item.creator?.nickname || item.author;
   const currentVideo = item.media.find((media) => media.type === "video");
-  const playable = Boolean(currentVideo) && item.local.state === "downloaded";
+  const playable = (Boolean(currentVideo) && item.local.state === "downloaded") || (canStream(item) && !streamFailed.has(item.awemeId));
   // Previous, current and next sit on one track; keys keep each slide's element
   // (and the next video's preloaded buffer) when the window moves.
   const slides = [-1, 0, 1]
@@ -412,6 +426,8 @@ export function Player({
                 if (autoNext && !atEnd) go(1);
               }}
               onDownload={() => void downloadNow(slide)}
+              streamFailed={streamFailed.has(slide.awemeId)}
+              onStreamError={() => setStreamFailed((failed) => new Set(failed).add(slide.awemeId))}
             />
           ))}
         </div>
@@ -525,6 +541,8 @@ function PlayerSlide({
   onMutedChange,
   onEnded,
   onDownload,
+  streamFailed,
+  onStreamError,
 }: {
   item: FeedItem;
   offset: number;
@@ -535,6 +553,8 @@ function PlayerSlide({
   onMutedChange: (muted: boolean) => void;
   onEnded: () => void;
   onDownload: () => void;
+  streamFailed: boolean;
+  onStreamError: () => void;
 }) {
   const current = offset === 0;
   const element = useRef<HTMLVideoElement | null>(null);
@@ -544,6 +564,8 @@ function PlayerSlide({
   const downloaded = item.local.state === "downloaded";
   const backdrop = thumbnailCandidates(item)[0];
   const risk = unsavedWorkRisk(item);
+  const streaming = !downloaded && canStream(item) && !streamFailed;
+  const source = video && downloaded ? video.url : streaming ? streamUrl(item.awemeId) : null;
 
   const setVideo = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -579,18 +601,19 @@ function PlayerSlide({
     <div className="player-slide" style={{ transform: `translate3d(0, ${offset * 100}%, 0)` }} aria-hidden={!current}>
       {backdrop ? <div className="player-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} /> : null}
       <div className="player-media">
-        {video && downloaded ? (
+        {source ? (
           <>
             <video
               ref={setVideo}
-              src={video.url}
-              poster={video.posterUrl}
+              src={source}
+              poster={downloaded ? video?.posterUrl : undefined}
               // Only the next page buffers ahead; the previous one just keeps its frame.
               preload={offset >= 0 ? "auto" : "metadata"}
               playsInline
               muted={muted}
               loop={loop}
               onClick={togglePlay}
+              onError={streaming ? onStreamError : undefined}
               onPlay={() => setPaused(false)}
               onPause={(event) => {
                 setPaused(current && !event.currentTarget.ended);
@@ -612,6 +635,12 @@ function PlayerSlide({
                   {t("从头看")}
                 </button>
               </div>
+            ) : null}
+            {current && streaming ? (
+              <span className="player-streaming" role="status">
+                <CloudArrowDown size={14} weight="bold" />
+                {item.local.state === "downloading" ? t("边看边存到 NAS…") : t("从抖音播放，同时存到 NAS")}
+              </span>
             ) : null}
             {current && paused ? (
               <span className="player-paused" aria-hidden="true">
@@ -896,3 +925,4 @@ function DetailPanel({
     </aside>
   );
 }
+

@@ -36,6 +36,12 @@ final class APIClient {
         return URL(string: path, relativeTo: baseURL)?.absoluteURL
     }
 
+    /// A work not on the NAS yet, relayed from Douyin by the NAS while it downloads.
+    func streamURL(_ itemId: String) -> URL? {
+        let id = itemId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? itemId
+        return resolve("/api/items/\(id)/stream")
+    }
+
     var cookies: [HTTPCookie] { HTTPCookieStorage.shared.cookies(for: baseURL) ?? [] }
 
     func clearCookies() {

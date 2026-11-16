@@ -130,13 +130,25 @@ it("asks for the next page before reaching the end", () => {
   expect(onLoadMore).toHaveBeenCalled();
 });
 
-it("offers to download an item that is not on the NAS yet", async () => {
+it("plays an item that is not on the NAS yet from Douyin and saves it", async () => {
+  const failed = makeItem({ awemeId: "7000000000000000104", media: [], local: { state: "failed", readyAssets: 0, totalAssets: 1, downloadedBytes: 0, totalBytes: null } });
+  const { onItemPatch } = renderPlayer({ items: [failed], index: 0 });
+
+  const video = document.querySelector("video")!;
+  expect(video.getAttribute("src")).toBe(`/api/items/${failed.awemeId}/stream`);
+  expect(screen.getByText("从抖音播放，同时存到 NAS")).toBeInTheDocument();
+  await vi.waitFor(() => expect(api.archiveItem).toHaveBeenCalledWith(failed.awemeId));
+  expect(onItemPatch).toHaveBeenCalledWith(failed.awemeId, { local: { ...failed.local, state: "waiting" } });
+});
+
+it("falls back to the download offer when Douyin will not hand the video over", async () => {
   const user = userEvent.setup();
   const { onItemPatch } = renderPlayer({ index: 2 });
 
-  expect(screen.getByText("这个作品还没有下载到 NAS。")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "立即下载" }));
+  fireEvent.error(document.querySelector(".player-slide[aria-hidden='false'] video")!);
 
+  expect(await screen.findByText("这个作品还没有下载到 NAS。")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "立即下载" }));
   expect(api.archiveItem).toHaveBeenCalledWith(items[2].awemeId);
   expect(onItemPatch).toHaveBeenCalledWith(items[2].awemeId, { local: { ...items[2].local, state: "waiting" } });
 });

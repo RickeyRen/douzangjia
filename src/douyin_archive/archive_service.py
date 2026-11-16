@@ -9,6 +9,7 @@ from .archive_repository import ArchiveBatch, ArchiveBatchRepository
 from .db import Database
 from .download_policy import DownloadPolicyService
 from .library_scope import library_item_sql
+from .provider.normalizers import is_stable_play_url
 from .repositories import JobRepository
 
 
@@ -179,6 +180,11 @@ class ArchiveService:
                     raise ArchivePayloadUnavailable(item_id)
             else:
                 payload = job.payload
+                if kind == "item" and not _has_stable_link(payload):
+                    # A sync may have seen it since with a link that never expires.
+                    synced = await self._synced_payload(item_id)
+                    if synced is not None and _has_stable_link(synced):
+                        payload = synced
             job = await self.download_policy.record_intent(
                 item_id, "manual", f"{kind}:{target_id}", payload
             )
@@ -187,8 +193,26 @@ class ArchiveService:
                 "WHERE id=?",
                 (batch.id, job.id),
             )
+            if kind == "item":
+                await self._jump_queue(job.id)
             await self.batches.add_item(batch.id, item_id, job_id=job.id)
         return skipped
+
+    async def _jump_queue(self, job_id: int) -> None:
+        """Someone asked for this one work: download it next.
+
+        Workers take the smallest next_attempt_at first, and fresh links sit at 0,
+        so the newest request goes below zero. A job waiting out a retry backoff
+        starts now as well; otherwise "save now" did nothing for hours.
+        """
+        now = int(time.time())
+        await self.db.execute(
+            "UPDATE download_jobs SET status='pending', next_attempt_at=?, claimed_by=NULL, "
+            "last_error_code=NULL, updated_at=? "
+            "WHERE id=? AND status IN ('pending', 'retry') AND paused_at IS NULL "
+            "AND cancel_requested_at IS NULL",
+            (-now, now, job_id),
+        )
 
     async def _synced_payload(self, item_id: str) -> dict[str, object] | None:
         rows = await self.db.fetchall(
@@ -215,3 +239,11 @@ class ArchiveService:
                 continue
             return payload
         return None
+
+
+def _has_stable_link(payload: dict[str, object]) -> bool:
+    assets = payload.get("assets")
+    return isinstance(assets, list) and any(
+        isinstance(asset, dict) and is_stable_play_url(str(asset.get("url") or ""))
+        for asset in assets
+    )

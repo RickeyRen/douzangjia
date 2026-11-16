@@ -6,12 +6,20 @@ struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var items: [FeedItem]
     @State private var current: String?
+    /// Placed on the tapped work before the first layout. Scrolling there from
+    /// onAppear raced the lazy stack: opening the second work showed the first
+    /// one, frozen, because the page on screen was not the "current" one.
+    @State private var position: ScrollPosition
+    /// The page actually on screen, as the scroll view reports it.
+    @State private var visible: String?
     @State private var galleryZoomed = false
     var onItemChange: (FeedItem) -> Void = { _ in }
 
     init(items: [FeedItem], startIndex: Int, onItemChange: @escaping (FeedItem) -> Void = { _ in }) {
         _items = State(initialValue: items)
-        _current = State(initialValue: items.indices.contains(startIndex) ? items[startIndex].id : items.first?.id)
+        let start = items.indices.contains(startIndex) ? items[startIndex].id : items.first?.id
+        _current = State(initialValue: start)
+        _position = State(initialValue: start.map { ScrollPosition(id: $0, anchor: .top) } ?? ScrollPosition(idType: String.self))
         self.onItemChange = onItemChange
     }
 
@@ -26,25 +34,37 @@ struct PlayerView: View {
     }
 
     private var pager: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical) {
-                LazyVStack(spacing: 0) {
-                    ForEach($items) { $item in
-                        PlayerPage(item: $item, isCurrent: current == item.id, galleryZoomed: $galleryZoomed, onItemChange: onItemChange)
-                            .containerRelativeFrame([.horizontal, .vertical])
-                            .id(item.id)
-                    }
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                ForEach($items) { $item in
+                    PlayerPage(item: $item, isCurrent: current == item.id, galleryZoomed: $galleryZoomed, onItemChange: onItemChange)
+                        .containerRelativeFrame([.horizontal, .vertical])
+                        .id(item.id)
                 }
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.paging)
-            // A zoomed-in image pans instead of moving to the next item.
-            .scrollDisabled(galleryZoomed)
-            .scrollPosition(id: $current)
-            .scrollIndicators(.hidden)
-            // The lazy stack ignores the initial position until it has laid out.
-            .onAppear { if let current { proxy.scrollTo(current, anchor: .top) } }
+            .scrollTargetLayout()
         }
+        .scrollTargetBehavior(.paging)
+        // A zoomed-in image pans instead of moving to the next item.
+        .scrollDisabled(galleryZoomed)
+        .scrollPosition($position)
+        .onChange(of: position.viewID(type: String.self)) { _, id in
+            if let id { current = id }
+        }
+        // The paging stack can still land on the first page while it lays out;
+        // put it back on the tapped work until the two agree.
+        .task {
+            guard let start = current else { return }
+            for _ in 0..<5 {
+                try? await Task.sleep(for: .milliseconds(120))
+                if visible == start { return }
+                position.scrollTo(id: start, anchor: .top)
+            }
+        }
+        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.6) { ids in
+            visible = ids.first
+        }
+        .scrollIndicators(.hidden)
         .ignoresSafeArea()
         .background(.black)
         .environment(\.colorScheme, .dark)
@@ -79,8 +99,14 @@ private struct PlayerPage: View {
     @State private var shareError: String?
 
     private var playableURL: URL? {
-        guard !item.isGallery, let file = item.media.first(where: \.isVideo) else { return nil }
-        return model.client.resolve(file.url)
+        guard !item.isGallery else { return nil }
+        if let file = item.media.first(where: \.isVideo) { return model.client.resolve(file.url) }
+        return streaming ? model.client.streamURL(item.id) : nil
+    }
+
+    /// Not on the NAS yet: the NAS relays it from Douyin while it downloads.
+    private var streaming: Bool {
+        !item.isGallery && !item.isSaved && !item.videoIsLost && !video.failed
     }
 
     var body: some View {
@@ -100,6 +126,15 @@ private struct PlayerPage: View {
     private var content: some View {
         if let url = playableURL {
             VideoPage(video: video, url: url, cookies: model.client.cookies, isCurrent: isCurrent, loadResume: loadResume)
+                .overlay(alignment: .top) {
+                    if streaming && isCurrent { streamingChip }
+                }
+                .task(id: isCurrent) {
+                    // Opening a work that is not saved yet also saves it.
+                    guard isCurrent, streaming, !queued,
+                          item.local?.state != "waiting", item.local?.state != "downloading" else { return }
+                    await save()
+                }
                 .onAppear {
                     let client = model.client
                     let itemId = item.id
@@ -138,6 +173,17 @@ private struct PlayerPage: View {
     /// Gallery stills only; a gallery's soundtrack is saved as a separate file.
     private var galleryImages: [MediaFile] {
         item.media.filter { !$0.isVideo && !($0.mimeType ?? "").hasPrefix("audio/") && $0.type != "audio" }
+    }
+
+    private var streamingChip: some View {
+        Label(item.local?.state == "downloading" ? "边看边存到 NAS…" : "从抖音播放，同时存到 NAS",
+              systemImage: "icloud.and.arrow.down")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(.top, 60)
+            .allowsHitTesting(false)
     }
 
     private var statusText: String {
@@ -357,6 +403,9 @@ final class VideoController {
     var resumedAt: Double?
     /// Hands (position, duration) in ms to whoever keeps them on the NAS.
     var onSave: ((Int, Int) -> Void)?
+    /// The video could not be loaded, e.g. Douyin would not hand an unsaved one over.
+    private(set) var failed = false
+    private var statusObservation: NSKeyValueObservation?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var lastSave = Date.distantPast
@@ -383,6 +432,10 @@ final class VideoController {
         let item = AVPlayerItem(asset: asset)
         let next = AVPlayer(playerItem: item)
         next.actionAtItemEnd = .none
+        statusObservation = item.observe(\.status) { [weak self] observed, _ in
+            guard observed.status == .failed else { return }
+            DispatchQueue.main.async { self?.failed = true }
+        }
         // play() starts at defaultRate, so a chosen speed survives pause and loop.
         next.defaultRate = speed
         endObserver = NotificationCenter.default.addObserver(
