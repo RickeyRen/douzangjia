@@ -1144,7 +1144,7 @@ class PlaywrightDouyinSource:
                     } catch {
                       // An empty or HTML body is Douyin turning the request away;
                       // asking again at once only adds to the load it is refusing.
-                      const head = text.slice(0, 40).replace(/\s+/g, ' ');
+                      const head = text.slice(0, 40).replace(/\\s+/g, ' ');
                       misses.push(`nonjson len=${text.length} ${head}`);
                       return null;
                     }
