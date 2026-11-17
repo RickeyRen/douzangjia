@@ -527,6 +527,9 @@ class PlaywrightDouyinSource:
                       statusCode: Number.isFinite(Number(data?.status_code))
                         ? Number(data.status_code) : null,
                       hasItem: Boolean(item),
+                      // An empty or HTML body is Douyin turning us away, not an answer.
+                      answered: data !== null && typeof data === 'object',
+                      reason: String(data?.filter_detail?.filter_reason || ''),
                     };
                   } catch {
                     return {httpStatus: 0, statusCode: null, hasItem: false};
@@ -551,6 +554,8 @@ class PlaywrightDouyinSource:
             http_status=http_status,
             status_code=status_code,
             has_item=bool(result.get("hasItem")),
+            answered=bool(result.get("answered", True)),
+            reason=str(result.get("reason") or ""),
         )
 
     async def _recycle_page(self) -> None:

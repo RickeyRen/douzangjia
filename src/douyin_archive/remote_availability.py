@@ -21,7 +21,12 @@ def status_for_evidence(evidence_code: str) -> str:
 
 
 def evidence_for_probe_response(
-    *, http_status: int, status_code: int | None, has_item: bool
+    *,
+    http_status: int,
+    status_code: int | None,
+    has_item: bool,
+    answered: bool = True,
+    reason: str = "",
 ) -> str:
     if http_status == 429:
         return "RATE_LIMITED"
@@ -33,9 +38,20 @@ def evidence_for_probe_response(
         return "NETWORK_TIMEOUT"
     if status_code == 429:
         return "RATE_LIMITED"
+    if not answered:
+        # Douyin answers 200 with an empty body when it will not serve us; reading
+        # that as "not found" marked dozens of live works deleted in a few hours.
+        return "RATE_LIMITED"
     if status_code not in {None, 0}:
         return "DOUYIN_RESPONSE_CHANGED"
-    return "OK" if has_item else "ITEM_NOT_FOUND"
+    if has_item:
+        return "OK"
+    # Douyin says why it will not show a work; only "deleted" means deleted.
+    if reason == "status_self_see":
+        return "ITEM_PRIVATE"
+    if reason.startswith("status_audit"):
+        return "ITEM_RESTRICTED"
+    return "ITEM_NOT_FOUND"
 
 
 class RemoteAvailabilityService:

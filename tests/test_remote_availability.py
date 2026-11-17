@@ -58,6 +58,28 @@ def test_probe_response_requires_explicit_evidence(
     )
 
 
+@pytest.mark.parametrize(
+    ("answered", "reason", "expected"),
+    [
+        (False, "", "RATE_LIMITED"),
+        (True, "status_self_see", "ITEM_PRIVATE"),
+        (True, "status_audit_ing", "ITEM_RESTRICTED"),
+        (True, "status_deleted", "ITEM_NOT_FOUND"),
+    ],
+)
+def test_probe_reads_empty_bodies_as_refusals_and_douyins_reasons(
+    answered: bool, reason: str, expected: str
+) -> None:
+    module = importlib.import_module("douyin_archive.remote_availability")
+
+    assert (
+        module.evidence_for_probe_response(
+            http_status=200, status_code=None, has_item=False, answered=answered, reason=reason
+        )
+        == expected
+    )
+
+
 async def test_remote_check_preserves_last_known_available_time(tmp_path: Path) -> None:
     """Catches later uncertainty erasing the last positive remote observation."""
     module = importlib.import_module("douyin_archive.remote_availability")
