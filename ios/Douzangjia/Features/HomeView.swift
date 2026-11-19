@@ -72,7 +72,8 @@ struct HomeView: View {
             .navigationDestination(for: GoneWorksRoute.self) { _ in GoneWorksView() }
             .navigationDestination(for: CreatorsRoute.self) { _ in CreatorsView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
-            .fullScreenCover(item: $player) { selection in
+            // Watching saves works and moves "continue watching" along; show both on return.
+            .fullScreenCover(item: $player, onDismiss: { Task { await load() } }) { selection in
                 PlayerView(items: selection.items, startIndex: selection.index)
             }
             .alert(saveAllNotice ?? "", isPresented: Binding(
