@@ -343,6 +343,42 @@ async def test_account_sources_persist_browsable_items_without_auto_download(
     assert await jobs.count() == 0
 
 
+async def test_full_run_starts_with_the_list_longest_without_a_full_pass(
+    sync_components,
+) -> None:
+    database, archive, jobs = sync_components
+    await LibraryRepository(database).ensure_account_sources()
+    await database.execute(
+        "UPDATE library_sources SET last_full_scan_at=CASE kind "
+        "WHEN 'post' THEN 300 WHEN 'like' THEN 200 WHEN 'favorite_video' THEN 100 END "
+        "WHERE remote_id='self'"
+    )
+    order: list[str] = []
+
+    class AccountProvider:
+        async def list_collections(self) -> list[RemoteCollection]:
+            return []
+
+        async def iter_collection_pages(self, remote_id: str, *, full_scan: bool):
+            if False:
+                yield remote_id, full_scan
+
+        def supported_account_sources(self) -> tuple[str, ...]:
+            return ("post", "like", "favorite_video")
+
+        async def iter_account_pages(self, kind: str, *, full_scan: bool):
+            order.append(kind)
+            if False:
+                yield kind
+
+    await SyncService(AccountProvider(), archive, jobs).run(full_scan=True)
+    assert order == ["favorite_video", "like", "post"]
+
+    order.clear()
+    await SyncService(AccountProvider(), archive, jobs).run(full_scan=False)
+    assert order == ["post", "like", "favorite_video"]
+
+
 async def test_full_account_scan_reconciles_an_empty_remote_source(
     sync_components,
 ) -> None:

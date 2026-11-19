@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
@@ -222,7 +223,7 @@ class SyncService:
                 )
             supported_account_sources = getattr(self.provider, "supported_account_sources", None)
             if callable(supported_account_sources):
-                for source_kind in supported_account_sources():
+                for source_kind in await self._scan_order(supported_account_sources(), full_scan):
                     source_row = await self.db.fetchone(
                         "SELECT id, name, last_full_scan_at, last_incremental_scan_at "
                         "FROM library_sources WHERE kind=? AND remote_id='self'",
@@ -361,7 +362,7 @@ class SyncService:
                 self.provider, "supported_account_entity_sources", None
             )
             if callable(supported_entity_sources):
-                for source_kind in supported_entity_sources():
+                for source_kind in await self._scan_order(supported_entity_sources(), full_scan):
                     source_row = await self.db.fetchone(
                         "SELECT id, name, last_full_scan_at, last_incremental_scan_at "
                         "FROM library_sources WHERE kind=? AND remote_id='self'",
@@ -469,6 +470,24 @@ class SyncService:
             (discovered, enqueued, int(time.time()), run_id),
         )
         return SyncResult(run_id, "completed", discovered, enqueued)
+
+    async def _scan_order(self, kinds: Iterable[str], full_scan: bool) -> list[str]:
+        """Full runs start with the list that went longest without one.
+
+        A full run that hits its time limit always lost the same lists at the
+        end, so those went weeks without a complete pass.
+        """
+        ordered = list(kinds)
+        if not full_scan:
+            return ordered
+        rows = await self.db.fetchall(
+            "SELECT kind, last_full_scan_at FROM library_sources WHERE remote_id='self'"
+        )
+        last = {str(row["kind"]): row["last_full_scan_at"] for row in rows}
+        return sorted(
+            ordered,
+            key=lambda kind: (last.get(kind) is not None, int(last.get(kind) or 0)),
+        )
 
     async def _mark_running_sources_failed(self, error_code: str) -> None:
         await self.db.execute(
