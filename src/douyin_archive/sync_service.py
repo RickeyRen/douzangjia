@@ -457,6 +457,16 @@ class SyncService:
                         )
                     )
         except ProviderError as error:
+            # Only the code reaches sync_runs; without this line an unattended
+            # NAS keeps no trace of which step tripped the provider.
+            cause = error.__cause__
+            logger.warning(
+                "Sync failed run_id=%s code=%s: %s%s",
+                run_id,
+                error.code,
+                error,
+                f" (cause: {type(cause).__name__}: {cause})" if cause else "",
+            )
             await self._mark_running_sources_failed(error.code)
             return await self._finish_failed(run_id, discovered, enqueued, error.code)
         except Exception:

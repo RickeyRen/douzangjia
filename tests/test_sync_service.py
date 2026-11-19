@@ -263,6 +263,24 @@ async def test_sync_failure_records_stable_error_code(sync_components) -> None:
     assert row["error_code"] == "DOUYIN_SESSION_EXPIRED"
 
 
+async def test_provider_failure_logs_the_reason(sync_components, caplog) -> None:
+    class FailingProvider(FakeProvider):
+        async def list_collections(self) -> list[RemoteCollection]:
+            from douyin_archive.provider.base import ProviderChanged
+
+            try:
+                raise TimeoutError("tab never loaded")
+            except TimeoutError as error:
+                raise ProviderChanged("account tab did not become active") from error
+
+    _, archive, jobs = sync_components
+    with caplog.at_level("WARNING", logger="douyin_archive.sync_service"):
+        result = await SyncService(FailingProvider(), archive, jobs).run(full_scan=False)
+    assert result.error_code == "DOUYIN_RESPONSE_CHANGED"
+    assert "account tab did not become active" in caplog.text
+    assert "TimeoutError: tab never loaded" in caplog.text
+
+
 async def test_account_source_failure_does_not_leave_running_status(
     sync_components, caplog
 ) -> None:
