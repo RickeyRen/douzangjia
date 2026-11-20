@@ -47,6 +47,7 @@ struct RemoteImage: View {
     let path: String?
     var contentMode: ContentMode = .fill
     var failureIcon = "photo"
+    var placeholder: Color = Theme.panel2
     @State private var image: UIImage?
     @State private var failed = false
 
@@ -56,7 +57,7 @@ struct RemoteImage: View {
             if let shown = image ?? url.flatMap({ ImageStore.shared.cached($0) }) {
                 Image(uiImage: shown).resizable().aspectRatio(contentMode: contentMode)
             } else {
-                Rectangle().fill(Theme.panel2)
+                Rectangle().fill(placeholder)
                     .overlay {
                         if failed, !failureIcon.isEmpty { Image(systemName: failureIcon).foregroundStyle(Theme.dim) }
                     }

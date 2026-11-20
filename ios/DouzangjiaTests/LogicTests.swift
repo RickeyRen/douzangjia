@@ -99,7 +99,7 @@ final class ShareNamingTests: XCTestCase {
 
     func testExtensionsFollowTheStoredType() {
         func file(_ type: String, _ mime: String?) -> MediaFile {
-            MediaFile(id: 1, index: 0, type: type, byteSize: nil, mimeType: mime, url: "/api/media/1", posterUrl: nil)
+            MediaFile(id: 1, index: 0, type: type, byteSize: nil, mimeType: mime, url: "/api/media/1", posterUrl: nil, technical: nil)
         }
         XCTAssertEqual(ShareNaming.fileExtension(file("video", "video/mp4")), "mp4")
         XCTAssertEqual(ShareNaming.fileExtension(file("video", "video/quicktime")), "mov")
@@ -141,5 +141,15 @@ final class ChunkedTests: XCTestCase {
     func testEmptyAndExactSizes() {
         XCTAssertTrue([String]().chunked(500).isEmpty)
         XCTAssertEqual(Array(repeating: "a", count: 500).chunked(500).count, 1)
+    }
+}
+
+final class PlayerCountTests: XCTestCase {
+    func testCountsReadLikeDouyin() {
+        XCTAssertEqual(PlayerPage.compactCount(9999), "9999")
+        XCTAssertEqual(PlayerPage.compactCount(10_000), "1万")
+        XCTAssertEqual(PlayerPage.compactCount(12_345), "1.2万")
+        XCTAssertEqual(PlayerPage.compactCount(1_234_567), "123万")
+        XCTAssertEqual(PlayerPage.compactCount(340_000_000), "3.4亿")
     }
 }

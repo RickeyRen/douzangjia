@@ -23,8 +23,14 @@ struct MediaFile: Decodable, Hashable {
     let mimeType: String?
     let url: String
     let posterUrl: String?
+    let technical: MediaTechnical?
 
     var isVideo: Bool { type == "video" || (mimeType ?? "").hasPrefix("video/") }
+}
+
+struct MediaTechnical: Decodable, Hashable {
+    let width: Int?
+    let height: Int?
 }
 
 struct LocalArchiveState: Decodable, Hashable {
@@ -38,6 +44,13 @@ struct LocalArchiveState: Decodable, Hashable {
 struct DouyinInfo: Decodable, Hashable {
     let statistics: [String: Int]?
     let durationMs: Int?
+    let hashtags: [String]?
+    let music: DouyinMusic?
+}
+
+struct DouyinMusic: Decodable, Hashable {
+    let title: String?
+    let author: String?
 }
 
 struct FeedCreator: Decodable, Hashable {
