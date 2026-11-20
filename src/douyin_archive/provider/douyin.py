@@ -18,6 +18,7 @@ from .base import (
     ProviderChanged,
     ProviderError,
     ProviderUnavailable,
+    RateLimited,
     RawPageSource,
     RemoteCollection,
     RemotePage,
@@ -378,7 +379,7 @@ class PlaywrightDouyinSource:
         """Fetch current detail records, whose play URLs are freshly signed."""
         await self.open()
         if "douyin.com" not in str(self._page.url):
-            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+            await self._goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         payload = await self._fetch_aweme_details(item_ids)
         records = [record for record in payload.get("aweme_list", []) if isinstance(record, dict)]
         # Works Douyin answered for but will not show come back as markers, so
@@ -393,7 +394,7 @@ class PlaywrightDouyinSource:
         """Douyin's own profile record, which also states bans and closed accounts."""
         await self.open()
         if "douyin.com" not in str(self._page.url):
-            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+            await self._goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         result = await self._evaluate_surviving_navigation(
             """
             async ({creatorId}) => { // __douzangjiaCreatorProfileApi
@@ -452,7 +453,7 @@ class PlaywrightDouyinSource:
                 if record is not None:
                     return record
         await self.open()
-        await self._page.goto(
+        await self._goto(
             f"https://www.douyin.com/user/{creator_id}",
             wait_until="domcontentloaded",
             timeout=45_000,
@@ -499,7 +500,7 @@ class PlaywrightDouyinSource:
         """Probe one item without trusting cached discovery payloads."""
         await self.open()
         if "douyin.com" not in str(self._page.url):
-            await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+            await self._goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         try:
             result = await self._page.evaluate(
                 """
@@ -573,7 +574,7 @@ class PlaywrightDouyinSource:
 
     async def fetch_collections(self) -> dict:
         await self.open()
-        await self._page.goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
+        await self._goto(self.FAVORITES_URL, wait_until="domcontentloaded", timeout=45_000)
         direct_payload = await self._fetch_collections_api()
         signer_capabilities = await self._page.evaluate(
             """
@@ -741,8 +742,34 @@ class PlaywrightDouyinSource:
         if previous_payload is not None:
             yield {**previous_payload, "has_more": False}
 
+    HTTP_ERROR_PAGE = "ERR_HTTP_RESPONSE_CODE_FAILURE"
+    HTTP_ERROR_RETRY_DELAY_MS = 5_000
+
+    async def _goto(self, url: str, **kwargs: Any) -> None:
+        """Navigate, giving Douyin one more try when it answers with an error page.
+
+        Douyin now and then serves a bare HTTP error for its own pages. Failing the
+        whole run there threw away every list already scanned; the next run five
+        minutes later would load the same page anyway, so one delayed retry adds no
+        traffic in the long run.
+        """
+        try:
+            await self._page.goto(url, **kwargs)
+            return
+        except Exception as error:
+            if self.HTTP_ERROR_PAGE not in str(error):
+                raise
+            logger.warning("Douyin answered %s with an error page; retrying once", url)
+        await self._page.wait_for_timeout(self.HTTP_ERROR_RETRY_DELAY_MS)
+        try:
+            await self._page.goto(url, **kwargs)
+        except Exception as error:
+            if self.HTTP_ERROR_PAGE not in str(error):
+                raise
+            raise RateLimited(f"Douyin kept answering {url} with an error page") from error
+
     async def _open_account_source(self, kind: str, target_url: str) -> None:
-        await self._page.goto(
+        await self._goto(
             target_url,
             wait_until="domcontentloaded",
             timeout=45_000,
@@ -752,7 +779,7 @@ class PlaywrightDouyinSource:
             await self._activate_profile_tab(labels)
 
     async def _open_nested_link(self, nested_link: str) -> None:
-        await self._page.goto(nested_link, wait_until="domcontentloaded", timeout=45_000)
+        await self._goto(nested_link, wait_until="domcontentloaded", timeout=45_000)
         await self._page.wait_for_timeout(800)
 
     async def _reopen_after_crash(
@@ -788,7 +815,7 @@ class PlaywrightDouyinSource:
         if kind not in self.SUPPORTED_ACCOUNT_ENTITY_SOURCES:
             raise ProviderChanged("unsupported Douyin account entity source")
         await self.open()
-        await self._page.goto(
+        await self._goto(
             self.FAVORITE_MUSIC_URL,
             wait_until="domcontentloaded",
             timeout=45_000,
@@ -939,7 +966,7 @@ class PlaywrightDouyinSource:
         signature, so this only reads the responses of normal browsing.
         """
         await self.open()
-        await self._page.goto(
+        await self._goto(
             f"https://www.douyin.com/user/{creator_id}",
             wait_until="domcontentloaded",
             timeout=45_000,
@@ -971,7 +998,7 @@ class PlaywrightDouyinSource:
         full_scan: bool = True,
     ) -> AsyncIterator[dict]:
         await self.open()
-        await self._page.goto(
+        await self._goto(
             f"https://www.douyin.com/user/{creator_id}",
             wait_until="domcontentloaded",
             timeout=45_000,
