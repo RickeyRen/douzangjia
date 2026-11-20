@@ -495,4 +495,10 @@ export const en: Record<string, string> = {
   "收藏的作品发布于": "When your favourites were published",
   "按作品在抖音上的发布年份": "By the year each work was published on Douyin",
   "{y} 年发布：{n} 个": "Published in {y}: {n}",
+  "评论没有存档": "Comments are not archived",
+  "@{name}创作的原声": "Original sound - @{name}",
+  "加载中": "Loading",
+  "收藏与整理": "Collect and organize",
+  "2 倍速播放中": "Playing at 2x",
+  "复制抖音链接": "Copy Douyin link",
 };

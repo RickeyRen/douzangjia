@@ -4,25 +4,29 @@ import {
   CaretLeft,
   CaretRight,
   CaretUp,
+  ChatCircleDots,
   CloudArrowDown,
   CloudCheck,
   DownloadSimple,
+  Heart,
   Info,
   LinkSimple,
+  MusicNotesSimple,
   Play,
   Repeat,
+  ShareFat,
   SpeakerHigh,
   SpeakerSlash,
   Star,
   X,
   ArrowClockwise,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState, type RefObject, type TouchEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode, type RefObject, type TouchEvent, type WheelEvent } from "react";
 
 import { unsavedWorkRisk } from "../lib/creatorArchive";
 import { archiveItem, checkRemoteAvailability, fetchItem, type FeedItem, type RemoteAvailability } from "../app/api";
 import { useAppData } from "../app/appDataContext";
-import { formatBytes, formatClock, formatCount, formatDate, formatDuration } from "../lib/format";
+import { formatBytes, formatClock, formatCount, formatDate, formatDuration, formatRelative } from "../lib/format";
 import { Avatar, Spinner } from "../ui/primitives";
 import { AddToAlbumButton, NoteEditor, TagEditor } from "./Organize";
 import { usePlaybackResume } from "./usePlaybackResume";
@@ -62,6 +66,42 @@ function safePlay(video: HTMLVideoElement) {
 }
 
 const isDesktop = () => typeof window !== "undefined" && window.matchMedia?.("(min-width: 901px)").matches !== false;
+
+/** Douyin writes counts tight: 1.2万, not 1.2 万. */
+function railCount(value: number | undefined, fallback: string): string {
+  return typeof value === "number" && value > 0 ? formatCount(value).replace(" ", "") : fallback;
+}
+
+/** The caption with every #tag set apart, as Douyin does; a tag searches for itself. */
+function captionParts(text: string, onTag?: (tag: string) => void): ReactNode[] {
+  return text.split(/(#[^\s#@]+)/).map((part, position) =>
+    part.startsWith("#") && part.length > 1 ? (
+      <strong
+        key={position}
+        className="player-hashtag"
+        onClick={(event) => {
+          if (!onTag) return;
+          event.stopPropagation();
+          onTag(part.slice(1));
+        }}
+      >
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+/** "Song - Singer", or Douyin's own wording for a creator's original sound. */
+function musicLine(item: FeedItem, name: string): string {
+  const music = item.douyin?.music ?? null;
+  const title = typeof music?.title === "string" ? music.title.trim() : "";
+  const author = typeof music?.author === "string" ? music.author.trim() : "";
+  if (title && author && !title.includes(author)) return `${title} - ${author}`;
+  if (title) return title;
+  return t("@{name}创作的原声", { name });
+}
 
 const REMOTE_LABEL: Record<RemoteAvailability["status"], { text: string; tone: string }> = {
   available: { text: t("抖音上仍可访问"), tone: "badge-success" },
@@ -109,6 +149,7 @@ export function Player({
   const [autoNext, setAutoNext] = useState(() => readFlag(AUTOPLAY_KEY, false));
   const [panelOpen, setPanelOpen] = useState(() => isDesktop() && readFlag(PANEL_KEY, false));
   const [imageIndex, setImageIndex] = useState(0);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const autoSaved = useRef(new Set<string>());
   // The streamed work whose download the player is waiting on.
@@ -162,7 +203,10 @@ export function Player({
     [finishSlide, hasMore, index, items.length, onLoadMore],
   );
 
-  useEffect(() => setImageIndex(0), [item?.awemeId]);
+  useEffect(() => {
+    setImageIndex(0);
+    setCaptionExpanded(false);
+  }, [item?.awemeId]);
 
   useEffect(() => {
     if (hasMore && index >= items.length - 3) onLoadMore?.();
@@ -181,6 +225,11 @@ export function Player({
     const result = await toggleStar(item);
     if (result !== null) onItemPatch?.(item.awemeId, { starred: result });
   }, [item, onItemPatch, toggleStar]);
+
+  // A double tap only ever adds, like Douyin's heart; undoing is the rail button.
+  const like = useCallback(() => {
+    if (item && !item.starred) void star();
+  }, [item, star]);
 
   const wake = useCallback(() => {
     setIdle(false);
@@ -414,6 +463,8 @@ export function Player({
   }
 
   const name = item.creator?.nickname || item.author;
+  const statistics = item.douyin?.statistics ?? {};
+  const organized = Boolean(item.albums?.length || item.tags?.length || item.note);
   const currentVideo = item.media.find((media) => media.type === "video");
   const playable = (Boolean(currentVideo) && item.local.state === "downloaded") || (canStream(item) && !streamFailed.has(item.awemeId));
   // Previous, current and next sit on one track; keys keep each slide's element
@@ -458,6 +509,7 @@ export function Player({
                 if (autoNext && !atEnd) go(1);
               }}
               onDownload={() => void downloadNow(slide)}
+              onLike={like}
               streamFailed={streamFailed.has(slide.awemeId)}
               onStreamError={() => setStreamFailed((failed) => new Set(failed).add(slide.awemeId))}
             />
@@ -516,29 +568,65 @@ export function Player({
           </button>
         </div>
 
-        <div className="player-nav">
-          <button type="button" className="player-rail-avatar" aria-label={t("打开 {name} 的主页", { name })} onClick={() => onOpenCreator?.(item.creatorId, name)}>
-            <Avatar src={item.creator?.avatarUrl} name={name} />
-          </button>
-          <button type="button" className={`icon-btn player-glass${item.starred ? " is-active" : ""}`} aria-label={item.starred ? t("取消精选") : t("加入精选")} aria-pressed={Boolean(item.starred)} onClick={() => void star()}>
-            <Star size={22} weight={item.starred ? "fill" : "regular"} />
-          </button>
-          <button type="button" className={`icon-btn player-glass${panelOpen ? " is-active" : ""}`} aria-label={t("作品详情")} onClick={togglePanel}>
-            <Info size={22} />
-          </button>
-          <button type="button" className="icon-btn player-glass is-desktop" aria-label={t("上一个")} disabled={atStart} onClick={() => go(-1)}>
+        <div className="player-arrows">
+          <button type="button" className="icon-btn player-glass" aria-label={t("上一个")} disabled={atStart} onClick={() => go(-1)}>
             <CaretUp size={22} weight="bold" />
           </button>
-          <button type="button" className="icon-btn player-glass is-desktop" aria-label={t("下一个")} disabled={atEnd} onClick={() => go(1)}>
+          <button type="button" className="icon-btn player-glass" aria-label={t("下一个")} disabled={atEnd} onClick={() => go(1)}>
             <CaretDown size={22} weight="bold" />
           </button>
         </div>
 
-        <div className="player-caption">
-          <button type="button" className="player-author" onClick={() => onOpenCreator?.(item.creatorId, name)}>
-            @{name}
+        <div className="player-nav">
+          <button type="button" className="player-rail-avatar" aria-label={t("打开 {name} 的主页", { name })} onClick={() => onOpenCreator?.(item.creatorId, name)}>
+            <Avatar src={item.creator?.avatarUrl} name={name} />
           </button>
-          {item.description ? <p>{item.description}</p> : null}
+          <button
+            type="button"
+            className={`rail-action${item.starred ? " is-liked" : ""}`}
+            aria-label={item.starred ? t("取消精选") : t("加入精选")}
+            aria-pressed={Boolean(item.starred)}
+            onClick={() => void star()}
+          >
+            <Heart size={36} weight="fill" />
+            <span>{railCount(statistics.diggCount, t("精选"))}</span>
+          </button>
+          <span className="rail-action is-static" role="img" aria-label={t("评论没有存档")} title={t("评论没有存档")}>
+            <ChatCircleDots size={36} weight="fill" />
+            <span>{railCount(statistics.commentCount, t("评论"))}</span>
+          </span>
+          <button
+            type="button"
+            className={`rail-action${organized ? " is-organized" : ""}`}
+            aria-label={t("收藏与整理")}
+            aria-pressed={panelOpen}
+            onClick={togglePanel}
+          >
+            <Star size={36} weight="fill" />
+            <span>{railCount(statistics.collectCount, t("收藏"))}</span>
+          </button>
+          <button type="button" className="rail-action" aria-label={t("复制抖音链接")} onClick={() => void copyLink()}>
+            <ShareFat size={36} weight="fill" />
+            <span>{railCount(statistics.shareCount, t("分享"))}</span>
+          </button>
+        </div>
+
+        <div className="player-caption">
+          <div className="player-byline">
+            <button type="button" className="player-author" onClick={() => onOpenCreator?.(item.creatorId, name)}>
+              @{name}
+            </button>
+            {item.publishedAt ? <span className="player-date">· {formatRelative(item.publishedAt)}</span> : null}
+          </div>
+          {item.description ? (
+            <p className={captionExpanded ? "is-expanded" : undefined} onClick={() => setCaptionExpanded((value) => !value)}>
+              {captionParts(item.description, onSearch)}
+            </p>
+          ) : null}
+          <div className="player-music">
+            <MusicNotesSimple size={14} weight="bold" />
+            <span>{musicLine(item, name)}</span>
+          </div>
         </div>
       </div>
 
@@ -573,6 +661,7 @@ function PlayerSlide({
   onMutedChange,
   onEnded,
   onDownload,
+  onLike,
   streamFailed,
   onStreamError,
 }: {
@@ -585,12 +674,22 @@ function PlayerSlide({
   onMutedChange: (muted: boolean) => void;
   onEnded: () => void;
   onDownload: () => void;
+  onLike: () => void;
   streamFailed: boolean;
   onStreamError: () => void;
 }) {
   const current = offset === 0;
   const element = useRef<HTMLVideoElement | null>(null);
+  const slideRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  // The cover stands in until the first frame is drawn, so opening never shows black.
+  const [firstFrame, setFirstFrame] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [measured, setMeasured] = useState<{ width: number; height: number } | null>(null);
+  const [hearts, setHearts] = useState<{ id: number; x: number; y: number; tilt: number }[]>([]);
+  const [fast, setFast] = useState(false);
+  const clicks = useRef<{ last: number; timer?: number; swallow: boolean }>({ last: -Infinity, swallow: false });
+  const hold = useRef<{ timer: number; x: number; y: number; rate: number; active: boolean } | null>(null);
   const images = item.media.filter((media) => media.type === "image");
   const video = item.media.find((media) => media.type === "video");
   const downloaded = item.local.state === "downloaded";
@@ -603,6 +702,22 @@ function PlayerSlide({
   const [firstSource] = useState(wanted);
   const playingStream = firstSource !== null && firstSource === streamUrl(item.awemeId);
   const source = playingStream && downloaded ? firstSource : wanted;
+
+  const known = video?.technical?.width && video.technical.height ? { width: video.technical.width, height: video.technical.height } : null;
+  const size = measured ?? known;
+  // Upright videos fill a phone screen edge to edge, as on Douyin.
+  const portrait = Boolean(size && size.height > size.width * 1.2);
+
+  useEffect(() => {
+    if (!current || firstFrame) return;
+    const timer = window.setTimeout(() => setSlow(true), 800);
+    return () => window.clearTimeout(timer);
+  }, [current, firstFrame]);
+
+  useEffect(() => () => {
+    window.clearTimeout(clicks.current.timer);
+    if (hold.current) window.clearTimeout(hold.current.timer);
+  }, []);
 
   const setVideo = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -634,8 +749,60 @@ function PlayerSlide({
     else node.pause();
   }
 
+  /** One tap pauses; a second within 300 ms is a double tap that drops a heart instead. */
+  function onVideoClick(event: MouseEvent<HTMLVideoElement>) {
+    const state = clicks.current;
+    if (state.swallow) {
+      state.swallow = false;
+      return;
+    }
+    const now = performance.now();
+    if (now - state.last < 300) {
+      window.clearTimeout(state.timer);
+      state.last = -Infinity;
+      const box = slideRef.current?.getBoundingClientRect();
+      const heart = { id: now, x: event.clientX - (box?.left ?? 0), y: event.clientY - (box?.top ?? 0), tilt: Math.round(Math.random() * 30 - 15) };
+      setHearts((list) => [...list, heart]);
+      window.setTimeout(() => setHearts((list) => list.filter((entry) => entry.id !== heart.id)), 900);
+      onLike();
+      return;
+    }
+    state.last = now;
+    state.timer = window.setTimeout(togglePlay, 260);
+  }
+
+  /** Holding a finger on the video plays it at 2x until it lifts. */
+  function onHoldStart(event: PointerEvent<HTMLVideoElement>) {
+    if (event.pointerType === "mouse" || !current) return;
+    const node = element.current;
+    if (!node) return;
+    const entry = { timer: 0, x: event.clientX, y: event.clientY, rate: node.playbackRate, active: false };
+    entry.timer = window.setTimeout(() => {
+      entry.active = true;
+      clicks.current.swallow = true;
+      node.playbackRate = 2;
+      setFast(true);
+    }, 400);
+    hold.current = entry;
+  }
+
+  function onHoldMove(event: PointerEvent<HTMLVideoElement>) {
+    const entry = hold.current;
+    if (entry && !entry.active && Math.hypot(event.clientX - entry.x, event.clientY - entry.y) > 10) onHoldEnd();
+  }
+
+  function onHoldEnd() {
+    const entry = hold.current;
+    hold.current = null;
+    if (!entry) return;
+    window.clearTimeout(entry.timer);
+    if (!entry.active) return;
+    if (element.current) element.current.playbackRate = entry.rate;
+    setFast(false);
+  }
+
   return (
-    <div className="player-slide" style={{ transform: `translate3d(0, ${offset * 100}%, 0)` }} aria-hidden={!current}>
+    <div ref={slideRef} className="player-slide" style={{ transform: `translate3d(0, ${offset * 100}%, 0)` }} aria-hidden={!current}>
       {backdrop ? <div className="player-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} /> : null}
       <div className="player-media">
         {source ? (
@@ -643,13 +810,27 @@ function PlayerSlide({
             <video
               ref={setVideo}
               src={source}
+              className={portrait ? "is-portrait" : undefined}
               poster={downloaded ? video?.posterUrl : undefined}
-              // Only the next page buffers ahead; the previous one just keeps its frame.
-              preload={offset >= 0 ? "auto" : "metadata"}
+              // The next saved page buffers ahead so a swipe plays at once. A page
+              // still on Douyin waits until it is opened: no extra Douyin traffic.
+              preload={current ? "auto" : streaming || playingStream ? "none" : offset > 0 ? "auto" : "metadata"}
               playsInline
               muted={muted}
               loop={loop}
-              onClick={togglePlay}
+              onClick={onVideoClick}
+              onPointerDown={onHoldStart}
+              onPointerMove={onHoldMove}
+              onPointerUp={onHoldEnd}
+              onPointerCancel={onHoldEnd}
+              onPointerLeave={onHoldEnd}
+              onContextMenu={(event) => event.preventDefault()}
+              onLoadedMetadata={(event) => {
+                const { videoWidth, videoHeight } = event.currentTarget;
+                if (videoWidth && videoHeight) setMeasured({ width: videoWidth, height: videoHeight });
+              }}
+              onLoadedData={() => setFirstFrame(true)}
+              onPlaying={() => setFirstFrame(true)}
               onError={streaming ? onStreamError : undefined}
               onPlay={() => setPaused(false)}
               onPause={(event) => {
@@ -665,6 +846,24 @@ function PlayerSlide({
                 if (current) onEnded();
               }}
             />
+            {!firstFrame && backdrop ? (
+              <img className={`player-cover${portrait ? " is-portrait" : ""}`} src={backdrop} alt="" draggable={false} referrerPolicy="no-referrer" />
+            ) : null}
+            {current && !firstFrame && slow ? (
+              <span className="player-loading" role="status" aria-label={t("加载中")}>
+                <Spinner size={30} />
+              </span>
+            ) : null}
+            {hearts.map((heart) => (
+              <span key={heart.id} className="heart-burst" style={{ left: heart.x, top: heart.y, ["--tilt" as string]: `${heart.tilt}deg` }} aria-hidden="true">
+                <Heart size={96} weight="fill" />
+              </span>
+            ))}
+            {current && fast ? (
+              <span className="player-fast" role="status">
+                {t("2 倍速播放中")}
+              </span>
+            ) : null}
             {current && resume.resumedAt !== null ? (
               <div className="player-resume" role="status">
                 <span>{t("从 {time} 继续播放", { time: formatClock(resume.resumedAt / 1000) })}</span>

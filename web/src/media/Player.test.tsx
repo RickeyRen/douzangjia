@@ -215,3 +215,49 @@ it("jumps 10 seconds inside a video with Shift+arrows instead of changing works"
   expect(video.currentTime).toBe(0);
   expect(onIndexChange).not.toHaveBeenCalled();
 });
+
+it("lays the page out like Douyin: counts on the rail, tags and sound in the caption", () => {
+  const item = makeItem({
+    awemeId: "7000000000000000120",
+    description: "春天的海边 #旅行 #vlog",
+    douyin: { statistics: { diggCount: 12345, commentCount: 264, collectCount: 0, shareCount: 3 }, durationMs: 10000, hashtags: ["旅行", "vlog"], music: { title: "海风", author: "某歌手" } },
+  } as never);
+  renderPlayer({ items: [item] });
+
+  expect(screen.getByRole("button", { name: "加入精选" })).toHaveTextContent("1.2万");
+  expect(screen.getByRole("img", { name: "评论没有存档" })).toHaveTextContent("264");
+  expect(screen.getByRole("button", { name: "收藏与整理" })).toHaveTextContent("收藏");
+  expect(screen.getByText("#旅行").tagName).toBe("STRONG");
+  expect(screen.getByText("海风 - 某歌手")).toBeInTheDocument();
+});
+
+it("stars on a double tap but never unstars, and a single tap waits to tell them apart", async () => {
+  vi.useFakeTimers();
+  try {
+    const { appData } = renderPlayer();
+    const video = document.querySelector(".player-slide[aria-hidden='false'] video")!;
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+
+    fireEvent.click(video);
+    fireEvent.click(video);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(appData.toggleStar).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(".heart-burst")).not.toBeNull();
+    pause.mockRestore();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("shows the cover until the first frame and does not buffer a neighbour still on Douyin", () => {
+  const streamed = makeItem({ awemeId: "7000000000000000121", media: [], local: { state: "failed", readyAssets: 0, totalAssets: 1, downloadedBytes: 0, totalBytes: null } });
+  renderPlayer({ items: [items[0], streamed] });
+
+  const [current, next] = document.querySelectorAll("video");
+  expect(next.getAttribute("preload")).toBe("none");
+  const cover = () => document.querySelector(".player-slide[aria-hidden='false'] .player-cover");
+  expect(cover()).not.toBeNull();
+  fireEvent.loadedData(current);
+  expect(cover()).toBeNull();
+});
