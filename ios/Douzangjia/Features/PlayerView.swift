@@ -16,6 +16,10 @@ struct PlayerView: View {
     /// The page actually on screen, as the scroll view reports it.
     @State private var visible: String?
     @State private var galleryZoomed = false
+    /// The screen's real safe area. The pages run edge to edge, so the chrome on
+    /// them reads this instead of guessing: it differs between devices and changes
+    /// when an iPhone Duo folds or unfolds.
+    @State private var safeInsets = EdgeInsets()
     var onItemChange: (FeedItem) -> Void = { _ in }
 
     init(items: [FeedItem], startIndex: Int, onItemChange: @escaping (FeedItem) -> Void = { _ in }) {
@@ -40,7 +44,7 @@ struct PlayerView: View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach($items) { $item in
-                    PlayerPage(item: $item, isCurrent: current == item.id, video: pool.controller(for: item.id), galleryZoomed: $galleryZoomed, onItemChange: onItemChange)
+                    PlayerPage(item: $item, isCurrent: current == item.id, video: pool.controller(for: item.id), insets: safeInsets, galleryZoomed: $galleryZoomed, onItemChange: onItemChange)
                         .containerRelativeFrame([.horizontal, .vertical])
                         .id(item.id)
                 }
@@ -70,6 +74,7 @@ struct PlayerView: View {
         }
         .scrollIndicators(.hidden)
         .ignoresSafeArea()
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { safeInsets = $0 }
         .background(.black)
         .environment(\.colorScheme, .dark)
         .overlay(alignment: .topLeading) {
@@ -133,6 +138,8 @@ struct PlayerPage: View {
     @Binding var item: FeedItem
     let isCurrent: Bool
     let video: VideoController
+    /// Safe area of the screen this edge-to-edge page sits on.
+    var insets = EdgeInsets()
     @Binding var galleryZoomed: Bool
     let onItemChange: (FeedItem) -> Void
     @State private var queued = false
@@ -171,13 +178,14 @@ struct PlayerPage: View {
             details
             if playableURL != nil {
                 VideoProgressBar(video: video)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 22)
+                    .padding(.leading, insets.leading + 12)
+                    .padding(.trailing, insets.trailing + 12)
+                    .padding(.bottom, max(insets.bottom - 12, 8))
             }
         }
-        // Level with the back button, which sits just under the Dynamic Island.
+        // Level with the back button, which sits just inside the safe area.
         .overlay(alignment: .topTrailing) {
-            moreMenu.padding(.top, 70).padding(.trailing, 8)
+            moreMenu.padding(.top, insets.top + 8).padding(.trailing, insets.trailing + 8)
         }
     }
 
@@ -252,7 +260,7 @@ struct PlayerPage: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(.black.opacity(0.55), in: Capsule())
-            .padding(.top, 60)
+            .padding(.top, insets.top + 8)
             .allowsHitTesting(false)
     }
 
@@ -262,7 +270,7 @@ struct PlayerPage: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(Color.green.opacity(0.55), in: Capsule())
-            .padding(.top, 60)
+            .padding(.top, insets.top + 8)
             .allowsHitTesting(false)
     }
 
@@ -307,10 +315,10 @@ struct PlayerPage: View {
             actionColumn
         }
         .foregroundStyle(.white)
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.bottom, 44)
-        .padding(.top, 80)
+        .padding(.leading, insets.leading + 14)
+        .padding(.trailing, insets.trailing + 8)
+        .padding(.bottom, insets.bottom + 10)
+        .padding(.top, insets.top + 20)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
         .sheet(isPresented: $organizing) {
             OrganizeSheet(item: $item, onItemChange: onItemChange)
@@ -796,6 +804,19 @@ final class VideoController {
     }
 }
 
+/// Whether a video fills its page edge to edge or sits in it whole.
+enum VideoFit {
+    /// Fill, as Douyin does with an upright video on a phone, only when that crops
+    /// at most a fifth of the picture. An upright video on the unfolded iPhone Duo
+    /// or an iPad, or a wide one on a phone, is shown whole instead.
+    static func fills(video: CGSize, in page: CGSize) -> Bool {
+        guard video.width > 0, video.height > 0, page.width > 0, page.height > 0 else { return false }
+        let videoAspect = video.width / video.height
+        let pageAspect = page.width / page.height
+        return max(videoAspect / pageAspect, pageAspect / videoAspect) <= 1.25
+    }
+}
+
 private struct VideoPage: View {
     @Environment(\.scenePhase) private var scenePhase
     let video: VideoController
@@ -810,12 +831,11 @@ private struct VideoPage: View {
     let onDoubleTap: (CGPoint) -> Void
     /// Only a load that drags on gets a spinner; a quick one shows just the cover.
     @State private var slow = false
+    @State private var pageSize: CGSize = .zero
 
-    /// Upright videos fill the screen edge to edge, as on Douyin; wide ones sit
-    /// in the middle whole.
     private var fills: Bool {
         let size = video.videoSize == .zero ? (knownSize ?? .zero) : video.videoSize
-        return size.height > size.width * 1.2
+        return VideoFit.fills(video: size, in: pageSize)
     }
 
     var body: some View {
@@ -862,6 +882,7 @@ private struct VideoPage: View {
             }
         }
         .animation(.easeOut(duration: 0.15), value: video.firstFrameShown)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { pageSize = $0 }
         .contentShape(Rectangle())
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(video.paused ? "继续播放" : "暂停")

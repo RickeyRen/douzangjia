@@ -153,3 +153,27 @@ final class PlayerCountTests: XCTestCase {
         XCTAssertEqual(PlayerPage.compactCount(340_000_000), "3.4亿")
     }
 }
+
+final class VideoFitTests: XCTestCase {
+    private let upright = CGSize(width: 1080, height: 1920)
+    private let wide = CGSize(width: 1920, height: 1080)
+
+    func testUprightVideoFillsAPhoneAndTheFoldedDuo() {
+        XCTAssertTrue(VideoFit.fills(video: upright, in: CGSize(width: 402, height: 874)))
+        XCTAssertTrue(VideoFit.fills(video: upright, in: CGSize(width: 466, height: 678)))
+    }
+
+    func testUprightVideoSitsWholeOnTheUnfoldedDuoAndAnIPad() {
+        XCTAssertFalse(VideoFit.fills(video: upright, in: CGSize(width: 951, height: 669)))
+        XCTAssertFalse(VideoFit.fills(video: upright, in: CGSize(width: 1024, height: 1366)))
+    }
+
+    func testWideVideoSitsWholeOnAPhone() {
+        XCTAssertFalse(VideoFit.fills(video: wide, in: CGSize(width: 402, height: 874)))
+    }
+
+    func testUnknownSizesDoNotCrop() {
+        XCTAssertFalse(VideoFit.fills(video: .zero, in: CGSize(width: 402, height: 874)))
+        XCTAssertFalse(VideoFit.fills(video: upright, in: .zero))
+    }
+}
